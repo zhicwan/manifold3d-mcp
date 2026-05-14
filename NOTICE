@@ -1,0 +1,9 @@
+manifold-mcp
+Copyright 2026 Zhicheng Wang
+
+This product includes software developed at
+The Manifold Authors (https://github.com/elalish/manifold).
+Portions of src/server/sandbox/garbage-collector.ts and the
+documentation under skills/use-manifold/references/ are adapted from
+the Manifold project, which is licensed under the Apache License,
+Version 2.0.

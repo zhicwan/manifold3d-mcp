@@ -1,0 +1,71 @@
+@import 'tailwindcss';
+
+/*
+ * Tailwind v4 theme tokens. Inlined here (no separate tailwind.config) —
+ * v4 reads these from CSS custom properties under @theme directly.
+ *
+ * shadcn/ui's default token set, re-named under our 'manifold-mcp' palette so
+ * downstream components (button, popover, tooltip…) get the right
+ * colors via class-variance-authority. Adjust the HSL values to retune
+ * the look later without touching components.
+ */
+@theme {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(240 10% 4%);
+
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(240 10% 4%);
+
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(240 10% 4%);
+
+  --color-primary: #00786f;
+  --color-primary-foreground: hsl(0 0% 98%);
+
+  --color-secondary: #e6f4f3;
+  --color-secondary-foreground: #00564f;
+
+  --color-muted: hsl(240 5% 96%);
+  --color-muted-foreground: hsl(240 4% 46%);
+
+  --color-accent: #e0f7f5;
+  --color-accent-foreground: #00675f;
+
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+
+  --color-border: hsl(240 6% 90%);
+  --color-input: hsl(240 6% 90%);
+  --color-ring: #00786f;
+
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+}
+
+/*
+ * The viewer is a fullscreen canvas with floating chrome. Body/canvas
+ * resets live here (not in a component) because the canvas is
+ * controlled imperatively by Three.js, not React.
+ */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font:
+    14px/1.4 'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+canvas#view {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+}

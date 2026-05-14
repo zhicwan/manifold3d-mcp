@@ -1,0 +1,5 @@
+dist/
+node_modules/
+package-lock.json
+samples/manifold-sandbox.d.ts
+skills/use-manifold/references/manifold-sandbox.d.ts

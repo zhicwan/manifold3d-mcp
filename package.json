@@ -1,0 +1,88 @@
+{
+  "name": "@zhicwan/manifold-mcp",
+  "version": "0.0.1",
+  "description": "MCP server that lets an LLM build 3D models with manifold-3d, with live three.js preview and STL/3MF export.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhicwan/manifold-mcp.git"
+  },
+  "homepage": "https://github.com/zhicwan/manifold-mcp",
+  "bugs": {
+    "url": "https://github.com/zhicwan/manifold-mcp/issues"
+  },
+  "keywords": ["mcp", "manifold-3d", "3d-printing", "cad", "llm", "claude-code", "copilot-cli"],
+  "bin": {
+    "manifold-mcp": "dist/server/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prebuild": "npm run clean",
+    "build": "npm run build:viewer && npm run build:server && npm run build:sandbox-types",
+    "build:server": "tsc -p tsconfig.json",
+    "build:viewer": "vite build --config src/viewer/vite.config.ts",
+    "build:sandbox-types": "node scripts/emit-sandbox-types.mjs",
+    "mcp": "vite build --config src/viewer/vite.config.ts --logLevel error && npm run -s build:server && npm run -s build:sandbox-types && node dist/server/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/viewer/tsconfig.json --noEmit && tsc -p samples/tsconfig.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
+    "dev": "vite --config src/viewer/vite.config.ts",
+    "dev:server": "tsc -w -p tsconfig.json",
+    "start": "node dist/server/index.js",
+    "test": "npm run -s test:unit && npm run -s test:smoke",
+    "test:unit": "vitest run --config vitest.config.ts --dir tests --exclude **/smoke.test.ts",
+    "test:smoke": "npm run -s build && vitest run --config vitest.config.ts tests/smoke.test.ts",
+    "test:watch": "vitest --config vitest.config.ts --dir tests --exclude **/smoke.test.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm test",
+    "prepack": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "manifold-3d": "^3.4.1",
+    "open": "^11.0.0",
+    "source-map": "^0.7.6",
+    "typescript": "^6.0.3",
+    "ws": "^8.20.0",
+    "yaml": "^2.8.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@jscadui/3mf-export": "^0.5.0",
+    "@radix-ui/react-toggle-group": "^1.1.11",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.184.1",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "fflate": "^0.8.2",
+    "lucide-react": "^1.14.0",
+    "prettier": "^3.8.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.3.0",
+    "three": "^0.184.0",
+    "three-viewport-gizmo": "^2.2.0",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.11",
+    "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
