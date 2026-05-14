@@ -1,0 +1,189 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildCodeFrame (VAL-5) > clamps to single line when source has only one line 1`] = `
+"line 1 | result = Manifold.box([1, 1, 1]);
+       |          ~~~~~~~~"
+`;
+
+exports[`buildCodeFrame (VAL-5) > renders a 3-line frame with caret on the column range 1`] = `
+"line 2 | const b = 2;
+line 3 | result = boom(a, b);
+       |          ~~~~
+line 4 | const c = 3;"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > geometry BBOX_TOO_LARGE warning on otherwise OK report 1`] = `
+"ok: true
+stage: ok
+errors: []
+warnings:
+  - stage: geometry
+    code: BBOX_TOO_LARGE
+    message: Largest bounding box dimension is 600.0 mm (> 500 mm); exceeds most consumer printers.
+    category: geometry
+hints: []
+stats:
+  triangles: 12
+  vertices: 8
+  volume: 1000000
+  surfaceArea: 60000
+  genus: 0
+  bbox:
+    min:
+      - 0
+      - 0
+      - 0
+    max:
+      - 600
+      - 100
+      - 100
+    size:
+      - 600
+      - 100
+      - 100
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > geometry EMPTY_RESULT with hint 1`] = `
+"ok: false
+stage: geometry
+errors:
+  - stage: geometry
+    code: EMPTY_RESULT
+    message: Result is empty. Common causes include disjoint boolean operands, subtracting a shape from itself, invalid/non-finite warp output, or fully removing the part.
+    category: geometry
+warnings: []
+hints:
+  - Check recent boolean operations, cutter/part bounding boxes, translation direction, subtract/intersect order, and any warp callbacks that can create NaN or Infinity.
+stats:
+  triangles: 0
+  vertices: 0
+  volume: 0
+  surfaceArea: 0
+  genus: 0
+  bbox:
+    min:
+      - 0
+      - 0
+      - 0
+    max:
+      - 0
+      - 0
+      - 0
+    size:
+      - 0
+      - 0
+      - 0
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > ok: true empty-issue report 1`] = `
+"ok: true
+stage: ok
+errors: []
+warnings: []
+hints: []
+stats:
+  triangles: 12
+  vertices: 8
+  volume: 1000
+  surfaceArea: 600
+  genus: 0
+  bbox:
+    min:
+      - -5
+      - -5
+      - -5
+    max:
+      - 5
+      - 5
+      - 5
+    size:
+      - 10
+      - 10
+      - 10
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > runtime OUT_OF_MEMORY 1`] = `
+"ok: false
+stage: runtime
+errors:
+  - stage: runtime
+    code: OUT_OF_MEMORY
+    message: Worker exceeded the 512 MB old-generation soft cap (exit 134; ERR_WORKER_OUT_OF_MEMORY).
+    category: runtime
+warnings: []
+hints: []
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > runtime TIMEOUT 1`] = `
+"ok: false
+stage: runtime
+errors:
+  - stage: runtime
+    code: TIMEOUT
+    message: Script execution exceeded 5000 ms; possible infinite loop or huge geometry.
+    category: runtime
+warnings: []
+hints: []
+durationMs: 5000
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > runtime WORKER_CRASH 1`] = `
+"ok: false
+stage: runtime
+errors:
+  - stage: runtime
+    code: WORKER_CRASH
+    message: Worker exited unexpectedly with code 1.
+    category: runtime
+warnings: []
+hints: []
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > static FORBIDDEN_GLOBAL with code frame 1`] = `
+"ok: false
+stage: static
+errors:
+  - stage: static
+    code: FORBIDDEN_GLOBAL
+    message: Forbidden global 'process' is not available in the sandbox.
+    line: 1
+    col: 1
+    endLine: 1
+    endCol: 8
+    snippet: |-
+      line 1 | process.exit(0);
+             | ~~~~~~~
+      line 2 | result = Manifold.cube();
+    category: sandbox
+warnings: []
+hints: []
+"
+`;
+
+exports[`reportToYaml — per-stage snapshots (VAL-8) > typecheck TS2339 with custom guidance 1`] = `
+"ok: false
+stage: typecheck
+errors:
+  - stage: typecheck
+    code: TS_DIAGNOSTIC
+    tsCode: 2339
+    message: |-
+      Property 'box' does not exist on type 'typeof Manifold'.
+      hint: Check the skill API reference for the supported method name or equivalent modeling recipe.
+    line: 1
+    col: 19
+    snippet: |-
+      line 1 | result = Manifold.box([10, 10, 10]);
+             |                   ~
+      line 2 | 
+    category: api
+warnings: []
+hints: []
+"
+`;

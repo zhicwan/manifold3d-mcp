@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "manifold-mcp": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@zhicwan/manifold-mcp"],
+      "tools": ["*"]
+    }
+  }
+}

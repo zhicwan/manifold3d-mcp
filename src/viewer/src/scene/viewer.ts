@@ -1,0 +1,354 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+import { payloadToGeometry } from './mesh-bridge.js';
+import type { PreviewPayload } from '../types.js';
+import { ViewCube } from './view-cube.js';
+
+// Tell three.js (and any helpers that respect Object3D.DEFAULT_UP) that
+// our world is Z-up. This MUST run before any Object3D / Camera / Helper
+// is constructed — both ViewportGizmo and OrbitControls read DEFAULT_UP
+// at construction time to set their internal "pole" axis. Setting it
+// here at module load means the camera below picks it up automatically.
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
+export type RenderMode = 'solid' | 'wireframe' | 'edges' | 'xray';
+
+/**
+ * Owns the three.js scene + render loop. On-demand rendering: only
+ * re-renders when something has changed (mesh swap, controls movement,
+ * resize, render-mode change). Idle GPU usage is essentially zero.
+ *
+ * The control panel exposes a single rendering knob — the render mode:
+ * solid / wireframe / edges (line overlay) / xray (transparent
+ * material, depth write off). Camera framing is driven by the corner
+ * ViewCube widget plus the user's own OrbitControls drags.
+ */
+export class Viewer {
+  readonly renderer: THREE.WebGLRenderer;
+  readonly scene = new THREE.Scene();
+  readonly camera: THREE.PerspectiveCamera;
+  readonly controls: OrbitControls;
+
+  private readonly grid: THREE.GridHelper;
+  private readonly material: THREE.MeshStandardMaterial;
+  private mesh: THREE.Mesh | null = null;
+  private edgesOverlay: THREE.LineSegments | null = null;
+  private needsRender = true;
+  private readonly perFrameHooks: Array<() => void> = [];
+  private viewCube: ViewCube | null = null;
+  private running = true;
+  private rafHandle = 0;
+
+  private currentRenderMode: RenderMode = 'solid';
+  private modelRadius = 50;
+  private modelCenter = new THREE.Vector3();
+
+  constructor(private readonly canvas: HTMLCanvasElement) {
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.scene.background = new THREE.Color(0xf5f5f5);
+
+    this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
+    // Standard CAD-style isometric default: camera in the +X / -Y / +Z
+    // octant so the user sees front + right + top faces from first load.
+    this.camera.position.set(80, -80, 120);
+
+    this.controls = new OrbitControls(this.camera, canvas);
+    this.controls.enableDamping = true;
+    this.controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.PAN,
+      RIGHT: THREE.MOUSE.PAN,
+    };
+    this.controls.addEventListener('change', this.requestRender);
+
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0xc6cdd4, 0.4));
+    const key = new THREE.DirectionalLight(0xffffff, 0.7);
+    key.position.set(60, 100, 80);
+    this.scene.add(key);
+    const fill = new THREE.DirectionalLight(0xb0c4de, 0.25);
+    fill.position.set(-80, -40, -40);
+    this.scene.add(fill);
+
+    // GridHelper draws in the XZ plane by default (Y-up). Rotate it 90°
+    // around X so it sits in the XY plane — that's the natural "ground"
+    // for Manifold's Z-up world.
+    this.grid = new THREE.GridHelper(200, 20, 0xb8b8b8, 0xd8d8d8);
+    this.grid.rotation.x = Math.PI / 2;
+    this.scene.add(this.grid);
+    this.scene.add(new THREE.AxesHelper(20));
+
+    this.material = new THREE.MeshStandardMaterial({
+      color: 0xc4c8cc,
+      metalness: 0.05,
+      roughness: 0.65,
+      flatShading: true,
+    });
+
+    canvas.style.position = 'fixed';
+    canvas.style.inset = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+
+    window.addEventListener('resize', this.requestRender);
+    this.rafHandle = requestAnimationFrame(this.frame);
+
+    // ViewCube needs the renderer/camera/controls fully constructed,
+    // so it goes after the rAF kick-off.
+    this.viewCube = new ViewCube(this.camera, this.renderer, this.controls, this.requestRender);
+  }
+
+  /**
+   * Stop the render loop, dispose GPU resources, and detach window
+   * listeners. Safe to call once. After dispose() the Viewer is no
+   * longer usable. Required so React (or any caller) can boot a fresh
+   * Viewer on the next mount without leaking WebGL contexts or rAF
+   * loops.
+   */
+  dispose(): void {
+    if (!this.running) {
+      return;
+    }
+    this.running = false;
+    if (this.rafHandle !== 0) {
+      cancelAnimationFrame(this.rafHandle);
+      this.rafHandle = 0;
+    }
+    window.removeEventListener('resize', this.requestRender);
+    this.controls.removeEventListener('change', this.requestRender);
+
+    // VIE-3: dispose order matters. The view-cube gizmo's constructor
+    // attaches a 'change' listener AND a wheel/click hook to OrbitControls.
+    // Its dispose() detaches those by calling controls.removeEventListener.
+    // If we dispose controls first, that internal `controls` reference
+    // points at a destroyed object and the gizmo's detach throws — leaking
+    // the listener and corrupting the next viewer mount. Always tear down
+    // the dependent (viewCube) before the dependency (controls).
+    this.viewCube?.dispose();
+    this.viewCube = null;
+    this.controls.dispose();
+
+    if (this.mesh) {
+      this.mesh.geometry.dispose();
+      this.scene.remove(this.mesh);
+      this.mesh = null;
+    }
+    this.disposeEdgesOverlay();
+
+    this.grid.geometry.dispose();
+    if (Array.isArray(this.grid.material)) {
+      for (const m of this.grid.material) {
+        m.dispose();
+      }
+    } else {
+      this.grid.material.dispose();
+    }
+
+    this.material.dispose();
+    this.perFrameHooks.length = 0;
+
+    this.renderer.dispose();
+    this.renderer.forceContextLoss();
+  }
+
+  readonly requestRender = (): void => {
+    this.needsRender = true;
+  };
+
+  getMesh(): THREE.Mesh | null {
+    return this.mesh;
+  }
+
+  setMesh(payload: PreviewPayload): THREE.Mesh {
+    if (this.mesh) {
+      this.mesh.geometry.dispose();
+      this.scene.remove(this.mesh);
+    }
+    this.disposeEdgesOverlay();
+
+    const geom = payloadToGeometry(payload);
+    this.mesh = new THREE.Mesh(geom, this.material);
+    this.scene.add(this.mesh);
+    this.frameModel(geom);
+    this.applyRenderMode();
+    this.requestRender();
+    return this.mesh;
+  }
+
+  // ── Public mode setters (called by ControlPanel) ──────────────────────
+
+  setRenderMode(mode: RenderMode): void {
+    if (this.currentRenderMode === mode) {
+      return;
+    }
+    this.currentRenderMode = mode;
+    this.applyRenderMode();
+    this.requestRender();
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────
+
+  /**
+   * Apply the current render-mode flags to the material AND the edges
+   * overlay. Idempotent.
+   */
+  private applyRenderMode(): void {
+    if (!this.mesh) {
+      return;
+    }
+    const m = this.material;
+
+    // Reset baseline (opaque, depth-writing, no wireframe).
+    m.wireframe = false;
+    m.transparent = false;
+    m.opacity = 1;
+    m.depthWrite = true;
+    this.disposeEdgesOverlay();
+
+    switch (this.currentRenderMode) {
+      case 'solid':
+        // baseline applies
+        break;
+      case 'wireframe':
+        m.wireframe = true;
+        break;
+      case 'edges': {
+        // Edges = solid model + a black line overlay tracing sharp edges.
+        const edges = new THREE.EdgesGeometry(this.mesh.geometry as THREE.BufferGeometry, 25);
+        const mat = new THREE.LineBasicMaterial({ color: 0x242424 });
+        this.edgesOverlay = new THREE.LineSegments(edges, mat);
+        this.edgesOverlay.renderOrder = 1;
+        this.mesh.add(this.edgesOverlay);
+        break;
+      }
+      case 'xray':
+        m.transparent = true;
+        m.opacity = 0.28;
+        m.depthWrite = false;
+        break;
+    }
+    m.needsUpdate = true;
+  }
+
+  private disposeEdgesOverlay(): void {
+    if (!this.edgesOverlay) {
+      return;
+    }
+    this.edgesOverlay.parent?.remove(this.edgesOverlay);
+    this.edgesOverlay.geometry.dispose();
+    (this.edgesOverlay.material as THREE.Material).dispose();
+    this.edgesOverlay = null;
+  }
+
+  /**
+   * Frame the model from the standard CAD-style isometric viewpoint:
+   * camera in the +X / -Y / +Z octant so the user sees front + right +
+   * top faces (matches the ViewCube's reset).
+   */
+  private snapCameraToDefaultView(): void {
+    const r = this.modelRadius;
+    const c = this.modelCenter;
+    this.camera.position.set(c.x + r * 1.4, c.y - r * 1.4, c.z + r * 1.6);
+    this.camera.up.set(0, 0, 1);
+    this.controls.target.copy(c);
+    this.camera.updateProjectionMatrix();
+    // OrbitControls keeps its own spherical state (azimuth/polar around
+    // the camera.up axis). Reassigning up means we have to re-seed the
+    // spherical coords from the new camera-target relationship —
+    // controls.update() does this and unblocks subsequent drags.
+    this.controls.update();
+  }
+
+  /**
+   * Register a callback invoked once per animation frame, after the
+   * controls update and before the (conditional) render. Used by the
+   * marks subsystem to keep flyout positions in sync with the camera.
+   * Returns an unsubscribe function so callers can clean up on
+   * teardown without growing the hooks array unboundedly across
+   * mount/unmount cycles.
+   */
+  addPerFrameHook(fn: () => void): () => void {
+    this.perFrameHooks.push(fn);
+    return () => {
+      const i = this.perFrameHooks.indexOf(fn);
+      if (i !== -1) {
+        this.perFrameHooks.splice(i, 1);
+      }
+    };
+  }
+
+  private readonly frame = (): void => {
+    if (!this.running) {
+      return;
+    }
+    this.resize();
+    if (this.controls.enableDamping) {
+      this.controls.update();
+    }
+    for (const hook of this.perFrameHooks) {
+      hook();
+    }
+    // The view-cube gizmo's render() does double duty: it advances any
+    // in-flight camera tween (moving the camera as a side effect) AND
+    // draws the gizmo overlay. We need to render whenever:
+    //   1. Something explicitly requested a render (needsRender), or
+    //   2. The gizmo is animating, so we keep ticking its tween.
+    // We reset needsRender BEFORE calling gizmo.render() so that any
+    // 'change'/'end' events the gizmo dispatches synchronously (e.g.,
+    // when its single-step tween completes inside one frame) can set
+    // needsRender back to true and trigger one more repaint with the
+    // final camera position on the next frame. Otherwise a trailing
+    // `needsRender = false` would clobber that request and the screen
+    // would freeze on the pre-final-step camera.
+    if (this.needsRender || this.viewCube?.isAnimating()) {
+      this.needsRender = false;
+      this.renderer.render(this.scene, this.camera);
+      // Render the view cube AFTER the main scene so it sits on top of
+      // the viewport. This call also advances the gizmo's animation.
+      this.viewCube?.render();
+      // If still animating after the tick, force another frame so the
+      // newly-moved camera gets reflected in the main scene.
+      if (this.viewCube?.isAnimating()) {
+        this.needsRender = true;
+      }
+    }
+    this.rafHandle = requestAnimationFrame(this.frame);
+  };
+
+  private resize(): void {
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.renderer.setSize(w, h, false);
+      this.viewCube?.updateLayout();
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      this.needsRender = true;
+    }
+  }
+
+  private frameModel(geometry: THREE.BufferGeometry): void {
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox;
+    if (!box) {
+      return;
+    }
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(size.x, size.y, size.z) || 10;
+    this.modelCenter.copy(center);
+    this.modelRadius = radius;
+    this.snapCameraToDefaultView();
+    this.camera.near = Math.max(radius / 1000, 0.01);
+    this.camera.far = radius * 100;
+    this.camera.updateProjectionMatrix();
+    const gridSize = Math.max(50, Math.ceil((radius * 4) / 50) * 50);
+    this.grid.scale.setScalar(gridSize / 200);
+  }
+}
