@@ -12,7 +12,15 @@
   "bugs": {
     "url": "https://github.com/zhicwan/manifold-mcp/issues"
   },
-  "keywords": ["mcp", "manifold-3d", "3d-printing", "cad", "llm", "claude-code", "copilot-cli"],
+  "keywords": [
+    "mcp",
+    "manifold-3d",
+    "3d-printing",
+    "cad",
+    "llm",
+    "claude-code",
+    "copilot-cli"
+  ],
   "bin": {
     "manifold-mcp": "dist/server/index.js"
   },
@@ -29,6 +37,8 @@
     "build:server": "tsc -p tsconfig.json",
     "build:viewer": "vite build --config src/viewer/vite.config.ts",
     "build:sandbox-types": "node scripts/emit-sandbox-types.mjs",
+    "plugin:build": "npm run build",
+    "plugin:copilot:install": "npm run build && copilot plugin install ./plugin",
     "mcp": "vite build --config src/viewer/vite.config.ts --logLevel error && npm run -s build:server && npm run -s build:sandbox-types && node dist/server/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/viewer/tsconfig.json --noEmit && tsc -p samples/tsconfig.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
     "dev": "vite --config src/viewer/vite.config.ts",

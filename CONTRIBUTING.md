@@ -15,31 +15,42 @@ cd manifold-mcp
 npm ci
 ```
 
-## Local development with the lazy-npx `.mcp.json`
+## Local plugin development
 
-The checked-in `.mcp.json` runs `npx -y @zhicwan/manifold-mcp`, which
-fetches the published package. To test your local changes instead:
+Plugin files live under `plugin/`. Build the local server first, then load that
+plugin folder in your client:
 
 ```bash
 npm run build
-npm link
-# Now npx @zhicwan/manifold-mcp resolves to your local checkout
+copilot plugin install ./plugin
+claude --plugin-dir ./plugin
+```
+
+`plugin/.mcp.json` runs `plugin/bin/manifold-mcp.mjs`. The proxy prefers the
+local `dist/server/index.js` build and falls back to `npx -y
+@zhicwan/manifold-mcp` for public installs. If a cached plugin install cannot
+see your checkout, start the client with an explicit local entry:
+
+```bash
+MANIFOLD_MCP_LOCAL_ENTRY="$PWD/dist/server/index.js" copilot
 ```
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run build` | Full build (viewer + server + sandbox types) |
-| `npm run typecheck` | TypeScript type checking (all projects) |
-| `npm run lint` | ESLint |
-| `npm run lint:fix` | ESLint with auto-fix |
-| `npm run format` | Prettier formatting |
-| `npm run format:check` | Prettier check (CI) |
-| `npm test` | Unit + smoke tests |
-| `npm run test:unit` | Unit tests only |
-| `npm run test:smoke` | Smoke tests (builds first) |
-| `npm run test:watch` | Unit tests in watch mode |
+| Command                          | Description                                          |
+| -------------------------------- | ---------------------------------------------------- |
+| `npm run build`                  | Full build (viewer + server + sandbox types)         |
+| `npm run plugin:build`           | Alias for the full build before local plugin testing |
+| `npm run plugin:copilot:install` | Build, then install `./plugin` into Copilot CLI      |
+| `npm run typecheck`              | TypeScript type checking (all projects)              |
+| `npm run lint`                   | ESLint                                               |
+| `npm run lint:fix`               | ESLint with auto-fix                                 |
+| `npm run format`                 | Prettier formatting                                  |
+| `npm run format:check`           | Prettier check (CI)                                  |
+| `npm test`                       | Unit + smoke tests                                   |
+| `npm run test:unit`              | Unit tests only                                      |
+| `npm run test:smoke`             | Smoke tests (builds first)                           |
+| `npm run test:watch`             | Unit tests in watch mode                             |
 
 ## Adding a sample
 
@@ -57,7 +68,7 @@ npm run build:sandbox-types
 ```
 
 This updates `samples/manifold-sandbox.d.ts` and
-`skills/use-manifold/references/manifold-sandbox.d.ts`.
+`plugin/skills/use-manifold/references/manifold-sandbox.d.ts`.
 
 ## Branch and PR workflow
 

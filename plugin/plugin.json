@@ -5,5 +5,8 @@
   "author": { "name": "Zhicheng Wang" },
   "homepage": "https://github.com/zhicwan/manifold-mcp",
   "repository": "https://github.com/zhicwan/manifold-mcp",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "manifold-3d", "3d-printing", "cad", "copilot-cli"],
+  "skills": "skills/",
+  "mcpServers": ".mcp.json"
 }
