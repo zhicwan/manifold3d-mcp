@@ -10,7 +10,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.mjs', 'vitest.config.ts', 'scripts/*.mjs'],
+          allowDefaultProject: ['eslint.config.mjs', 'vitest.config.ts', 'scripts/*.mjs', 'plugin/bin/*.mjs'],
           // Safety net: in some IDE contexts projectService may briefly
           // route additional files (e.g. tests) through the default
           // project before tests/tsconfig.json is discovered. Raising the
@@ -71,9 +71,9 @@ export default tseslint.config(
       'build/',
       'dist/',
       'node_modules/',
-      'skills/use-manifold/references/manifold-sandbox.d.ts',
+      'plugin/skills/use-manifold/references/manifold-sandbox.d.ts',
       '.github/skills/forge-workspace/',
-      'skills/use-manifold/evals/',
+      'plugin/skills/use-manifold/evals/',
     ],
   },
 );

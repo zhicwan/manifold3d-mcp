@@ -10,7 +10,7 @@
  *
  *   - samples/manifold-sandbox.d.ts
  *       So `samples/*.ts` typecheck in editors and via `tsc --noEmit`.
- *   - skills/use-manifold/references/manifold-sandbox.d.ts
+ *   - plugin/skills/use-manifold/references/manifold-sandbox.d.ts
  *       So the Copilot skill can read the authoritative typing alongside the
  *       prose reference docs.
  *
@@ -29,7 +29,7 @@ const repoRoot = resolve(here, '..');
 const SOURCE = resolve(repoRoot, 'src/server/sandbox/ambient-types.ts');
 const TARGETS = [
   resolve(repoRoot, 'samples/manifold-sandbox.d.ts'),
-  resolve(repoRoot, 'skills/use-manifold/references/manifold-sandbox.d.ts'),
+  resolve(repoRoot, 'plugin/skills/use-manifold/references/manifold-sandbox.d.ts'),
 ];
 
 const HEADER = `// =============================================================================

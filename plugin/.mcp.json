@@ -2,8 +2,8 @@
   "mcpServers": {
     "manifold-mcp": {
       "type": "local",
-      "command": "npx",
-      "args": ["-y", "@zhicwan/manifold-mcp"],
+      "command": "node",
+      "args": ["bin/manifold-mcp.mjs"],
       "tools": ["*"]
     }
   }
