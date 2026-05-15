@@ -3,7 +3,5 @@ dist/
 *.log
 .DS_Store
 .vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
 .idea/
 test-results.junit.xml

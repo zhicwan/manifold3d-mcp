@@ -27,11 +27,7 @@ result = box.subtract(ball);
 ```ts
 const wall = 1.6;
 const outerSize: [number, number, number] = [40, 30, 20];
-const innerSize: [number, number, number] = [
-  outerSize[0] - 2 * wall,
-  outerSize[1] - 2 * wall,
-  outerSize[2] - 2 * wall,
-];
+const innerSize: [number, number, number] = [outerSize[0] - 2 * wall, outerSize[1] - 2 * wall, outerSize[2] - 2 * wall];
 
 const outer = Manifold.cube(outerSize, true);
 const cavity = Manifold.cube(innerSize, true).translate([0, 0, wall / 2]);

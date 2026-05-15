@@ -29,8 +29,7 @@ interface PreviewModule {
   }>;
 }
 
-const loadModule = async (): Promise<PreviewModule> =>
-  (await import(pathToFileURL(distPreview).href)) as PreviewModule;
+const loadModule = async (): Promise<PreviewModule> => (await import(pathToFileURL(distPreview).href)) as PreviewModule;
 
 type Outcome = 'open' | 'error' | 'close';
 
@@ -46,7 +45,9 @@ const attempt = async (
     });
     let settled = false;
     const finish = (result: { outcome: Outcome; statusCode?: number; message?: string }): void => {
-      if (settled) {return;}
+      if (settled) {
+        return;
+      }
       settled = true;
       try {
         ws.removeAllListeners();
@@ -66,9 +67,7 @@ const attempt = async (
       resolve(result);
     };
     ws.on('open', () => finish({ outcome: 'open' }));
-    ws.on('unexpected-response', (_req, res) =>
-      finish({ outcome: 'error', statusCode: res.statusCode }),
-    );
+    ws.on('unexpected-response', (_req, res) => finish({ outcome: 'error', statusCode: res.statusCode }));
     ws.on('error', err => finish({ outcome: 'error', message: err.message }));
     ws.on('close', code => finish({ outcome: 'close', statusCode: code }));
   });
@@ -86,7 +85,9 @@ describe.skipIf(skipUnlessBuilt)('SEC-3: preview WS rejects bad Origin/Host', ()
   }, 30_000);
 
   afterAll(async () => {
-    if (stop) {await stop();}
+    if (stop) {
+      await stop();
+    }
   });
 
   it('rejects upgrade requests with no Origin header', async () => {
@@ -148,9 +149,14 @@ describe.skipIf(skipUnlessBuilt)('SEC-3: preview WS dev-mode allow-list', () => 
   }, 30_000);
 
   afterAll(async () => {
-    if (stop) {await stop();}
-    if (savedNodeEnv === undefined) {delete process.env.NODE_ENV;}
-    else {process.env.NODE_ENV = savedNodeEnv;}
+    if (stop) {
+      await stop();
+    }
+    if (savedNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = savedNodeEnv;
+    }
   });
 
   it('accepts the Vite dev-server origin when NODE_ENV=development', async () => {

@@ -35,7 +35,7 @@ describe('reportToYaml — per-stage snapshots (VAL-8)', () => {
   });
 
   it('static FORBIDDEN_GLOBAL with code frame', () => {
-    const code = "process.exit(0);\nresult = Manifold.cube();\n";
+    const code = 'process.exit(0);\nresult = Manifold.cube();\n';
     const r = emptyReport('static');
     addError(r, {
       stage: 'static',
@@ -102,8 +102,7 @@ describe('reportToYaml — per-stage snapshots (VAL-8)', () => {
     addWarning(r, {
       stage: 'geometry',
       code: 'BBOX_TOO_LARGE',
-      message:
-        'Largest bounding box dimension is 600.0 mm (> 500 mm); exceeds most consumer printers.',
+      message: 'Largest bounding box dimension is 600.0 mm (> 500 mm); exceeds most consumer printers.',
     });
     expect(reportToYaml(r)).toMatchSnapshot();
   });
@@ -124,8 +123,7 @@ describe('reportToYaml — per-stage snapshots (VAL-8)', () => {
     addError(r, {
       stage: 'runtime',
       code: 'OUT_OF_MEMORY',
-      message:
-        'Worker exceeded the 512 MB old-generation soft cap (exit 134; ERR_WORKER_OUT_OF_MEMORY).',
+      message: 'Worker exceeded the 512 MB old-generation soft cap (exit 134; ERR_WORKER_OUT_OF_MEMORY).',
     });
     expect(reportToYaml(r)).toMatchSnapshot();
   });

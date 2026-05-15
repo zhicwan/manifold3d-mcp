@@ -69,11 +69,7 @@ export function buildMeshPayload(
  */
 function toTransferableArrayBuffer(view: Uint32Array): ArrayBuffer {
   const buf = view.buffer;
-  if (
-    buf instanceof ArrayBuffer &&
-    view.byteOffset === 0 &&
-    view.byteLength === buf.byteLength
-  ) {
+  if (buf instanceof ArrayBuffer && view.byteOffset === 0 && view.byteLength === buf.byteLength) {
     return buf;
   }
   const copy = new Uint32Array(view.length);

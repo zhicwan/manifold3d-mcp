@@ -34,10 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import {
-  isAnnotationsMessage,
-  type WireAnnotation,
-} from '../../shared/wire/annotations.js';
+import { isAnnotationsMessage, type WireAnnotation } from '../../shared/wire/annotations.js';
 import type { MeshPayload } from '../runner/protocol.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -70,10 +67,7 @@ export async function startPreviewServer(preferredPort = 3737, host = '127.0.0.1
   // send one of these origins automatically. Anything else (a different
   // origin trying to read meshes / inject annotations, or a DNS-rebinding
   // host header) is rejected at the upgrade handshake.
-  const allowedOrigins = new Set<string>([
-    `http://127.0.0.1:${port}`,
-    `http://localhost:${port}`,
-  ]);
+  const allowedOrigins = new Set<string>([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
   if (process.env.NODE_ENV === 'development') {
     // Vite dev server proxies to us during local viewer development.
     allowedOrigins.add('http://127.0.0.1:5173');
@@ -100,7 +94,9 @@ export async function startPreviewServer(preferredPort = 3737, host = '127.0.0.1
     const hostHeader = req.headers.host;
     const reject = (reason: string): void => {
       // stderr only — stdout is reserved for the MCP JSON-RPC stream.
-      process.stderr.write(`[preview-server] rejected WS upgrade: ${reason} (origin=${origin ?? 'none'}, host=${hostHeader ?? 'none'})\n`);
+      process.stderr.write(
+        `[preview-server] rejected WS upgrade: ${reason} (origin=${origin ?? 'none'}, host=${hostHeader ?? 'none'})\n`,
+      );
       socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
       socket.destroy();
     };

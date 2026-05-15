@@ -421,7 +421,10 @@ result = Manifold.cube(size);
     const tempDir = await mkdtemp(join(repoRoot, '.manifold-mcp-smoke-'));
     try {
       const filePath = join(tempDir, 'file-snippet.ts');
-      await writeFile(filePath, 'const size: [number, number, number] = [7, 8, 9]; result = Manifold.cube(size, true);\n');
+      await writeFile(
+        filePath,
+        'const size: [number, number, number] = [7, 8, 9]; result = Manifold.cube(size, true);\n',
+      );
 
       const validation = await harness.callTool('validate_script', { filePath });
       const validationReport = reportOf(validation);
@@ -481,7 +484,10 @@ result = Manifold.cube(size);
 
       const result = await harness.callTool('validate_script', { filePath });
       const report = reportOf(result);
-      const allIssues = [...(report.errors ?? []), ...((report as unknown as { warnings?: ReportIssue[] }).warnings ?? [])];
+      const allIssues = [
+        ...(report.errors ?? []),
+        ...((report as unknown as { warnings?: ReportIssue[] }).warnings ?? []),
+      ];
       for (const issue of allIssues) {
         expect(issue.snippet).toBeUndefined();
       }

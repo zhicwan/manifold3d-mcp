@@ -9,14 +9,7 @@
  *   hard kill watchdog (see runner/host.ts).
  */
 import ts from 'typescript';
-import {
-  type Issue,
-  type Report,
-  addError,
-  addWarning,
-  buildCodeFrame,
-  emptyReport,
-} from './report.js';
+import { type Issue, type Report, addError, addWarning, buildCodeFrame, emptyReport } from './report.js';
 import { hasAlias, unknownApiMessage } from './suggest.js';
 
 const FORBIDDEN_GLOBALS = new Set([
@@ -186,10 +179,7 @@ export function analyzeStatic(code: string, opts: StaticStageOptions = {}): Stat
       // The TS parser keeps the parens as a ParenthesizedExpression around
       // the BinaryExpression — the BinaryExpression's `left` is the bare
       // ObjectLiteralExpression.
-      if (
-        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-        ts.isObjectLiteralExpression(node.left)
-      ) {
+      if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isObjectLiteralExpression(node.left)) {
         for (const prop of node.left.properties) {
           if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === 'result') {
             out.resultAssigned = true;
@@ -222,11 +212,7 @@ export function analyzeStatic(code: string, opts: StaticStageOptions = {}): Stat
       // would be a duplicate.
       if (ts.isIdentifier(node.expression) && node.expression.text === 'Manifold') {
         const name = node.name.text;
-        if (
-          !KNOWN_MANIFOLD_STATIC.has(name) &&
-          !looksLikeInstanceMethod(name) &&
-          hasAlias('Manifold', name)
-        ) {
+        if (!KNOWN_MANIFOLD_STATIC.has(name) && !looksLikeInstanceMethod(name) && hasAlias('Manifold', name)) {
           out.unknownApi.push({
             stage: 'static',
             code: 'UNKNOWN_API',
@@ -389,10 +375,7 @@ export function detectResultAssignmentInJs(js: string): boolean {
         found = true;
         return;
       }
-      if (
-        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-        ts.isObjectLiteralExpression(node.left)
-      ) {
+      if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isObjectLiteralExpression(node.left)) {
         for (const prop of node.left.properties) {
           if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === 'result') {
             found = true;

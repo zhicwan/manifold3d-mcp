@@ -36,7 +36,9 @@ interface PreviewModule {
 // directory only ships index.html (in which case the asset-targeted test
 // is skipped via `it.skipIf`).
 const findStaticAsset = (): string | null => {
-  if (!existsSync(distPublic)) {return null;}
+  if (!existsSync(distPublic)) {
+    return null;
+  }
   try {
     const walk = (dir: string): string | null => {
       for (const entry of readdirSync(dir)) {
@@ -44,7 +46,9 @@ const findStaticAsset = (): string | null => {
         const s = statSync(full);
         if (s.isDirectory()) {
           const inner = walk(full);
-          if (inner) {return inner;}
+          if (inner) {
+            return inner;
+          }
         } else if (entry !== 'index.html') {
           return full.slice(distPublic.length).replace(/\\/g, '/');
         }
@@ -97,7 +101,9 @@ describe.skipIf(skipUnlessBuilt)('SEC-4: static asset path traversal is blocked'
   }, 30_000);
 
   afterAll(async () => {
-    if (stop) {await stop();}
+    if (stop) {
+      await stop();
+    }
   });
 
   it('serves the index page on /', async () => {

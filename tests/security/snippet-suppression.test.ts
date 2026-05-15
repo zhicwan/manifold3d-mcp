@@ -66,12 +66,16 @@ class Harness {
 
   async stop(): Promise<void> {
     const child = this.child;
-    if (!child || child.exitCode !== null) {return;}
+    if (!child || child.exitCode !== null) {
+      return;
+    }
     child.stdin.end();
     await new Promise<void>(resolve => {
       child.once('exit', () => resolve());
       setTimeout(() => {
-        if (child.exitCode === null) {child.kill('SIGTERM');}
+        if (child.exitCode === null) {
+          child.kill('SIGTERM');
+        }
         resolve();
       }, 2_000);
     });
@@ -95,21 +99,29 @@ class Harness {
   }
 
   private send(message: unknown): void {
-    if (!this.child) {throw new Error('Harness not started');}
+    if (!this.child) {
+      throw new Error('Harness not started');
+    }
     this.child.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
   private handleLine(line: string): void {
-    if (!line.trim()) {return;}
+    if (!line.trim()) {
+      return;
+    }
     let parsed: { id?: number; result?: unknown; error?: { message?: string } };
     try {
       parsed = JSON.parse(line) as typeof parsed;
     } catch {
       return;
     }
-    if (typeof parsed.id !== 'number') {return;}
+    if (typeof parsed.id !== 'number') {
+      return;
+    }
     const waiter = this.pending.get(parsed.id);
-    if (!waiter) {return;}
+    if (!waiter) {
+      return;
+    }
     clearTimeout(waiter.timer);
     this.pending.delete(parsed.id);
     if (parsed.error) {
@@ -120,10 +132,7 @@ class Harness {
   }
 }
 
-const callValidate = async (
-  harness: Harness,
-  args: Record<string, unknown>,
-): Promise<Report> => {
+const callValidate = async (harness: Harness, args: Record<string, unknown>): Promise<Report> => {
   const r = await harness.call<ToolResult>('tools/call', { name: 'validate_script', arguments: args });
   return parseYaml(r.content[0].text) as Report;
 };
@@ -146,7 +155,9 @@ describe.skipIf(skipUnlessBuilt)('SEC-2: filePath suppresses Issue.snippet acros
 
   afterAll(async () => {
     await harness.stop();
-    if (tempDir) {rmSync(tempDir, { recursive: true, force: true });}
+    if (tempDir) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('inline `code` keeps snippet on error (control)', async () => {
@@ -186,7 +197,7 @@ describe.skipIf(skipUnlessBuilt)('SEC-2: filePath suppresses Issue.snippet acros
     // Manifold.cube takes (size: [number,number,number] | number, ...).
     // Passing an object literal blows the typecheck stage.
     const filePath = join(tempDir, 'ts-diagnostic.ts');
-    writeFileSync(filePath, "result = Manifold.cube({ bogus: true } as never);\n", 'utf8');
+    writeFileSync(filePath, 'result = Manifold.cube({ bogus: true } as never);\n', 'utf8');
     const report = await callValidate(harness, { filePath });
     // Whichever stage rejects it, no Issue across errors+warnings may
     // carry a snippet.

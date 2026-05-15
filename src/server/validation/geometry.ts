@@ -5,14 +5,7 @@
  * after `result` is materialised, and merges error/warning/hint
  * findings into the `Report` in-place.
  */
-import {
-  type Report,
-  type Stats,
-  ERROR_STATUS_TO_CODE,
-  addError,
-  addHint,
-  addWarning,
-} from './report.js';
+import { type Report, type Stats, ERROR_STATUS_TO_CODE, addError, addHint, addWarning } from './report.js';
 
 export interface GeomCheckInput {
   status: string; // ErrorStatus from manifold

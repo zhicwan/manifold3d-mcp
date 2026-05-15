@@ -71,13 +71,7 @@ export function ControlPanel() {
             }}
           >
             {RENDER_OPTIONS.map(([value, label]) => (
-              <ToggleGroupItem
-                key={value}
-                aria-label={`${label} render mode`}
-                disabled={!api}
-                size="sm"
-                value={value}
-              >
+              <ToggleGroupItem key={value} aria-label={`${label} render mode`} disabled={!api} size="sm" value={value}>
                 {label}
               </ToggleGroupItem>
             ))}
