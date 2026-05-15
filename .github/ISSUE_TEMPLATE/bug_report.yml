@@ -27,6 +27,6 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: "Node version, OS, npm version, manifold-mcp version"
+      description: 'Node version, OS, npm version, manifold-mcp version'
     validations:
       required: false

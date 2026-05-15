@@ -6,7 +6,7 @@
 -->
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-![Node.js >= 20](https://img.shields.io/badge/Node.js-%E2%89%A5%2020-green)
+![Node.js >= 24](https://img.shields.io/badge/Node.js-%E2%89%A5%2024-green)
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) server that lets an LLM design 3D-printable models with the [manifold-3d](https://github.com/elalish/manifold) library, validate them through a multi-stage pipeline, and stream the result to a live three.js preview page in the user's browser. Export STL or 3MF directly from the preview.
 

@@ -48,11 +48,7 @@ export function suggestMany(name: string, pool: Set<string>, limit = 3): string[
  * hint; otherwise falls back to a Levenshtein-based "did you mean" list,
  * and finally a generic pointer at the API reference.
  */
-export function unknownApiMessage(
-  namespace: 'Manifold' | 'CrossSection',
-  name: string,
-  pool: Set<string>,
-): string {
+export function unknownApiMessage(namespace: 'Manifold' | 'CrossSection', name: string, pool: Set<string>): string {
   const alias = aliasFor(namespace, name);
   if (alias) {
     return `${namespace}.${name} is not a known static method. ${alias}`;

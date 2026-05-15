@@ -87,10 +87,13 @@ function findMatchingBrace(source: string, openIdx: number): number {
   let depth = 0;
   for (let i = openIdx; i < source.length; i++) {
     const ch = source[i];
-    if (ch === '{') {depth++;}
-    else if (ch === '}') {
+    if (ch === '{') {
+      depth++;
+    } else if (ch === '}') {
       depth--;
-      if (depth === 0) {return i;}
+      if (depth === 0) {
+        return i;
+      }
     }
   }
   throw new Error('Unbalanced braces in ambient declarations');
@@ -107,7 +110,9 @@ function parseClassBody(body: string): ClassMembers {
   while ((match = memberRegex.exec(body)) !== null) {
     const isStatic = Boolean(match[1]);
     const name = match[2];
-    if (name === undefined || name === 'constructor') {continue;}
+    if (name === undefined || name === 'constructor') {
+      continue;
+    }
     if (isStatic) {
       staticMethods.add(name);
     } else {
@@ -150,7 +155,9 @@ function isFunction(value: unknown): boolean {
 }
 
 function lookup(target: unknown, name: string): unknown {
-  if (target === null || target === undefined) {return undefined;}
+  if (target === null || target === undefined) {
+    return undefined;
+  }
   return (target as Record<string, unknown>)[name];
 }
 
@@ -172,8 +179,10 @@ describe('sandbox ambient declarations vs. live manifold-3d runtime', () => {
         }
       }
     }
-    expect(missing, `static methods declared in ambient-types.ts but missing at runtime: ${missing.join(', ')}`)
-      .toEqual([]);
+    expect(
+      missing,
+      `static methods declared in ambient-types.ts but missing at runtime: ${missing.join(', ')}`,
+    ).toEqual([]);
   });
 
   it.concurrent('every declared instance method exists on the live prototype', async () => {
@@ -207,14 +216,19 @@ describe('sandbox ambient declarations vs. live manifold-3d runtime', () => {
         }
       }
     }
-    expect(missing, `instance methods declared in ambient-types.ts but missing at runtime: ${missing.join(', ')}`)
-      .toEqual([]);
+    expect(
+      missing,
+      `instance methods declared in ambient-types.ts but missing at runtime: ${missing.join(', ')}`,
+    ).toEqual([]);
   });
 
   it.concurrent('Manifold.cube produces a valid manifold', async () => {
     const wasm = await initWasm();
     const Mfd = wasm.Manifold as {
-      cube(size: [number, number, number], center?: boolean): {
+      cube(
+        size: [number, number, number],
+        center?: boolean,
+      ): {
         numTri(): number;
         volume(): number;
         delete(): void;

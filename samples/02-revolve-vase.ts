@@ -13,13 +13,13 @@
 // Vase profile: each entry is [radius_mm, height_mm].
 // Goes counterclockwise: bottom-centre → outer base → belly → neck → rim → top-centre.
 const profile: Vec2[] = [
-  [0,  0],   // bottom centre (on the rotation axis)
-  [12, 0],   // base outer edge
-  [10, 12],  // taper above the base
-  [16, 32],  // widest belly
-  [9,  52],  // narrow neck
-  [11, 60],  // flared rim
-  [0,  60],  // top centre (closes the cross-section on the axis)
+  [0, 0], // bottom centre (on the rotation axis)
+  [12, 0], // base outer edge
+  [10, 12], // taper above the base
+  [16, 32], // widest belly
+  [9, 52], // narrow neck
+  [11, 60], // flared rim
+  [0, 60], // top centre (closes the cross-section on the axis)
 ];
 
 const cs = CrossSection.ofPolygons([profile]);

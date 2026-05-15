@@ -24,18 +24,22 @@ describe.skipIf(skipUnlessBuilt || sampleFiles.length === 0)('samples/*.ts valid
     host = (await import(pathToFileURL(distHost).href)) as HostModule;
   });
 
-  it.each(sampleFiles)('validates %s without errors', async fileName => {
-    const fullPath = join(samplesDir, fileName);
-    const code = readFileSync(fullPath, 'utf8');
-    const { report } = await host.run({ mode: 'validate', code }, { timeoutMs: 30_000 });
-    if (!report.ok) {
-      const firstError = report.errors[0];
-      throw new Error(
-        `Sample ${fileName} did not validate cleanly. First error: ${
-          firstError ? `${firstError.code}: ${firstError.message}` : '(unknown)'
-        }`,
-      );
-    }
-    expect(report.errors).toEqual([]);
-  }, 60_000);
+  it.each(sampleFiles)(
+    'validates %s without errors',
+    async fileName => {
+      const fullPath = join(samplesDir, fileName);
+      const code = readFileSync(fullPath, 'utf8');
+      const { report } = await host.run({ mode: 'validate', code }, { timeoutMs: 30_000 });
+      if (!report.ok) {
+        const firstError = report.errors[0];
+        throw new Error(
+          `Sample ${fileName} did not validate cleanly. First error: ${
+            firstError ? `${firstError.code}: ${firstError.message}` : '(unknown)'
+          }`,
+        );
+      }
+      expect(report.errors).toEqual([]);
+    },
+    60_000,
+  );
 });

@@ -23,9 +23,9 @@ result = refined.warp((v: Vec3) => {
   if (r < 1e-9) return; // skip degenerate origin vertices
 
   // Spherical coordinates → wave displacement → scale vertex.
-  const theta = Math.acos(v[2] / r);           // polar angle [0, π]
-  const phi   = Math.atan2(v[1], v[0]);        // azimuthal angle [−π, π]
-  const disp  = 3.0 * Math.sin(4 * theta) * Math.cos(4 * phi); // ±3 mm
+  const theta = Math.acos(v[2] / r); // polar angle [0, π]
+  const phi = Math.atan2(v[1], v[0]); // azimuthal angle [−π, π]
+  const disp = 3.0 * Math.sin(4 * theta) * Math.cos(4 * phi); // ±3 mm
   const scale = (r + disp) / r;
   v[0] *= scale;
   v[1] *= scale;

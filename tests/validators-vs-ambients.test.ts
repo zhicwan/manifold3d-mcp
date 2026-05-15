@@ -8,10 +8,7 @@ import { describe, expect, it } from 'vitest';
 import ts from 'typescript';
 
 import { sandboxAmbientDeclarations } from '../src/server/sandbox/ambient-types.js';
-import {
-  KNOWN_MANIFOLD_STATIC,
-  KNOWN_CROSSSECTION_STATIC,
-} from '../src/server/validation/validators.js';
+import { KNOWN_MANIFOLD_STATIC, KNOWN_CROSSSECTION_STATIC } from '../src/server/validation/validators.js';
 
 function extractStaticMethodNames(className: string): Set<string> {
   const sf = ts.createSourceFile('ambients.ts', sandboxAmbientDeclarations, ts.ScriptTarget.ES2022, true);

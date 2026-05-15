@@ -245,11 +245,17 @@ async function loadScriptSource(args: Record<string, unknown>): Promise<ScriptSo
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT' || code === 'ENOTDIR') {
       return {
-        report: staticError('FILE_READ_ERROR', `Could not read \`filePath\` ${requestedPath}: ${(error as Error).message}`),
+        report: staticError(
+          'FILE_READ_ERROR',
+          `Could not read \`filePath\` ${requestedPath}: ${(error as Error).message}`,
+        ),
       };
     }
     return {
-      report: staticError('FILE_READ_ERROR', `Could not resolve \`filePath\` ${requestedPath}: ${(error as Error).message}`),
+      report: staticError(
+        'FILE_READ_ERROR',
+        `Could not resolve \`filePath\` ${requestedPath}: ${(error as Error).message}`,
+      ),
     };
   }
 
@@ -336,7 +342,9 @@ async function resolveAllowedRoots(): Promise<string[]> {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`[manifold-mcp] warning: MANIFOLD_MCP_SCRIPT_ROOTS entry skipped (${candidate}): ${message}\n`);
+      process.stderr.write(
+        `[manifold-mcp] warning: MANIFOLD_MCP_SCRIPT_ROOTS entry skipped (${candidate}): ${message}\n`,
+      );
     }
   }
   return resolved;

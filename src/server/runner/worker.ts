@@ -32,7 +32,12 @@
 import { parentPort, threadId } from 'node:worker_threads';
 import Module from 'manifold-3d';
 
-import { cleanup, garbageCollectInstance, garbageCollectManifold, getLastCleanupDeleteFailures } from '../sandbox/garbage-collector.js';
+import {
+  cleanup,
+  garbageCollectInstance,
+  garbageCollectManifold,
+  getLastCleanupDeleteFailures,
+} from '../sandbox/garbage-collector.js';
 import { installFeatureRecognition, type FeatureStore } from '../sandbox/feature-recognition.js';
 import { addError, addHint, addWarning, emptyReport, type Report } from '../validation/report.js';
 import { runStaticStage, runGeometryStage, detectResultAssignmentInJs } from '../validation/validators.js';
@@ -191,9 +196,7 @@ async function handleRun(req: RunRequest): Promise<void> {
       message: err.message,
       line: sourceLocation?.line,
       col: sourceLocation?.col,
-      snippet: stageOpts.suppressSnippet
-        ? undefined
-        : runtimeErrorSnippet(req.code, sourceLocation, err.stack),
+      snippet: stageOpts.suppressSnippet ? undefined : runtimeErrorSnippet(req.code, sourceLocation, err.stack),
     });
     cleanupAndReport(report);
     enforceSnippetInvariant(report, stageOpts.suppressSnippet);

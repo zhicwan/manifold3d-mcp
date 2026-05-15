@@ -138,8 +138,7 @@ than a face-only contact:
 
   ```ts
   const overlap = 0.5;
-  const wall = Manifold.cube([60, 4, 20 + overlap], false)
-    .translate([0, 0, baseThickness - overlap]); // sinks 0.5 mm into base
+  const wall = Manifold.cube([60, 4, 20 + overlap], false).translate([0, 0, baseThickness - overlap]); // sinks 0.5 mm into base
   result = base.add(wall);
   ```
 
@@ -149,8 +148,7 @@ than a face-only contact:
 
   ```ts
   const overshoot = 1;
-  const drill = Manifold.cylinder(plateThickness + 2 * overshoot, 3, 3, 48, true)
-    .translate([0, 0, plateThickness / 2]);
+  const drill = Manifold.cylinder(plateThickness + 2 * overshoot, 3, 3, 48, true).translate([0, 0, plateThickness / 2]);
   result = plate.subtract(drill);
   ```
 
@@ -165,29 +163,32 @@ cleanest construction is to compute the 8 (or N) tilted corner vertices
 yourself and `Manifold.hull` them:
 
 ```ts
-const tilt = 25;                                  // degrees from vertical
+const tilt = 25; // degrees from vertical
 const c = Math.cos((tilt * Math.PI) / 180);
 const s = Math.sin((tilt * Math.PI) / 180);
-const t = 6, h = 95;                              // panel thickness, height
-const hingeY = 16, hingeZ = 5.5;                  // attachment point on the base
-const xL = -47.5, xR = 47.5;
+const t = 6,
+  h = 95; // panel thickness, height
+const hingeY = 16,
+  hingeZ = 5.5; // attachment point on the base
+const xL = -47.5,
+  xR = 47.5;
 
 const corners: Array<[number, number, number]> = [
-  [xL, hingeY,             hingeZ],
-  [xR, hingeY,             hingeZ],
-  [xL, hingeY + t * c,     hingeZ + t * s],
-  [xR, hingeY + t * c,     hingeZ + t * s],
+  [xL, hingeY, hingeZ],
+  [xR, hingeY, hingeZ],
+  [xL, hingeY + t * c, hingeZ + t * s],
+  [xR, hingeY + t * c, hingeZ + t * s],
   [xL, hingeY + t * c + h * s, hingeZ + t * s + h * c],
   [xR, hingeY + t * c + h * s, hingeZ + t * s + h * c],
-  [xL, hingeY + h * s,     hingeZ + h * c],
-  [xR, hingeY + h * s,     hingeZ + h * c],
+  [xL, hingeY + h * s, hingeZ + h * c],
+  [xR, hingeY + h * s, hingeZ + h * c],
 ];
 const panel = Manifold.hull(corners);
 ```
 
 This is more reliable than `Manifold.cube(...).rotate(...).trimByPlane(...)`
 because you don't have to remember the half-space sign convention of
-`trimByPlane` (the half-space *kept* is the one whose dot product with the
+`trimByPlane` (the half-space _kept_ is the one whose dot product with the
 normal is ≥ `originOffset`; getting this wrong silently truncates the model
 and `ok: true` does not warn). When in doubt, hull a vertex set you can
 verify by hand.
@@ -210,7 +211,7 @@ verify by hand.
 
 | TS code         | Common cause                                                           | Typical fix                                                                                         |
 | --------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `2339`          | Unknown API such as `Manifold.box` or `CrossSection.roundedRectangle`.  | Use the supported method or documented recipe. Static warnings often include the exact replacement. |
+| `2339`          | Unknown API such as `Manifold.box` or `CrossSection.roundedRectangle`. | Use the supported method or documented recipe. Static warnings often include the exact replacement. |
 | `2554`          | Wrong argument count, often from options-object constructor calls.     | Use positional signatures from `manifold-api.md`.                                                   |
 | `2740`          | A `CrossSection` was assigned where a `Manifold` is required.          | Extrude or revolve the 2D profile before assigning `result`.                                        |
-| `2322` / `2769` | Tuple/vector mismatch or `Manifold \| undefined`.                       | Add tuple annotations and guard array/map lookups before use.                                       |
+| `2322` / `2769` | Tuple/vector mismatch or `Manifold \| undefined`.                      | Add tuple annotations and guard array/map lookups before use.                                       |

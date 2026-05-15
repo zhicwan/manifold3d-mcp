@@ -31,8 +31,8 @@ export function EmptyState() {
               <li>Connect your AI assistant via MCP.</li>
               <li>Ask the AI to generate or modify a 3D model.</li>
               <li>
-                The model appears here automatically once <code className="rounded bg-background px-1">execute_script</code>{' '}
-                runs.
+                The model appears here automatically once{' '}
+                <code className="rounded bg-background px-1">execute_script</code> runs.
               </li>
               <li>Ctrl+click / Ctrl+drag to mark feedback; export to 3MF or STL when done.</li>
             </ol>

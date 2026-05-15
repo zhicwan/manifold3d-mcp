@@ -18,8 +18,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const distHost = join(repoRoot, 'dist', 'server', 'runner', 'host.js');
 const workerJs = join(repoRoot, 'dist', 'server', 'runner', 'worker.js');
 
-const skipUnlessBuilt =
-  !existsSync(workerJs) || !existsSync(distHost) || process.env.SKIP_RUNNER_TESTS === '1';
+const skipUnlessBuilt = !existsSync(workerJs) || !existsSync(distHost) || process.env.SKIP_RUNNER_TESTS === '1';
 
 type HostModule = typeof HostModuleNs;
 let host: HostModule;
@@ -48,10 +47,7 @@ describe.skipIf(skipUnlessBuilt)('SEC-1: worker sandbox scrubs dangerous globals
 
   for (const ident of ['require', 'process', 'Buffer', 'module']) {
     it(`reports \`typeof ${ident}\` as 'undefined' inside the worker`, async () => {
-      const { report } = await host.run(
-        { mode: 'validate', code: probe(ident) },
-        { timeoutMs: 15_000 },
-      );
+      const { report } = await host.run({ mode: 'validate', code: probe(ident) }, { timeoutMs: 15_000 });
       expect(report.ok).toBe(true);
       expect(report.errors).toEqual([]);
       // The "scrubbed" branch produced a 2-unit cube. If the identifier

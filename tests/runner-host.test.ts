@@ -25,10 +25,7 @@ describe.skipIf(skipUnlessBuilt)('runner host: run()', () => {
   });
 
   it('runs a happy-path validate of result = Manifold.cube()', async () => {
-    const { report } = await host.run(
-      { mode: 'validate', code: 'result = Manifold.cube();' },
-      { timeoutMs: 15_000 },
-    );
+    const { report } = await host.run({ mode: 'validate', code: 'result = Manifold.cube();' }, { timeoutMs: 15_000 });
     expect(report.ok).toBe(true);
     expect(report.errors).toEqual([]);
   }, 20_000);
@@ -56,10 +53,7 @@ describe.skipIf(skipUnlessBuilt)('runner host: run()', () => {
       }
       result = Manifold.cube();
     `;
-    const { report } = await host.run(
-      { mode: 'validate', code: oomCode },
-      { timeoutMs: 15_000, maxOldGenMb: 16 },
-    );
+    const { report } = await host.run({ mode: 'validate', code: oomCode }, { timeoutMs: 15_000, maxOldGenMb: 16 });
     expect(report.ok).toBe(false);
     const oom = report.errors.find(e => e.code === 'OUT_OF_MEMORY' || e.code === 'WORKER_CRASH');
     expect(oom, `expected OOM/crash error; got ${JSON.stringify(report.errors)}`).toBeDefined();
@@ -74,10 +68,7 @@ describe.skipIf(skipUnlessBuilt)('runner host: run()', () => {
   // concurrent calls must complete in submission order with no overlap.
   it('serializes concurrent runs in submission order', async () => {
     const calls = [0, 1, 2, 3].map(i =>
-      host.run(
-        { mode: 'validate', code: `result = Manifold.cube(${i + 1});` },
-        { timeoutMs: 15_000 },
-      ),
+      host.run({ mode: 'validate', code: `result = Manifold.cube(${i + 1});` }, { timeoutMs: 15_000 }),
     );
     const results = await Promise.all(calls);
     for (const { report } of results) {
@@ -90,10 +81,7 @@ describe.skipIf(skipUnlessBuilt)('runner host: run()', () => {
   // subsequent runs should hit the same threadId — no respawn, no WASM
   // re-init. This is the core perf payoff of warm-worker mode.
   it('reuses the warm worker across consecutive runs', async () => {
-    const first = await host.run(
-      { mode: 'validate', code: 'result = Manifold.cube();' },
-      { timeoutMs: 15_000 },
-    );
+    const first = await host.run({ mode: 'validate', code: 'result = Manifold.cube();' }, { timeoutMs: 15_000 });
     expect(first.report.ok).toBe(true);
     const firstThreadId = host._currentThreadId();
     expect(firstThreadId).toBeDefined();
@@ -111,10 +99,7 @@ describe.skipIf(skipUnlessBuilt)('runner host: run()', () => {
   // RUN-2: changing maxOldGenMb forces a respawn because resourceLimits
   // are immutable on a live thread. Validates the fast-path bail-out.
   it('respawns the worker when maxOldGenMb changes', async () => {
-    const first = await host.run(
-      { mode: 'validate', code: 'result = Manifold.cube();' },
-      { timeoutMs: 15_000 },
-    );
+    const first = await host.run({ mode: 'validate', code: 'result = Manifold.cube();' }, { timeoutMs: 15_000 });
     expect(first.report.ok).toBe(true);
     const firstThreadId = host._currentThreadId();
 

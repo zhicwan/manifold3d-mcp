@@ -11,12 +11,12 @@
  * APIs: Manifold.levelSet
  */
 
-const period = 10;                       // mm per gyroid cell
-const s = (2 * Math.PI) / period;       // radians per mm
+const period = 10; // mm per gyroid cell
+const s = (2 * Math.PI) / period; // radians per mm
 
 const bounds: Box = {
   min: [-10, -10, -10] as Vec3,
-  max: [ 10,  10,  10] as Vec3,
+  max: [10, 10, 10] as Vec3,
 };
 
 const gyroidSDF = (p: Vec3): number =>

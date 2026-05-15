@@ -199,7 +199,7 @@ describe.skipIf(skipUnlessBuilt)('preview server: multi-tab annotation merge', (
     }
   }, 15_000);
 
-  it('clears all clients\' annotations when a new model is pushed', async () => {
+  it("clears all clients' annotations when a new model is pushed", async () => {
     handle.push(syntheticMesh());
 
     const a = await openTabAndAwaitVersion(handle.url);
