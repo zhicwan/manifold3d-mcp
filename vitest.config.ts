@@ -8,6 +8,5 @@ export default defineConfig({
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: { junit: 'test-results.junit.xml' },
     pool: 'forks',
-    poolOptions: { forks: { singleFork: false } },
   },
 });
