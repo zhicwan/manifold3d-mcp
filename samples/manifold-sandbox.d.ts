@@ -13,20 +13,7 @@
 type Vec2 = [number, number];
 type Vec3 = [number, number, number];
 type Mat3 = [number, number, number, number, number, number];
-type Mat4 = [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-];
+type Mat4 = [number, number, number, number, number, number, number, number, number, number, number, number];
 type Rect = { min: Vec2; max: Vec2 };
 type Box = { min: Vec3; max: Vec3 };
 type Polygons = Vec2[][];
@@ -169,10 +156,7 @@ declare class Manifold {
   smoothByNormals(normalIdx: number): Manifold;
   smoothOut(minSharpAngle?: number, minSmoothness?: number): Manifold;
 
-  setProperties(
-    numProp: number,
-    propFunc: (newProps: number[], position: Vec3, oldProps: number[]) => void,
-  ): Manifold;
+  setProperties(numProp: number, propFunc: (newProps: number[], position: Vec3, oldProps: number[]) => void): Manifold;
 
   numTri(): number;
   numVert(): number;
