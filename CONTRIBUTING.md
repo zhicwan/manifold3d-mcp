@@ -17,23 +17,37 @@ npm ci
 
 ## Local plugin development
 
-Plugin files live under `plugin/`. Build the local server first, then load that
-plugin folder in your client:
+Plugin files live under `plugin/`. The repo-root `.mcp.json` points the
+`manifold-mcp` MCP server at your local `dist/server/index.js`, so after
+building your changes are picked up automatically:
 
 ```bash
 npm run build
-copilot plugin install ./plugin
-claude --plugin-dir ./plugin
 ```
 
-`plugin/.mcp.json` runs `plugin/bin/manifold-mcp.mjs`. The proxy prefers the
-local `dist/server/index.js` build and falls back to `npx -y
-@zhicwan/manifold-mcp` for public installs. If a cached plugin install cannot
-see your checkout, start the client with an explicit local entry:
+The repo ships two `.mcp.json` files with the same server name (`manifold-mcp`):
+
+| File               | Command                        | Purpose                                 |
+| ------------------ | ------------------------------ | --------------------------------------- |
+| `.mcp.json` (root) | `node dist/server/index.js`    | Local development against your build    |
+| `plugin/.mcp.json` | `npx -y @zhicwan/manifold-mcp` | Published package for end-user installs |
+
+When working from the repo root the local config takes precedence, so your
+changes are picked up automatically after `npm run build`.
+
+To test the published plugin experience (via `npx`), install from outside the
+repo checkout:
 
 ```bash
-MANIFOLD_MCP_LOCAL_ENTRY="$PWD/dist/server/index.js" copilot
+# Copilot CLI
+/plugin install zhicwan/manifold-mcp:plugin
+
+# Claude Code
+claude --plugin-dir /path/to/manifold-mcp/plugin
 ```
+
+> **Note:** `dist/` is git-ignored. You must run `npm run build` at least once
+> before the root `.mcp.json` can start the local MCP server.
 
 ## Scripts
 
