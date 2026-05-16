@@ -2,7 +2,7 @@
   "name": "manifold-mcp",
   "owner": {
     "name": "Zhicheng Wang",
-    "email": "nicewan@outlook.com"
+    "email": "imwosz@hotmail.com"
   },
   "metadata": {
     "description": "MCP server and skill for designing 3D-printable models with manifold-3d in Copilot CLI.",
