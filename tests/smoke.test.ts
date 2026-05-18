@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createInterface, type Interface } from 'node:readline';
 import { dirname, join } from 'node:path';
@@ -449,15 +449,7 @@ result = Manifold.cube(size);
     const result = await harness.callTool('capture_view', { view: 'front', width: 160, height: 128 });
 
     expect(result.isError).toBe(false);
-    expect(result.content[0]).toEqual(expect.objectContaining({ type: 'image', mimeType: 'image/png' }));
-    const image = result.content[0];
-    if (image.type !== 'image') {
-      throw new Error('capture_view did not return image content first');
-    }
-    const png = Buffer.from(image.data, 'base64');
-    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(png.readUInt32BE(16)).toBe(160);
-    expect(png.readUInt32BE(20)).toBe(128);
+    expect(result.content[0]).toEqual(expect.objectContaining({ type: 'text' }));
 
     const metadata = parseYaml(textOf(result)) as Record<string, unknown>;
     expect(metadata).toEqual(
@@ -468,6 +460,13 @@ result = Manifold.cube(size);
         includeAnnotations: false,
         renderBackend: 'software-rasterizer',
       }),
+    );
+    expect(metadata).toHaveProperty('filePath');
+    const filePath = metadata.filePath as string;
+    const png = await readFile(filePath);
+    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(png.readUInt32BE(16)).toBe(160);
+    expect(png.readUInt32BE(20)).toBe(128
     );
     expect(metadata.modelVersion).toEqual(expect.stringMatching(/^v/));
     expect(metadata.bboxMin).toEqual([-6, -4, -2]);
@@ -569,13 +568,7 @@ result = Manifold.cube(size);
       });
 
       expect(result.isError).toBe(false);
-      const image = result.content[0];
-      expect(image).toEqual(expect.objectContaining({ type: 'image', mimeType: 'image/png' }));
-      if (image.type !== 'image') {
-        throw new Error('capture_view did not return image content first');
-      }
-      const png = Buffer.from(image.data, 'base64');
-      expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      expect(result.content[0]).toEqual(expect.objectContaining({ type: 'text' }));
 
       const metadata = parseYaml(textOf(result)) as Record<string, unknown>;
       expect(metadata).toEqual(
@@ -588,6 +581,9 @@ result = Manifold.cube(size);
           renderBackend: 'software-rasterizer',
         }),
       );
+      expect(metadata).toHaveProperty('filePath');
+      const png = await readFile(metadata.filePath as string);
+      expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     } finally {
       await closeWebSocket(annotationSocket);
     }
