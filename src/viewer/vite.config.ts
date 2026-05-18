@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
     // dev/staging builds where you actually open the browser devtools
     // pointing at this build. Production publishes ship without them.
     sourcemap: mode !== 'production',
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         // VIE-4: split the bundle so the browser can cache each

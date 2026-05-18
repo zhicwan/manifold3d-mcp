@@ -20,8 +20,19 @@ interface JsonRpcResponse {
   error?: unknown;
 }
 
+interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+interface ImageContent {
+  type: 'image';
+  data: string;
+  mimeType: string;
+}
+
 interface ToolResult {
-  content: [{ type: 'text'; text: string }];
+  content: Array<TextContent | ImageContent>;
   isError?: boolean;
 }
 
@@ -226,7 +237,9 @@ async function closeWebSocket(socket: WebSocket | undefined): Promise<void> {
 }
 
 function textOf(result: ToolResult): string {
-  return result.content[0].text;
+  const text = result.content.find(item => item.type === 'text');
+  expect(text).toBeTruthy();
+  return text!.text;
 }
 
 function reportOf(result: ToolResult): ValidationReport {
@@ -266,7 +279,20 @@ describe.skipIf(skipUnlessBuilt)('MCP smoke tests', () => {
   it('lists the expected tools', async () => {
     const tools = await harness.call<ToolsListResult>('tools/list', {});
 
-    expect(tools.tools.map(tool => tool.name).sort()).toEqual(['execute_script', 'get_annotations', 'validate_script']);
+    expect(tools.tools.map(tool => tool.name).sort()).toEqual([
+      'capture_view',
+      'execute_script',
+      'get_annotations',
+      'validate_script',
+    ]);
+  });
+
+  it('returns NO_MODEL when capturing before any preview model exists', async () => {
+    const result = await harness.callTool('capture_view');
+
+    expect(result.isError).toBe(true);
+    const report = reportOf(result);
+    expectError(report, { stage: 'static', code: 'NO_MODEL' });
   });
 
   it('validates TypeScript snippets with annotations and helpers', async () => {
@@ -413,6 +439,159 @@ result = Manifold.cube(size);
     const body = await httpRes.text();
     expect(body).toMatch(/<!doctype html>/i);
   });
+
+  it('captures the last preview model as PNG with metadata', async () => {
+    await harness.callTool('execute_script', {
+      code: 'result = Manifold.cube([12, 8, 4], true);',
+      description: 'capture-cube',
+    });
+
+    const result = await harness.callTool('capture_view', { view: 'front', width: 160, height: 128 });
+
+    expect(result.isError).toBe(false);
+    expect(result.content[0]).toEqual(expect.objectContaining({ type: 'image', mimeType: 'image/png' }));
+    const image = result.content[0];
+    if (image.type !== 'image') {
+      throw new Error('capture_view did not return image content first');
+    }
+    const png = Buffer.from(image.data, 'base64');
+    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(png.readUInt32BE(16)).toBe(160);
+    expect(png.readUInt32BE(20)).toBe(128);
+
+    const metadata = parseYaml(textOf(result)) as Record<string, unknown>;
+    expect(metadata).toEqual(
+      expect.objectContaining({
+        view: 'front',
+        width: 160,
+        height: 128,
+        includeAnnotations: false,
+        renderBackend: 'software-rasterizer',
+      }),
+    );
+    expect(metadata.modelVersion).toEqual(expect.stringMatching(/^v/));
+    expect(metadata.bboxMin).toEqual([-6, -4, -2]);
+    expect(metadata.bboxMax).toEqual([6, 4, 2]);
+  });
+
+  it('captures with includeAnnotations=true after point and sketch annotations are present', async () => {
+    let annotationSocket: WebSocket | undefined;
+
+    try {
+      const execution = await harness.callTool('execute_script', {
+        code: 'result = Manifold.cube([10, 10, 10], true);',
+        description: 'capture-with-annotations',
+      });
+      const previewUrl = textOf(execution).match(/previewUrl:\s*(\S+)/)?.[1];
+      expect(previewUrl).toBeTruthy();
+
+      const wsUrl = `${previewUrl!.replace(/^http/, 'ws')}ws`;
+      const wsOrigin = new URL(previewUrl!).origin;
+      const wsHost = new URL(previewUrl!).host;
+      annotationSocket = new WebSocket(wsUrl, { headers: { Origin: wsOrigin, Host: wsHost } });
+
+      let serverModelVersion: string | undefined;
+      annotationSocket.on('message', (data, isBinary) => {
+        if (isBinary) {
+          return;
+        }
+        let message: unknown;
+        try {
+          message = JSON.parse(data.toString('utf8'));
+        } catch {
+          return;
+        }
+        if (
+          typeof message === 'object' &&
+          message !== null &&
+          'kind' in message &&
+          message.kind === 'model_version' &&
+          'modelVersion' in message &&
+          typeof message.modelVersion === 'string'
+        ) {
+          serverModelVersion = message.modelVersion;
+        }
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        annotationSocket?.once('open', () => resolve());
+        annotationSocket?.once('error', reject);
+      });
+      await waitFor(() => typeof serverModelVersion === 'string', 'capture annotation model_version');
+
+      annotationSocket.send(
+        JSON.stringify({
+          kind: 'annotations',
+          modelVersion: serverModelVersion,
+          items: [
+            {
+              id: 'capture-point-1',
+              modelVersion: serverModelVersion,
+              kind: 'point',
+              partLabel: 'point#1',
+              note: 'capture this point',
+              worldCoord: [1, 2, 3],
+            },
+            {
+              id: 'capture-sketch-1',
+              modelVersion: serverModelVersion,
+              kind: 'sketch',
+              partLabel: 'sketch#1',
+              note: 'capture this sketch',
+              worldCoord: [0, 0, 5],
+              viewPlane: 'front',
+              planeOrigin: [0, 0, 5],
+              strokes: [
+                [
+                  [0, 0],
+                  [1, 1],
+                ],
+              ],
+            },
+          ],
+        }),
+      );
+
+      let annotations = '';
+      await waitForAsync(async () => {
+        annotations = textOf(await harness.callTool('get_annotations'));
+        return /count:\s*2/.test(annotations);
+      }, 'point and sketch annotation snapshot');
+      expect(annotations).toMatch(/partLabel:\s*point#1/);
+      expect(annotations).toMatch(/kind:\s*sketch/);
+      expect(annotations).toMatch(/partLabel:\s*sketch#1/);
+
+      const result = await harness.callTool('capture_view', {
+        view: 'iso',
+        width: 128,
+        height: 128,
+        includeAnnotations: true,
+      });
+
+      expect(result.isError).toBe(false);
+      const image = result.content[0];
+      expect(image).toEqual(expect.objectContaining({ type: 'image', mimeType: 'image/png' }));
+      if (image.type !== 'image') {
+        throw new Error('capture_view did not return image content first');
+      }
+      const png = Buffer.from(image.data, 'base64');
+      expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+      const metadata = parseYaml(textOf(result)) as Record<string, unknown>;
+      expect(metadata).toEqual(
+        expect.objectContaining({
+          view: 'iso',
+          width: 128,
+          height: 128,
+          includeAnnotations: true,
+          modelVersion: serverModelVersion,
+          renderBackend: 'software-rasterizer',
+        }),
+      );
+    } finally {
+      await closeWebSocket(annotationSocket);
+    }
+  }, 35_000);
 
   it('validates and executes snippets loaded from an absolute local filePath', async () => {
     // Allow-list (SEC-2) requires filePath be inside MANIFOLD_MCP_SCRIPT_ROOTS,

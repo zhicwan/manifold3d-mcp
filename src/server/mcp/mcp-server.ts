@@ -1,5 +1,5 @@
 /**
- * MCP server: exposes `validate_script` and `execute_script` tools.
+ * MCP server: exposes manifold validation, execution, annotation, and capture tools.
  * Output is YAML serialized via report.ts.
  */
 import { readFile, realpath, stat } from 'node:fs/promises';
@@ -17,10 +17,12 @@ import {
 import { run, type RunRequest } from '../runner/host.js';
 import { reportToYaml, type Report } from '../validation/report.js';
 import type { PreviewServerHandle } from '../preview/preview-server.js';
+import { createRenderer, type CaptureView, type RenderViewOptions } from '../preview/renderer.js';
 import { MAX_CODE_BYTES } from '../validation/validators.js';
 
 /** Filename extensions accepted by `filePath` loader. */
 const ALLOWED_FILE_EXTENSIONS = new Set(['.ts', '.js', '.mjs', '.cts', '.mts']);
+const CAPTURE_VIEWS = new Set<CaptureView>(['iso', 'front', 'back', 'left', 'right', 'top', 'bottom']);
 
 export interface McpServerOptions {
   /**
@@ -121,6 +123,40 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
           'marked anything.',
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       },
+      {
+        name: 'capture_view',
+        description:
+          'Capture the current preview model as a PNG image from a named view. ' +
+          'Does not start or open the preview; it only renders the last model ' +
+          'already produced by execute_script.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            view: {
+              type: 'string',
+              enum: [...CAPTURE_VIEWS],
+              default: 'iso',
+              description: 'Camera preset to render.',
+            },
+            width: {
+              type: 'number',
+              default: 1024,
+              description: 'Requested PNG width in pixels. The renderer clamps supported dimensions.',
+            },
+            height: {
+              type: 'number',
+              default: 1024,
+              description: 'Requested PNG height in pixels. The renderer clamps supported dimensions.',
+            },
+            includeAnnotations: {
+              type: 'boolean',
+              default: false,
+              description: 'When true, overlays current point, region, and sketch annotations on the captured PNG.',
+            },
+          },
+          additionalProperties: false,
+        },
+      },
     ],
   }));
 
@@ -172,6 +208,45 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
         body.note = `no active annotations${preview ? '' : ' (preview not started yet)'}`;
       }
       return { content: [{ type: 'text', text: yaml.stringify(body) }] };
+    }
+
+    if (name === 'capture_view') {
+      const preview = opts.peekPreview();
+      const mesh = preview?.getLastMesh();
+      if (!mesh) {
+        return toolResult(
+          staticError(
+            'NO_MODEL',
+            'No model is available to capture. Run execute_script successfully before calling capture_view.',
+          ),
+        );
+      }
+
+      const annotations = preview?.getAnnotations();
+      const baseRenderOpts = captureRenderOptions(args);
+      const renderOpts: RenderViewOptions = {
+        ...baseRenderOpts,
+        annotations: baseRenderOpts.includeAnnotations ? (annotations?.items ?? []) : undefined,
+      };
+      const png = await createRenderer().renderView(mesh, renderOpts);
+      const metadata = {
+        view: baseRenderOpts.view,
+        width: baseRenderOpts.width,
+        height: baseRenderOpts.height,
+        includeAnnotations: baseRenderOpts.includeAnnotations,
+        annotationCount: baseRenderOpts.includeAnnotations ? (annotations?.items.length ?? 0) : 0,
+        modelVersion: annotations?.modelVersion,
+        bboxMin: mesh.bboxMin,
+        bboxMax: mesh.bboxMax,
+        renderBackend: 'software-rasterizer',
+      };
+      return {
+        content: [
+          { type: 'image', data: png.toString('base64'), mimeType: 'image/png' },
+          { type: 'text', text: yaml.stringify(metadata) },
+        ],
+        isError: false,
+      };
     }
 
     return toolResult({
@@ -358,6 +433,19 @@ function isWithinAnyRoot(realFilePath: string, roots: readonly string[]): boolea
     }
   }
   return false;
+}
+
+type CaptureRenderOptions = Required<Omit<RenderViewOptions, 'annotations'>>;
+
+function captureRenderOptions(args: Record<string, unknown>): CaptureRenderOptions {
+  const view: CaptureView =
+    typeof args.view === 'string' && CAPTURE_VIEWS.has(args.view as CaptureView) ? (args.view as CaptureView) : 'iso';
+  return {
+    view,
+    width: typeof args.width === 'number' ? args.width : 1024,
+    height: typeof args.height === 'number' ? args.height : 1024,
+    includeAnnotations: typeof args.includeAnnotations === 'boolean' ? args.includeAnnotations : false,
+  };
 }
 
 function staticError(code: string, message: string): Report {
