@@ -74,15 +74,12 @@ const CLAY_BASE = new THREE.Color(0xc9cdd3);
 const EDGE_ANGLE_RADIANS = THREE.MathUtils.degToRad(25);
 const EDGE_COS_THRESHOLD = Math.cos(EDGE_ANGLE_RADIANS);
 
-let singleton: PreviewRenderer | undefined;
-
 export function createRenderer(): PreviewRenderer {
-  singleton ??= new SoftwarePreviewRenderer();
-  return singleton;
+  return new SoftwarePreviewRenderer();
 }
 
 class SoftwarePreviewRenderer implements PreviewRenderer {
-  renderView(mesh: MeshPayload, opts: RenderViewOptions = {}): Promise<RenderResult> {
+  async renderView(mesh: MeshPayload, opts: RenderViewOptions = {}): Promise<RenderResult> {
     const width = clampDimension(opts.width ?? 1024);
     const height = clampDimension(opts.height ?? 1024);
     const view = opts.view ?? 'iso';
@@ -95,12 +92,20 @@ class SoftwarePreviewRenderer implements PreviewRenderer {
     drawGrid(ctx, camera, bbox, width, height);
     drawBlobShadow(ctx, camera, bbox, width, height);
 
+    // Yield to the event loop between heavy phases so that other MCP
+    // requests (validate_script, get_annotations, WebSocket heartbeats)
+    // are not starved during large renders.
+    await yieldToEventLoop();
+
     const faces = buildFaces(vertices, indices, camera, width, height);
     for (const face of faces) {
       if (face.visible) {
         drawTriangle(ctx, face);
       }
     }
+
+    await yieldToEventLoop();
+
     drawCreaseEdges(ctx, faces);
     if (opts.includeAnnotations === true && opts.annotations && opts.annotations.length > 0) {
       drawAnnotationOverlay(ctx, camera, opts.annotations, view, width, height);
@@ -108,12 +113,16 @@ class SoftwarePreviewRenderer implements PreviewRenderer {
     drawAxisGizmo(ctx, camera, bbox.center, width, height);
     drawText(ctx, 18, 18, `${view.toUpperCase()} VIEW`, LABEL_COLOR, 2);
 
-    return Promise.resolve({ png: encodePng(ctx), width, height });
+    return { png: encodePng(ctx), width, height };
   }
 
   dispose(): void {
-    singleton = undefined;
+    // No-op: the renderer is stateless.
   }
+}
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise(resolve => setImmediate(resolve));
 }
 
 function clampDimension(value: number): number {

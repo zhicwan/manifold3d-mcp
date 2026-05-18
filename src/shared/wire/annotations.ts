@@ -153,11 +153,11 @@ function isWireSketchAnnotation(a: Record<string, unknown>): boolean {
   if (!isNumber3(a.planeOrigin)) {
     return false;
   }
-  if (!Array.isArray(a.strokes)) {
+  if (!Array.isArray(a.strokes) || a.strokes.length === 0) {
     return false;
   }
   for (const stroke of a.strokes) {
-    if (!Array.isArray(stroke)) {
+    if (!Array.isArray(stroke) || stroke.length < 2) {
       return false;
     }
     for (const point of stroke) {
