@@ -50,6 +50,8 @@ export interface PreviewServerHandle {
   url: string;
   port: number;
   push(mesh: MeshPayload): void;
+  /** Returns the most recent mesh pushed to the preview server, if any. */
+  getLastMesh(): MeshPayload | undefined;
   /** Returns the union of all live & recently-disconnected viewers' annotations. */
   getAnnotations(): { modelVersion: string; items: WireAnnotation[] };
   close(): Promise<void>;
@@ -191,6 +193,9 @@ export async function startPreviewServer(preferredPort = 3737, host = '127.0.0.1
           sendMesh(ws, mesh);
         }
       }
+    },
+    getLastMesh(): MeshPayload | undefined {
+      return lastPayload;
     },
     getAnnotations(): { modelVersion: string; items: WireAnnotation[] } {
       // Flatten the union across all clients. Order across buckets is

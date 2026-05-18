@@ -23,6 +23,11 @@ a live three.js preview page in the user's browser. The user can export STL or
 - **`get_annotations`** — cheap, zero-arg, no preview side effects; reads the
   user's active marks on the current model and returns them as a YAML document.
   See [`references/annotations.md`](references/annotations.md).
+- **`capture_view`** — renders the last executed model as a PNG from a named
+  camera preset (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`).
+  Returns an image content block plus YAML metadata (dimensions, bbox, view).
+  Optional params: `view` (default `iso`), `width`/`height` (128–2048, default
+  1024), `includeAnnotations` (overlay user marks on the capture).
 
 Both tools take exactly one script source: `code` (an inline TypeScript snippet)
 or `filePath` (an absolute path to a local `.ts`/`.js` snippet file read by the
@@ -39,8 +44,13 @@ optional `description` shown as the preview title.
    and validate again. Iterate quickly here — no preview thrash for the user.
 4. **`execute_script`** with a meaningful `description`. The user sees the
    model rendered live and can press Export 3MF / Export STL.
-5. **Iterate** based on what the user sees and asks for. Each tweak is another
-   `validate_script` → `execute_script` cycle.
+5. **`capture_view`** — visually verify your result. Call `capture_view` after
+   `execute_script` to see the model from one or more angles. This lets you
+   catch issues that stats alone cannot reveal (e.g., a hole punched on the
+   wrong face, a fillet that clips geometry, or an alignment error). Compare
+   the rendered image against your design intent before declaring success.
+6. **Iterate** based on what the user sees and asks for. Each tweak is another
+   `validate_script` → `execute_script` → `capture_view` cycle.
 
 See [`prompts/iterate-with-validate.md`](prompts/iterate-with-validate.md) for
 the canonical wording of the loop.
@@ -104,3 +114,10 @@ the canonical wording of the loop.
   [`references/annotations.md`](references/annotations.md).
 - **Keep circular segments modest** (`Manifold.sphere(r, 64)` is usually
   enough; `256` will trigger the triangle budget warning).
+- **Use `capture_view` to self-check geometry.** After `execute_script`, call
+  `capture_view` from at least one relevant angle (e.g., `front` for a flat
+  face, `iso` for overall shape) and inspect the PNG. If the image reveals
+  unexpected geometry (clipping, misalignment, missing features), fix the
+  script before telling the user the model is ready. For complex models,
+  capture from multiple views (e.g., `front` + `top`) to catch issues that
+  are hidden in a single projection.

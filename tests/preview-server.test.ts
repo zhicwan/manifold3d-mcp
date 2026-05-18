@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
 
+import type { MeshPayload } from '../src/server/runner/protocol.js';
 import type * as PreviewModuleNs from '../src/server/preview/preview-server.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,6 +21,24 @@ const skipUnlessBuilt = !existsSync(distPreview) || !existsSync(distPublic);
 type PreviewModule = typeof PreviewModuleNs;
 let previewModule: PreviewModule;
 let handle: PreviewModule extends { startPreviewServer: (...args: never[]) => Promise<infer H> } ? H : never;
+
+function syntheticMesh(): MeshPayload {
+  return {
+    description: 'getLastMesh test',
+    numProp: 3,
+    triangles: 1,
+    vertices: 3,
+    features: [],
+    vertProperties: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer,
+    triVerts: new Uint32Array([0, 1, 2]).buffer,
+    triFeatureIds: new Uint32Array([0]).buffer,
+    volume: 0,
+    surfaceArea: 1,
+    genus: 0,
+    bboxMin: [0, 0, 0],
+    bboxMax: [1, 1, 0],
+  };
+}
 
 describe.skipIf(skipUnlessBuilt)('preview server', () => {
   beforeAll(async () => {
@@ -53,6 +72,20 @@ describe.skipIf(skipUnlessBuilt)('preview server', () => {
   it('returns 404 for missing files', async () => {
     const res = await fetch(`${handle.url}missing-file.js`);
     expect(res.status).toBe(404);
+  });
+
+  it('exposes the cached mesh only after push()', async () => {
+    const localHandle = await previewModule.startPreviewServer(47671);
+    try {
+      expect(localHandle.getLastMesh()).toBeUndefined();
+
+      const mesh = syntheticMesh();
+      localHandle.push(mesh);
+
+      expect(localHandle.getLastMesh()).toBe(mesh);
+    } finally {
+      await localHandle.close();
+    }
   });
 
   it('ignores annotation messages tagged with a stale model version', async () => {

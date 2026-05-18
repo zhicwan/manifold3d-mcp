@@ -18,12 +18,18 @@
 export interface WireAnnotation {
   id: string;
   modelVersion: string;
-  kind: 'point' | 'region';
+  kind: 'point' | 'region' | 'sketch';
   partLabel: string;
   note: string;
   worldCoord: [number, number, number];
   /** Only set for kind='region'. Number of triangles in the selection. */
   triCount?: number;
+  /** Only set for kind='sketch'. View-aligned plane used for 2D sketch strokes. */
+  viewPlane?: 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom';
+  /** Only set for kind='sketch'. World-space origin of the sketch plane. */
+  planeOrigin?: [number, number, number];
+  /** Only set for kind='sketch'. 2D strokes in sketch-plane coordinates. */
+  strokes?: Array<Array<[number, number]>>;
   /**
    * Server-assigned identifier of the WebSocket connection that owns
    * this annotation. Set by the server on the inbound message before
@@ -94,7 +100,7 @@ function isWireAnnotation(x: unknown): x is WireAnnotation {
   if (typeof a.modelVersion !== 'string') {
     return false;
   }
-  if (a.kind !== 'point' && a.kind !== 'region') {
+  if (a.kind !== 'point' && a.kind !== 'region' && a.kind !== 'sketch') {
     return false;
   }
   if (typeof a.partLabel !== 'string') {
@@ -117,6 +123,48 @@ function isWireAnnotation(x: unknown): x is WireAnnotation {
   }
   if (a.clientId !== undefined && typeof a.clientId !== 'string') {
     return false;
+  }
+  if (a.kind === 'sketch') {
+    return isWireSketchAnnotation(a);
+  }
+  return true;
+}
+
+const VIEW_PLANES = new Set(['front', 'back', 'left', 'right', 'top', 'bottom']);
+
+function isNumber3(x: unknown): x is [number, number, number] {
+  return (
+    Array.isArray(x) &&
+    x.length === 3 &&
+    typeof x[0] === 'number' &&
+    typeof x[1] === 'number' &&
+    typeof x[2] === 'number'
+  );
+}
+
+function isNumber2(x: unknown): x is [number, number] {
+  return Array.isArray(x) && x.length === 2 && typeof x[0] === 'number' && typeof x[1] === 'number';
+}
+
+function isWireSketchAnnotation(a: Record<string, unknown>): boolean {
+  if (typeof a.viewPlane !== 'string' || !VIEW_PLANES.has(a.viewPlane)) {
+    return false;
+  }
+  if (!isNumber3(a.planeOrigin)) {
+    return false;
+  }
+  if (!Array.isArray(a.strokes) || a.strokes.length === 0) {
+    return false;
+  }
+  for (const stroke of a.strokes) {
+    if (!Array.isArray(stroke) || stroke.length < 2) {
+      return false;
+    }
+    for (const point of stroke) {
+      if (!isNumber2(point)) {
+        return false;
+      }
+    }
   }
   return true;
 }

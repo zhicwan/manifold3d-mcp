@@ -10,7 +10,13 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.mjs', 'vitest.config.ts', 'scripts/*.mjs', 'plugin/bin/*.mjs'],
+          allowDefaultProject: [
+            'eslint.config.mjs',
+            'vitest.config.ts',
+            'scripts/*.mjs',
+            'scripts/*.ts',
+            'plugin/bin/*.mjs',
+          ],
           // Safety net: in some IDE contexts projectService may briefly
           // route additional files (e.g. tests) through the default
           // project before tests/tsconfig.json is discovered. Raising the
