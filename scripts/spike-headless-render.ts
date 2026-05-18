@@ -1,3 +1,9 @@
+/**
+ * Intentionally-frozen reference spike for headless rendering.
+ * This duplicates logic from src/server/preview/renderer.ts on purpose —
+ * it serves as a standalone proof-of-concept and should NOT be kept in sync.
+ * Run with: npx tsx scripts/spike-headless-render.ts
+ */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';

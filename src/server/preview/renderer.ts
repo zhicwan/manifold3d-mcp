@@ -16,8 +16,15 @@ export interface RenderViewOptions {
   annotations?: readonly WireAnnotation[];
 }
 
+export interface RenderResult {
+  png: Buffer;
+  /** Actual rendered dimensions (after clamping). */
+  width: number;
+  height: number;
+}
+
 export interface PreviewRenderer {
-  renderView(mesh: MeshPayload, opts?: RenderViewOptions): Promise<Buffer>;
+  renderView(mesh: MeshPayload, opts?: RenderViewOptions): Promise<RenderResult>;
   dispose(): void;
 }
 
@@ -75,11 +82,9 @@ export function createRenderer(): PreviewRenderer {
 }
 
 class SoftwarePreviewRenderer implements PreviewRenderer {
-  renderView(mesh: MeshPayload, opts: RenderViewOptions = {}): Promise<Buffer> {
+  renderView(mesh: MeshPayload, opts: RenderViewOptions = {}): Promise<RenderResult> {
     const width = clampDimension(opts.width ?? 1024);
     const height = clampDimension(opts.height ?? 1024);
-    cameraViewportWidth = width;
-    cameraViewportHeight = height;
     const view = opts.view ?? 'iso';
     const vertices = unpackPositions(mesh);
     const indices = new Uint32Array(mesh.triVerts);
@@ -87,10 +92,10 @@ class SoftwarePreviewRenderer implements PreviewRenderer {
     const camera = createCamera(view, width, height, bbox);
     const ctx = createRasterContext(width, height);
 
-    drawGrid(ctx, camera, bbox);
-    drawBlobShadow(ctx, camera, bbox);
+    drawGrid(ctx, camera, bbox, width, height);
+    drawBlobShadow(ctx, camera, bbox, width, height);
 
-    const faces = buildFaces(vertices, indices, camera);
+    const faces = buildFaces(vertices, indices, camera, width, height);
     for (const face of faces) {
       if (face.visible) {
         drawTriangle(ctx, face);
@@ -98,12 +103,12 @@ class SoftwarePreviewRenderer implements PreviewRenderer {
     }
     drawCreaseEdges(ctx, faces);
     if (opts.includeAnnotations === true && opts.annotations && opts.annotations.length > 0) {
-      drawAnnotationOverlay(ctx, camera, opts.annotations, view);
+      drawAnnotationOverlay(ctx, camera, opts.annotations, view, width, height);
     }
-    drawAxisGizmo(ctx, camera, bbox.center);
+    drawAxisGizmo(ctx, camera, bbox.center, width, height);
     drawText(ctx, 18, 18, `${view.toUpperCase()} VIEW`, LABEL_COLOR, 2);
 
-    return Promise.resolve(encodePng(ctx));
+    return Promise.resolve({ png: encodePng(ctx), width, height });
   }
 
   dispose(): void {
@@ -213,7 +218,13 @@ function viewUp(view: CaptureView): THREE.Vector3 {
   return new THREE.Vector3(0, 0, 1);
 }
 
-function buildFaces(vertices: readonly THREE.Vector3[], indices: Uint32Array, camera: THREE.Camera): Face[] {
+function buildFaces(
+  vertices: readonly THREE.Vector3[],
+  indices: Uint32Array,
+  camera: THREE.Camera,
+  vw: number,
+  vh: number,
+): Face[] {
   const faces: Face[] = [];
   const lightA = new THREE.Vector3(0.45, -0.55, 0.78).normalize();
   const lightB = new THREE.Vector3(-0.6, 0.25, 0.45).normalize();
@@ -246,9 +257,9 @@ function buildFaces(vertices: readonly THREE.Vector3[], indices: Uint32Array, ca
       a,
       b,
       c,
-      pa: project(a, camera),
-      pb: project(b, camera),
-      pc: project(c, camera),
+      pa: project(a, camera, vw, vh),
+      pb: project(b, camera, vw, vh),
+      pc: project(c, camera, vw, vh),
       normal,
       visible,
       color: [Math.round(color.r * 255), Math.round(color.g * 255), Math.round(color.b * 255)],
@@ -341,6 +352,8 @@ function drawGrid(
   ctx: RasterContext,
   camera: THREE.Camera,
   bbox: { min: THREE.Vector3; max: THREE.Vector3; radius: number },
+  vw: number,
+  vh: number,
 ): void {
   const z = bbox.min.z;
   const step = 10;
@@ -352,8 +365,8 @@ function drawGrid(
   for (let x = minX; x <= maxX; x += step) {
     drawLine(
       ctx,
-      project(new THREE.Vector3(x, minY, z), camera),
-      project(new THREE.Vector3(x, maxY, z), camera),
+      project(new THREE.Vector3(x, minY, z), camera, vw, vh),
+      project(new THREE.Vector3(x, maxY, z), camera, vw, vh),
       GRID_COLOR,
       1,
     );
@@ -361,8 +374,8 @@ function drawGrid(
   for (let y = minY; y <= maxY; y += step) {
     drawLine(
       ctx,
-      project(new THREE.Vector3(minX, y, z), camera),
-      project(new THREE.Vector3(maxX, y, z), camera),
+      project(new THREE.Vector3(minX, y, z), camera, vw, vh),
+      project(new THREE.Vector3(maxX, y, z), camera, vw, vh),
       GRID_COLOR,
       1,
     );
@@ -373,13 +386,15 @@ function drawBlobShadow(
   ctx: RasterContext,
   camera: THREE.Camera,
   bbox: { min: THREE.Vector3; max: THREE.Vector3; center: THREE.Vector3 },
+  vw: number,
+  vh: number,
 ): void {
   const corners = [
     new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
     new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
     new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
     new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
-  ].map(corner => project(corner, camera));
+  ].map(corner => project(corner, camera, vw, vh));
   const minX = Math.min(...corners.map(c => c.x));
   const maxX = Math.max(...corners.map(c => c.x));
   const minY = Math.min(...corners.map(c => c.y));
@@ -398,8 +413,8 @@ function drawBlobShadow(
   }
 }
 
-function drawAxisGizmo(ctx: RasterContext, camera: THREE.Camera, center: THREE.Vector3): void {
-  const origin = project(center, camera);
+function drawAxisGizmo(ctx: RasterContext, camera: THREE.Camera, center: THREE.Vector3, vw: number, vh: number): void {
+  const origin = project(center, camera, vw, vh);
   const axes: Array<{ label: string; dir: THREE.Vector3; color: [number, number, number] }> = [
     { label: 'X', dir: new THREE.Vector3(1, 0, 0), color: [220, 38, 38] },
     { label: 'Y', dir: new THREE.Vector3(0, 1, 0), color: [22, 163, 74] },
@@ -407,7 +422,7 @@ function drawAxisGizmo(ctx: RasterContext, camera: THREE.Camera, center: THREE.V
   ];
   const base = { x: ctx.width - 76, y: ctx.height - 58, z: 0 };
   for (const axis of axes) {
-    const p = project(center.clone().add(axis.dir), camera);
+    const p = project(center.clone().add(axis.dir), camera, vw, vh);
     const dx = p.x - origin.x;
     const dy = p.y - origin.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -422,13 +437,15 @@ function drawAnnotationOverlay(
   camera: THREE.Camera,
   annotations: readonly WireAnnotation[],
   captureView: CaptureView,
+  vw: number,
+  vh: number,
 ): void {
   for (const annotation of annotations) {
     if (annotation.kind === 'sketch') {
-      drawSketchAnnotation(ctx, camera, annotation, captureView);
+      drawSketchAnnotation(ctx, camera, annotation, captureView, vw, vh);
       continue;
     }
-    const anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord), camera);
+    const anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord), camera, vw, vh);
     if (annotation.kind === 'point') {
       drawDot(ctx, anchor, POINT_COLOR, 5);
       drawLabel(ctx, Math.round(anchor.x + 9), Math.round(anchor.y - 10), annotation.partLabel, POINT_COLOR);
@@ -444,9 +461,11 @@ function drawSketchAnnotation(
   camera: THREE.Camera,
   annotation: WireAnnotation,
   captureView: CaptureView,
+  vw: number,
+  vh: number,
 ): void {
   if (!annotation.viewPlane || !annotation.planeOrigin || !annotation.strokes) {
-    const anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord), camera);
+    const anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord), camera, vw, vh);
     drawRegionAnchor(ctx, anchor, SKETCH_COLOR);
     drawLabel(ctx, Math.round(anchor.x + 10), Math.round(anchor.y - 10), annotation.partLabel, SKETCH_COLOR);
     return;
@@ -457,7 +476,12 @@ function drawSketchAnnotation(
   for (const stroke of annotation.strokes) {
     let previous: ProjectedVertex | undefined;
     for (const point of stroke) {
-      const projected = project(sketchPointToWorld(annotation.viewPlane, annotation.planeOrigin, point), camera);
+      const projected = project(
+        sketchPointToWorld(annotation.viewPlane, annotation.planeOrigin, point),
+        camera,
+        vw,
+        vh,
+      );
       labelAnchor ??= projected;
       if (previous) {
         drawLine(ctx, previous, projected, SKETCH_COLOR, thickness);
@@ -468,7 +492,7 @@ function drawSketchAnnotation(
     }
   }
 
-  const anchor = labelAnchor ?? project(new THREE.Vector3().fromArray(annotation.worldCoord), camera);
+  const anchor = labelAnchor ?? project(new THREE.Vector3().fromArray(annotation.worldCoord), camera, vw, vh);
   drawDot(ctx, anchor, SKETCH_COLOR, captureView === annotation.viewPlane ? 4 : 3);
   drawLabel(ctx, Math.round(anchor.x + 9), Math.round(anchor.y - 10), annotation.partLabel, SKETCH_COLOR);
 }
@@ -502,17 +526,14 @@ function sketchPlaneBasis(viewPlane: NonNullable<WireAnnotation['viewPlane']>): 
   }
 }
 
-function project(vertex: THREE.Vector3, camera: THREE.Camera): ProjectedVertex {
+function project(vertex: THREE.Vector3, camera: THREE.Camera, vw: number, vh: number): ProjectedVertex {
   const projected = vertex.clone().project(camera);
   return {
-    x: (projected.x * 0.5 + 0.5) * cameraViewportWidth,
-    y: (-projected.y * 0.5 + 0.5) * cameraViewportHeight,
+    x: (projected.x * 0.5 + 0.5) * vw,
+    y: (-projected.y * 0.5 + 0.5) * vh,
     z: projected.z,
   };
 }
-
-let cameraViewportWidth = 1;
-let cameraViewportHeight = 1;
 
 function edge(a: ProjectedVertex, b: ProjectedVertex, x: number, y: number): number {
   return (x - a.x) * (b.y - a.y) - (y - a.y) * (b.x - a.x);

@@ -17,7 +17,7 @@ import {
 import { run, type RunRequest } from '../runner/host.js';
 import { reportToYaml, type Report } from '../validation/report.js';
 import type { PreviewServerHandle } from '../preview/preview-server.js';
-import { createRenderer, type CaptureView, type RenderViewOptions } from '../preview/renderer.js';
+import { createRenderer, type CaptureView, type RenderViewOptions, type RenderResult } from '../preview/renderer.js';
 import { MAX_CODE_BYTES } from '../validation/validators.js';
 
 /** Filename extensions accepted by `filePath` loader. */
@@ -139,14 +139,18 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
               description: 'Camera preset to render.',
             },
             width: {
-              type: 'number',
+              type: 'integer',
+              minimum: 128,
+              maximum: 2048,
               default: 1024,
-              description: 'Requested PNG width in pixels. The renderer clamps supported dimensions.',
+              description: 'Requested PNG width in pixels (128–2048).',
             },
             height: {
-              type: 'number',
+              type: 'integer',
+              minimum: 128,
+              maximum: 2048,
               default: 1024,
-              description: 'Requested PNG height in pixels. The renderer clamps supported dimensions.',
+              description: 'Requested PNG height in pixels (128–2048).',
             },
             includeAnnotations: {
               type: 'boolean',
@@ -228,11 +232,11 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
         ...baseRenderOpts,
         annotations: baseRenderOpts.includeAnnotations ? (annotations?.items ?? []) : undefined,
       };
-      const png = await createRenderer().renderView(mesh, renderOpts);
+      const result: RenderResult = await createRenderer().renderView(mesh, renderOpts);
       const metadata = {
         view: baseRenderOpts.view,
-        width: baseRenderOpts.width,
-        height: baseRenderOpts.height,
+        width: result.width,
+        height: result.height,
         includeAnnotations: baseRenderOpts.includeAnnotations,
         annotationCount: baseRenderOpts.includeAnnotations ? (annotations?.items.length ?? 0) : 0,
         modelVersion: annotations?.modelVersion,
@@ -242,7 +246,7 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
       };
       return {
         content: [
-          { type: 'image', data: png.toString('base64'), mimeType: 'image/png' },
+          { type: 'image', data: result.png.toString('base64'), mimeType: 'image/png' },
           { type: 'text', text: yaml.stringify(metadata) },
         ],
         isError: false,
@@ -440,10 +444,12 @@ type CaptureRenderOptions = Required<Omit<RenderViewOptions, 'annotations'>>;
 function captureRenderOptions(args: Record<string, unknown>): CaptureRenderOptions {
   const view: CaptureView =
     typeof args.view === 'string' && CAPTURE_VIEWS.has(args.view as CaptureView) ? (args.view as CaptureView) : 'iso';
+  const rawWidth = typeof args.width === 'number' && Number.isFinite(args.width) ? args.width : 1024;
+  const rawHeight = typeof args.height === 'number' && Number.isFinite(args.height) ? args.height : 1024;
   return {
     view,
-    width: typeof args.width === 'number' ? args.width : 1024,
-    height: typeof args.height === 'number' ? args.height : 1024,
+    width: Math.max(128, Math.min(2048, Math.round(rawWidth))),
+    height: Math.max(128, Math.min(2048, Math.round(rawHeight))),
     includeAnnotations: typeof args.includeAnnotations === 'boolean' ? args.includeAnnotations : false,
   };
 }

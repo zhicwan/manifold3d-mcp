@@ -52,7 +52,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "spike:headless-render": "node scripts/spike-headless-render.ts",
+    "spike:headless-render": "tsx scripts/spike-headless-render.ts",
     "prepublishOnly": "npm run lint && npm run typecheck && npm test",
     "prepack": "npm run clean && npm run build"
   },

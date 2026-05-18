@@ -119,7 +119,7 @@ function countColor(pixels: Buffer, color: readonly [number, number, number]): n
 describe('preview renderer', () => {
   it('renders a mesh view to a valid non-blank PNG with requested dimensions', async () => {
     const renderer = createRenderer();
-    const png = await renderer.renderView(cubeMesh(), { view: 'iso', width: 320, height: 240 });
+    const { png } = await renderer.renderView(cubeMesh(), { view: 'iso', width: 320, height: 240 });
     const decoded = decodeRendererPng(png);
 
     expect(decoded.width).toBe(320);
@@ -132,7 +132,7 @@ describe('preview renderer', () => {
   it('renders all capture view presets to valid non-blank PNGs', async () => {
     const renderer = createRenderer();
     for (const view of CAPTURE_VIEWS) {
-      const png = await renderer.renderView(cubeMesh(), { view, width: 128, height: 128 });
+      const { png } = await renderer.renderView(cubeMesh(), { view, width: 128, height: 128 });
       const decoded = decodeRendererPng(png);
       expect(decoded.width, view).toBe(128);
       expect(decoded.height, view).toBe(128);
@@ -194,22 +194,26 @@ describe('preview renderer', () => {
     ];
 
     const hidden = decodeRendererPng(
-      await renderer.renderView(cubeMesh(), {
-        view: 'top',
-        width: 160,
-        height: 160,
-        includeAnnotations: false,
-        annotations,
-      }),
+      (
+        await renderer.renderView(cubeMesh(), {
+          view: 'top',
+          width: 160,
+          height: 160,
+          includeAnnotations: false,
+          annotations,
+        })
+      ).png,
     );
     const overlaid = decodeRendererPng(
-      await renderer.renderView(cubeMesh(), {
-        view: 'top',
-        width: 160,
-        height: 160,
-        includeAnnotations: true,
-        annotations,
-      }),
+      (
+        await renderer.renderView(cubeMesh(), {
+          view: 'top',
+          width: 160,
+          height: 160,
+          includeAnnotations: true,
+          annotations,
+        })
+      ).png,
     );
 
     expect(countColor(hidden.pixels, [236, 72, 153])).toBe(0);
@@ -219,8 +223,13 @@ describe('preview renderer', () => {
   });
 });
 
-async function expectDimensions(render: Promise<Buffer>, width: number, height: number): Promise<void> {
-  const decoded = decodeRendererPng(await render);
+async function expectDimensions(
+  render: Promise<{ png: Buffer; width: number; height: number }>,
+  width: number,
+  height: number,
+): Promise<void> {
+  const { png } = await render;
+  const decoded = decodeRendererPng(png);
   expect(decoded.width).toBe(width);
   expect(decoded.height).toBe(height);
 }
