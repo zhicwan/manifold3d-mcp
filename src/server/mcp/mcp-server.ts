@@ -2,8 +2,9 @@
  * MCP server: exposes manifold validation, execution, annotation, and capture tools.
  * Output is YAML serialized via report.ts.
  */
-import { readFile, realpath, stat } from 'node:fs/promises';
-import { delimiter, extname, isAbsolute, relative, resolve } from 'node:path';
+import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { delimiter, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import yaml from 'yaml';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -233,10 +234,19 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
         annotations: baseRenderOpts.includeAnnotations ? (annotations?.items ?? []) : undefined,
       };
       const result: RenderResult = await createRenderer().renderView(mesh, renderOpts);
+
+      // Save PNG to disk instead of returning base64 image block
+      const captureDir = join(tmpdir(), 'manifold-mcp-captures');
+      await mkdir(captureDir, { recursive: true });
+      const filename = `capture-${baseRenderOpts.view}-${Date.now()}.png`;
+      const filePath = join(captureDir, filename);
+      await writeFile(filePath, result.png);
+
       const metadata = {
         view: baseRenderOpts.view,
         width: result.width,
         height: result.height,
+        filePath,
         includeAnnotations: baseRenderOpts.includeAnnotations,
         annotationCount: baseRenderOpts.includeAnnotations ? (annotations?.items.length ?? 0) : 0,
         modelVersion: annotations?.modelVersion,
@@ -246,7 +256,6 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
       };
       return {
         content: [
-          { type: 'image', data: result.png.toString('base64'), mimeType: 'image/png' },
           { type: 'text', text: yaml.stringify(metadata) },
         ],
         isError: false,
