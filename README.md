@@ -7,6 +7,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 ![Node.js >= 24](https://img.shields.io/badge/Node.js-%E2%89%A5%2024-green)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zhicwan/manifold-mcp)
 
 An MCP server and plugin that lets an LLM design 3D-printable models with
 [manifold-3d](https://github.com/elalish/manifold), validate the generated
