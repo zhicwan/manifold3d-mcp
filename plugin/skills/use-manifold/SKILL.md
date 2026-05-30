@@ -84,7 +84,7 @@ the canonical wording of the loop.
 - **`ok: true` is necessary, not sufficient.** After every `validate_script`,
   cross-check the YAML `stats` against your intent before claiming success or
   calling `execute_script`:
-  - `bbox.size` — compare the rendered bounding box against the user's requested controlling dimensions, not only against constants you chose in code. If you add clearance, margins, bases, tabs, or lips that make an external dimension more than ±10% different from a named requested dimension, either revise the design or explicitly explain why that requested dimension is an internal fit dimension rather than the model's outside size before declaring success.
+  - `bbox.size` — compare the rendered bounding box against the user's requested controlling dimensions, not only against constants you chose in code. For fit requests phrased as "for a <object> W mm wide/thick" (phone stands, cases, holders, cradles), treat the named object width/thickness as the controlling fit envelope: the contact slot/opening/support span should be within +0–10% of it including clearance, and no unrelated base/lip/shoulder may become the model's dominant bbox dimension along that same axis unless the user explicitly asks for extra stability or margins. If an outside bbox dimension exceeds a named fit dimension by more than 10%, revise the geometry so the excess is in a non-controlling axis, or ask before proceeding; do not rely on a final-response explanation alone.
   - `genus` — `0` for a single closed solid, `1` per through-hole, `-1` if
     your union produced two disjoint components (typically because two parts
     share only a face — see "Clean booleans" in
