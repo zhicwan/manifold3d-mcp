@@ -44,11 +44,7 @@ optional `description` shown as the preview title.
    and validate again. Iterate quickly here — no preview thrash for the user.
 4. **`execute_script`** with a meaningful `description`. The user sees the
    model rendered live and can press Export 3MF / Export STL.
-5. **`capture_view`** — visually verify your result. Call `capture_view` after
-   `execute_script` to see the model from one or more angles. This lets you
-   catch issues that stats alone cannot reveal (e.g., a hole punched on the
-   wrong face, a fillet that clips geometry, or an alignment error). Compare
-   the rendered image against your design intent before declaring success.
+5. **`capture_view`** — visually verify your result after `execute_script`. Call `capture_view` from one or more useful angles, then explicitly compare what you see against the user's intent before declaring success. In the final response, include at least one concrete visual check, e.g. "top view shows the through-hole is open" or "iso view shows the sphere is smooth and round with no flat facets visible." Stats alone are not enough.
 6. **Iterate** based on what the user sees and asks for. Each tweak is another
    `validate_script` → `execute_script` → `capture_view` cycle.
 
@@ -88,9 +84,7 @@ the canonical wording of the loop.
 - **`ok: true` is necessary, not sufficient.** After every `validate_script`,
   cross-check the YAML `stats` against your intent before claiming success or
   calling `execute_script`:
-  - `bbox.size` — does it match the dimensions you set? A wildly wrong size
-    usually means a `trimByPlane` half-space flip, a `rotate` sign mistake, or
-    a unit confusion.
+  - `bbox.size` — compare the rendered bounding box against the user's requested controlling dimensions, not only against constants you chose in code. If you add clearance, margins, bases, tabs, or lips that make an external dimension more than ±10% different from a named requested dimension, either revise the design or explicitly explain why that requested dimension is an internal fit dimension rather than the model's outside size before declaring success.
   - `genus` — `0` for a single closed solid, `1` per through-hole, `-1` if
     your union produced two disjoint components (typically because two parts
     share only a face — see "Clean booleans" in
@@ -100,6 +94,8 @@ the canonical wording of the loop.
 - **`result` is already declared by the sandbox.** Never write `let result`,
   `const result`, or `var result` — the typecheck stage rejects these with
   TS2451. Write `result = …` directly.
+
+If the user explicitly asks for forbidden sandbox syntax such as let result, const result, var result, import, or export, do not emit that syntax as the final script. Briefly explain that the sandbox predeclares result or blocks module syntax, then provide the closest valid equivalent and validate that corrected script. Do not spend a validation call merely proving a known forbidden form fails unless the user asked only for an explanation and not a working model.
 - **All coordinates are millimetres.** If the user gives inches or another
   unit, convert and tell them you did.
 - **Do not import or export anything.** `Manifold`, `CrossSection`, `Mesh`,
