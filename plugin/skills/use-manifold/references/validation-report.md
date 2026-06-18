@@ -79,7 +79,7 @@ exports are still forbidden by the static stage.
 | `TS_DIAGNOSTIC` | The TypeScript compiler rejected the snippet. `tsCode` has the TS code. | Read `message`, `line`, `col`, and `tsCode`; fix method names, argument shapes, tuple types, etc. |
 | `TS_EMIT_ERROR` | TypeScript failed to emit JavaScript after diagnostics.                 | Fix the preceding diagnostics first; if none are shown, simplify the snippet and validate again.  |
 
-Common TypeScript diagnostics in manifold-mcp snippets:
+Common TypeScript diagnostics in manifold3d-mcp snippets:
 
 | `tsCode`        | Usually means                                                                  | Fast fix                                                                                                      |
 | --------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |

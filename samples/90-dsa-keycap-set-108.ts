@@ -5,7 +5,7 @@
  * A complete printable set of DSA-profile keycaps for a standard
  * ANSI 108-key keyboard (104 ANSI + 4 media keys above the numpad),
  * arranged at real keyboard spacing so you can preview the whole
- * board at once. Built with manifold-3d for the manifold-mcp sandbox
+ * board at once. Built with manifold-3d for the manifold3d-mcp sandbox
  * (see skills/use-manifold/).
  *
  * All dimensions are in **millimetres**.

@@ -224,7 +224,7 @@ function patchCrossSectionInstanceProto(wasm: ManifoldToplevel, registry: Map<nu
       // BEFORE the SEC-1 sandbox scrub strips `process` from globalThis.
       try {
         process.stderr.write(
-          '[manifold-mcp] Embind CrossSection prototype is frozen; feature recognition for extrude/revolve is disabled. Update sandbox/feature-recognition.ts to use the new dispatch API.\n',
+          '[manifold3d-mcp] Embind CrossSection prototype is frozen; feature recognition for extrude/revolve is disabled. Update sandbox/feature-recognition.ts to use the new dispatch API.\n',
         );
       } catch {
         /* worker may be in an unusual state during bootstrap; swallow. */

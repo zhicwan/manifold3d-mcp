@@ -1,5 +1,5 @@
 {
-  "name": "manifold-mcp",
+  "name": "manifold3d-mcp",
   "owner": {
     "name": "Zhicheng Wang",
     "email": "imwosz@hotmail.com"
@@ -15,8 +15,8 @@
       "version": "0.0.1",
       "source": "./plugin",
       "author": { "name": "Zhicheng Wang" },
-      "homepage": "https://github.com/zhicwan/manifold-mcp",
-      "repository": "https://github.com/zhicwan/manifold-mcp",
+      "homepage": "https://github.com/zhicwan/manifold3d-mcp",
+      "repository": "https://github.com/zhicwan/manifold3d-mcp",
       "license": "Apache-2.0",
       "keywords": ["mcp", "manifold-3d", "3d-printing", "cad", "copilot-cli"]
     }

@@ -121,25 +121,25 @@ describe.skipIf(skipUnlessBuilt)('SEC-4: static asset path traversal is blocked'
   it('rejects literal `..` segments leading out of public/', async () => {
     const r = await rawGet(port, '/../package.json');
     expect(r.status).toBeGreaterThanOrEqual(400);
-    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold-mcp"/);
+    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold3d-mcp"/);
   });
 
   it('rejects URL-encoded `%2e%2e` traversal', async () => {
     const r = await rawGet(port, '/%2e%2e/package.json');
     expect(r.status).toBeGreaterThanOrEqual(400);
-    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold-mcp"/);
+    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold3d-mcp"/);
   });
 
   it('rejects mixed encoding `..%2fpackage.json`', async () => {
     const r = await rawGet(port, '/..%2fpackage.json');
     expect(r.status).toBeGreaterThanOrEqual(400);
-    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold-mcp"/);
+    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold3d-mcp"/);
   });
 
   it('rejects double-encoded `%252e%252e/package.json`', async () => {
     const r = await rawGet(port, '/%252e%252e/package.json');
     expect(r.status).toBeGreaterThanOrEqual(400);
-    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold-mcp"/);
+    expect(r.body).not.toMatch(/"name"\s*:\s*"@zhicwan\/manifold3d-mcp"/);
   });
 
   it('rejects URLs that contain *any* percent-encoding', async () => {

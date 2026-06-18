@@ -26,7 +26,7 @@ export function ControlPanel() {
     <Card className="pointer-events-auto fixed right-4 top-4 z-30 w-[300px] border-white/70 bg-white/70 shadow-xl backdrop-blur-xl">
       <CardHeader className="p-4 pb-3">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="truncate text-sm">{payload?.description || 'manifold-mcp'}</CardTitle>
+          <CardTitle className="truncate text-sm">{payload?.description || 'manifold3d-mcp'}</CardTitle>
           {/*
             VIE-8 a11y: the dot is purely visual; sighted users get the
             color, screen-reader users get an aria-live announcement

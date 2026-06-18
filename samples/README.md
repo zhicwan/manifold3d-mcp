@@ -1,6 +1,6 @@
-# manifold-mcp samples
+# manifold3d-mcp samples
 
-This directory holds parametric model samples for the manifold-mcp sandbox. Each
+This directory holds parametric model samples for the manifold3d-mcp sandbox. Each
 file is a self-contained TypeScript snippet that produces a single
 `Manifold` and assigns it to `result`. They typecheck against
 `samples/tsconfig.json` and run as-is via `validate_script` /
@@ -34,7 +34,7 @@ Pass the absolute path to `validate_script` or `execute_script`:
 {
   "name": "validate_script",
   "arguments": {
-    "filePath": "/absolute/path/to/manifold-mcp/samples/01-hello-cube.ts"
+    "filePath": "/absolute/path/to/manifold3d-mcp/samples/01-hello-cube.ts"
   }
 }
 ```

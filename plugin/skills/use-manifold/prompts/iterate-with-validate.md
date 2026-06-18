@@ -1,6 +1,6 @@
 # Iterating with `validate_script` first
 
-The single most useful habit when driving manifold-mcp is:
+The single most useful habit when driving manifold3d-mcp is:
 
 > **`validate_script` early, `execute_script` once you are confident.**
 

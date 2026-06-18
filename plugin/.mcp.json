@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "manifold-mcp": {
+    "manifold3d-mcp": {
       "type": "local",
       "command": "npx",
-      "args": ["-y", "@zhicwan/manifold-mcp"],
+      "args": ["-y", "@zhicwan/manifold3d-mcp"],
       "tools": ["*"]
     }
   }
