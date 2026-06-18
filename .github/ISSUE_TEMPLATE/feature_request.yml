@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest an enhancement for manifold-mcp
+description: Suggest an enhancement for manifold3d-mcp
 labels: [enhancement]
 body:
   - type: textarea

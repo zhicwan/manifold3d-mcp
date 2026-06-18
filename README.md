@@ -1,13 +1,13 @@
-# manifold-mcp
+# manifold3d-mcp
 
 <!-- TODO: uncomment badges after first publish
-[![CI](https://github.com/zhicwan/manifold-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/zhicwan/manifold-mcp/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@zhicwan/manifold-mcp)](https://www.npmjs.com/package/@zhicwan/manifold-mcp)
+[![CI](https://github.com/zhicwan/manifold3d-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/zhicwan/manifold3d-mcp/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@zhicwan/manifold3d-mcp)](https://www.npmjs.com/package/@zhicwan/manifold3d-mcp)
 -->
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 ![Node.js >= 24](https://img.shields.io/badge/Node.js-%E2%89%A5%2024-green)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zhicwan/manifold-mcp)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zhicwan/manifold3d-mcp)
 
 An MCP server and plugin that lets an LLM design 3D-printable models with
 [manifold-3d](https://github.com/elalish/manifold), validate the generated
@@ -16,15 +16,15 @@ TypeScript, and preview/export STL or 3MF in the browser.
 ## Easy install
 
 ```text
-/plugin marketplace add zhicwan/manifold-mcp
-/plugin install manifold@manifold-mcp
+/plugin marketplace add zhicwan/manifold3d-mcp
+/plugin install manifold@manifold3d-mcp
 ```
 
 ## Contribute setup
 
 ```bash
-git clone https://github.com/zhicwan/manifold-mcp.git
-cd manifold-mcp
+git clone https://github.com/zhicwan/manifold3d-mcp.git
+cd manifold3d-mcp
 npm install
 npm run build
 npm test

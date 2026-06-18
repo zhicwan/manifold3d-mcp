@@ -593,7 +593,7 @@ result = Manifold.cube(size);
     // Allow-list (SEC-2) requires filePath be inside MANIFOLD_MCP_SCRIPT_ROOTS,
     // which defaults to the harness CWD (= repoRoot). Create the temp dir
     // inside the repo so the default allow-list accepts it.
-    const tempDir = await mkdtemp(join(repoRoot, '.manifold-mcp-smoke-'));
+    const tempDir = await mkdtemp(join(repoRoot, '.manifold3d-mcp-smoke-'));
     try {
       const filePath = join(tempDir, 'file-snippet.ts');
       await writeFile(
@@ -622,7 +622,7 @@ result = Manifold.cube(size);
   it('rejects filePath sources outside the MANIFOLD_MCP_SCRIPT_ROOTS allow-list', async () => {
     // tmpdir() is outside the harness CWD (= repoRoot) and thus outside
     // the default allow-list. The error must NOT echo file contents.
-    const tempDir = await mkdtemp(join(tmpdir(), 'manifold-mcp-outside-'));
+    const tempDir = await mkdtemp(join(tmpdir(), 'manifold3d-mcp-outside-'));
     try {
       const filePath = join(tempDir, 'leak.ts');
       const secret = 'SECRET_SHOULD_NOT_LEAK_42';
@@ -649,7 +649,7 @@ result = Manifold.cube(size);
   });
 
   it('omits diagnostic snippets for filePath-loaded sources', async () => {
-    const tempDir = await mkdtemp(join(repoRoot, '.manifold-mcp-smoke-'));
+    const tempDir = await mkdtemp(join(repoRoot, '.manifold3d-mcp-smoke-'));
     try {
       const filePath = join(tempDir, 'unknown-api.ts');
       // Manifold.box is not a known static API → emits an UNKNOWN_API

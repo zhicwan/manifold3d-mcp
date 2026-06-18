@@ -25,8 +25,8 @@ export function export3mf(payload: PreviewPayload): Blob {
     precision: 7,
     header: {
       unit: 'millimeter',
-      title: payload.description || 'manifold-mcp model',
-      application: 'manifold-mcp',
+      title: payload.description || 'manifold3d-mcp model',
+      application: 'manifold3d-mcp',
       creationDate: new Date(),
     },
   });

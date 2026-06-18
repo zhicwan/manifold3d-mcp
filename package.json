@@ -1,16 +1,16 @@
 {
-  "name": "@zhicwan/manifold-mcp",
+  "name": "@zhicwan/manifold3d-mcp",
   "version": "0.0.1",
   "description": "MCP server that lets an LLM build 3D models with manifold-3d, with live three.js preview and STL/3MF export.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zhicwan/manifold-mcp.git"
+    "url": "git+https://github.com/zhicwan/manifold3d-mcp.git"
   },
-  "homepage": "https://github.com/zhicwan/manifold-mcp",
+  "homepage": "https://github.com/zhicwan/manifold3d-mcp",
   "bugs": {
-    "url": "https://github.com/zhicwan/manifold-mcp/issues"
+    "url": "https://github.com/zhicwan/manifold3d-mcp/issues"
   },
   "keywords": [
     "mcp",
@@ -22,7 +22,7 @@
     "copilot-cli"
   ],
   "bin": {
-    "manifold-mcp": "dist/server/index.js"
+    "manifold3d-mcp": "dist/server/index.js"
   },
   "files": [
     "dist",

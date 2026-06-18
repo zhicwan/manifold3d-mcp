@@ -21,7 +21,7 @@ async function main(): Promise<void> {
       previewPromise = (async () => {
         const handle = await startPreviewServer();
         preview = handle;
-        process.stderr.write(`[manifold-mcp] preview ready at ${handle.url}\n`);
+        process.stderr.write(`[manifold3d-mcp] preview ready at ${handle.url}\n`);
         // Best-effort browser open; ignore failure (headless / no default browser).
         // Skip entirely when MANIFOLD_MCP_NO_OPEN is set — used by tests and headless
         // CI runs to avoid spawning a browser that would 404 once the server
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   await startMcpServer({ getPreview, peekPreview: () => preview });
 
   const shutdown = async (signal: string): Promise<void> => {
-    process.stderr.write(`[manifold-mcp] received ${signal}, shutting down\n`);
+    process.stderr.write(`[manifold3d-mcp] received ${signal}, shutting down\n`);
     if (preview) {
       await preview.close();
     }
@@ -54,6 +54,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  process.stderr.write(`[manifold-mcp] fatal: ${msg}\n`);
+  process.stderr.write(`[manifold3d-mcp] fatal: ${msg}\n`);
   process.exit(1);
 });

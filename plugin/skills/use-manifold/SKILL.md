@@ -5,9 +5,9 @@ description: Build 3D-printable models with the manifold-3d MCP server. Use when
 
 # use-manifold — Skill Guide
 
-> **Skill name:** `use-manifold` — **requires MCP server:** `manifold-mcp`
+> **Skill name:** `use-manifold` — **requires MCP server:** `manifold3d-mcp`
 
-You have access to a Model Context Protocol server (`manifold-mcp`) that runs
+You have access to a Model Context Protocol server (`manifold3d-mcp`) that runs
 TypeScript snippets against the [manifold-3d](https://github.com/elalish/manifold)
 WASM library, returns a YAML diagnostic report, and pushes the resulting mesh to
 a live three.js preview page in the user's browser. The user can export STL or

@@ -1,4 +1,4 @@
-# Contributing to manifold-mcp
+# Contributing to manifold3d-mcp
 
 Thank you for your interest in contributing!
 
@@ -10,27 +10,27 @@ Thank you for your interest in contributing!
 ## Getting started
 
 ```bash
-git clone https://github.com/zhicwan/manifold-mcp.git
-cd manifold-mcp
+git clone https://github.com/zhicwan/manifold3d-mcp.git
+cd manifold3d-mcp
 npm ci
 ```
 
 ## Local plugin development
 
 Plugin files live under `plugin/`. The repo-root `.mcp.json` points the
-`manifold-mcp` MCP server at your local `dist/server/index.js`, so after
+`manifold3d-mcp` MCP server at your local `dist/server/index.js`, so after
 building your changes are picked up automatically:
 
 ```bash
 npm run build
 ```
 
-The repo ships two `.mcp.json` files with the same server name (`manifold-mcp`):
+The repo ships two `.mcp.json` files with the same server name (`manifold3d-mcp`):
 
 | File               | Command                        | Purpose                                 |
 | ------------------ | ------------------------------ | --------------------------------------- |
 | `.mcp.json` (root) | `node dist/server/index.js`    | Local development against your build    |
-| `plugin/.mcp.json` | `npx -y @zhicwan/manifold-mcp` | Published package for end-user installs |
+| `plugin/.mcp.json` | `npx -y @zhicwan/manifold3d-mcp` | Published package for end-user installs |
 
 When working from the repo root the local config takes precedence, so your
 changes are picked up automatically after `npm run build`.
@@ -40,10 +40,10 @@ repo checkout:
 
 ```bash
 # Copilot CLI
-/plugin install zhicwan/manifold-mcp:plugin
+/plugin install zhicwan/manifold3d-mcp:plugin
 
 # Claude Code
-claude --plugin-dir /path/to/manifold-mcp/plugin
+claude --plugin-dir /path/to/manifold3d-mcp/plugin
 ```
 
 > **Note:** `dist/` is git-ignored. You must run `npm run build` at least once

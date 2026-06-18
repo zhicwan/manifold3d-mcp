@@ -1,6 +1,6 @@
 /**
  * Re-exports of the upstream `manifold-3d` types we use, plus a small
- * manifold-mcp-local extension for the constructor-wrapping pattern in
+ * manifold3d-mcp-local extension for the constructor-wrapping pattern in
  * `runner/worker.ts`.
  *
  * Before MNT-5 this module declared its own structural mirrors of the
@@ -31,7 +31,7 @@ export type ManifoldCrossSection = UpstreamCrossSection;
 /**
  * Anything constructible. Used by `runner/worker.ts` for the generic
  * `trackConstructor` wrapper that bolts GC tracking onto Embind classes.
- * Not provided by upstream — it's a manifold-mcp-internal utility.
+ * Not provided by upstream — it's a manifold3d-mcp-internal utility.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyConstructor = new (...args: any[]) => unknown;

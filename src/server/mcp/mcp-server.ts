@@ -41,7 +41,7 @@ export interface McpServerOptions {
 }
 
 export async function startMcpServer(opts: McpServerOptions): Promise<void> {
-  const server = new Server({ name: 'manifold-mcp', version: '0.0.1' }, { capabilities: { tools: {} } });
+  const server = new Server({ name: 'manifold3d-mcp', version: '0.0.1' }, { capabilities: { tools: {} } });
 
   // eslint-disable-next-line @typescript-eslint/require-await -- TST-8 follow-up: handler shape is dictated by SDK; refactor in next phase
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -236,7 +236,7 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
       const result: RenderResult = await createRenderer().renderView(mesh, renderOpts);
 
       // Save PNG to disk instead of returning base64 image block
-      const captureDir = join(tmpdir(), 'manifold-mcp-captures');
+      const captureDir = join(tmpdir(), 'manifold3d-mcp-captures');
       await mkdir(captureDir, { recursive: true });
       const filename = `capture-${baseRenderOpts.view}-${Date.now()}.png`;
       const filePath = join(captureDir, filename);
@@ -279,7 +279,7 @@ export async function startMcpServer(opts: McpServerOptions): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write('[manifold-mcp] MCP server connected over stdio\n');
+  process.stderr.write('[manifold3d-mcp] MCP server connected over stdio\n');
 }
 
 type ScriptSource = { code: string; suppressSnippet: boolean } | { report: Report };
@@ -431,7 +431,7 @@ async function resolveAllowedRoots(): Promise<string[]> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(
-        `[manifold-mcp] warning: MANIFOLD_MCP_SCRIPT_ROOTS entry skipped (${candidate}): ${message}\n`,
+        `[manifold3d-mcp] warning: MANIFOLD_MCP_SCRIPT_ROOTS entry skipped (${candidate}): ${message}\n`,
       );
     }
   }

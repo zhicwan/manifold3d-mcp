@@ -1,7 +1,7 @@
 # Getting Started
 
 > Source: [manifold/bindings/wasm/documents/bindings.md](https://github.com/elalish/manifold/blob/master/bindings/wasm/documents/bindings.md)
-> (Apache-2.0). Adapted for the manifold-mcp sandbox.
+> (Apache-2.0). Adapted for the manifold3d-mcp sandbox.
 
 ## You do **not** need to install or initialize anything
 
@@ -14,7 +14,7 @@ wasm.setup();
 const { Manifold, CrossSection } = wasm;
 ```
 
-Inside the manifold-mcp sandbox, snippets are **TypeScript-only** and `Manifold`,
+Inside the manifold3d-mcp sandbox, snippets are **TypeScript-only** and `Manifold`,
 `CrossSection`, `Mesh`, `console`, and `result` are **already pre-bound as
 ambient globals**. Do **not** write `import` or `export` statements — module
 syntax is blocked by the static lint and will fail with `FORBIDDEN_GLOBAL`.

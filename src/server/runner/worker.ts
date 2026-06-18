@@ -381,7 +381,7 @@ function enforceSnippetInvariant(report: { errors: Issue[]; warnings: Issue[] },
   }
   if (leaked > 0) {
     trustedStderrWrite(
-      `[manifold-mcp] WARNING: suppressSnippet was set but ${leaked} Issue.snippet field(s) leaked through; scrubbed before send.\n`,
+      `[manifold3d-mcp] WARNING: suppressSnippet was set but ${leaked} Issue.snippet field(s) leaked through; scrubbed before send.\n`,
     );
   }
 }

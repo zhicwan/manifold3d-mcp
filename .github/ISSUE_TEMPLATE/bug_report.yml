@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in manifold-mcp
+description: Report a bug in manifold3d-mcp
 labels: [bug]
 body:
   - type: textarea
@@ -27,6 +27,6 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: 'Node version, OS, npm version, manifold-mcp version'
+      description: 'Node version, OS, npm version, manifold3d-mcp version'
     validations:
       required: false

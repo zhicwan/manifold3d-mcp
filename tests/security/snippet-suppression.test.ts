@@ -142,7 +142,7 @@ describe.skipIf(skipUnlessBuilt)('SEC-2: filePath suppresses Issue.snippet acros
   let tempDir = '';
 
   beforeAll(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'manifold-mcp-snippet-suppress-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'manifold3d-mcp-snippet-suppress-'));
     harness.start(tempDir);
     await harness.call('initialize', {
       protocolVersion: '2024-11-05',

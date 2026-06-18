@@ -12,7 +12,7 @@
 If you discover a security vulnerability, please report it responsibly:
 
 - **Email**: [imwosz@hotmail.com](mailto:imwosz@hotmail.com)
-- **GitHub Security Advisory**: [Create an advisory](https://github.com/zhicwan/manifold-mcp/security/advisories/new)
+- **GitHub Security Advisory**: [Create an advisory](https://github.com/zhicwan/manifold3d-mcp/security/advisories/new)
 
 We will acknowledge your report within **72 hours** and aim to provide a fix
 or mitigation plan within **14 days**.
@@ -21,7 +21,7 @@ Please do **not** open a public issue for security vulnerabilities.
 
 ## Security model
 
-manifold-mcp is an MCP server that executes LLM-generated TypeScript snippets.
+manifold3d-mcp is an MCP server that executes LLM-generated TypeScript snippets.
 The following describes the security boundaries and assumptions.
 
 ### Snippet execution

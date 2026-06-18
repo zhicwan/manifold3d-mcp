@@ -141,7 +141,7 @@ describe.skipIf(skipUnlessBuilt)('loadScriptSource (via MCP server)', () => {
   let validSamplePath: string;
 
   beforeAll(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'manifold-mcp-loadsrc-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'manifold3d-mcp-loadsrc-'));
     oversizePath = join(tempDir, 'oversize.ts');
     nonExistentPath = join(tempDir, 'does-not-exist.ts');
     // The SEC-2 file-extension allow-list rejects extensionless paths
@@ -212,7 +212,7 @@ describe.skipIf(skipUnlessBuilt)('loadScriptSource (via MCP server)', () => {
   it('rejects paths outside MANIFOLD_MCP_SCRIPT_ROOTS allow-list', async () => {
     // mkdtempSync returns a system-tmp path. A *second* mkdtemp produces a
     // sibling directory that is NOT under the allow-list we passed in.
-    const outsideDir = mkdtempSync(join(tmpdir(), 'manifold-mcp-load-source-outside-'));
+    const outsideDir = mkdtempSync(join(tmpdir(), 'manifold3d-mcp-load-source-outside-'));
     try {
       const outsidePath = join(outsideDir, 'evil.ts');
       writeFileSync(outsidePath, 'result = Manifold.cube();\n', 'utf8');

@@ -4,7 +4,7 @@
  *
  * A two-piece, snap-together photo frame designed to hold an Instax Mini
  * print and stick to a steel fridge door. Built with manifold-3d and
- * intended to be run inside the manifold-mcp sandbox (see
+ * intended to be run inside the manifold3d-mcp sandbox (see
  * skills/use-manifold/).
  *
  * All dimensions are in **millimetres**.
@@ -120,7 +120,7 @@
  * ----------------------------------------------------------------------
  *  This file is the body of an `execute_script` call. To
  *  preview it interactively:
- *    1. Have the manifold-mcp server running locally.
+ *    1. Have the manifold3d-mcp server running locally.
  *    2. Open Copilot CLI and ask it to run this file with that tool, or
  *       paste the contents into the sandbox playground.
  *  The script assigns the final composite (back + front, laid out side
