@@ -3,7 +3,7 @@
     "manifold3d-mcp": {
       "type": "local",
       "command": "npx",
-      "args": ["-y", "@zhicwan/manifold3d-mcp"],
+      "args": ["-y", "@zhicwan/manifold3d-mcp@1.0.x"],
       "tools": ["*"]
     }
   }

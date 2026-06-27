@@ -8,7 +8,7 @@
  *
  * Logs only to stderr — stdout is reserved for MCP protocol frames.
  */
-import open from 'open';
+import { launchPreview } from './preview/launch-browser.js';
 import { startPreviewServer, type PreviewServerHandle } from './preview/preview-server.js';
 import { startMcpServer } from './mcp/mcp-server.js';
 
@@ -22,13 +22,12 @@ async function main(): Promise<void> {
         const handle = await startPreviewServer();
         preview = handle;
         process.stderr.write(`[manifold3d-mcp] preview ready at ${handle.url}\n`);
-        // Best-effort browser open; ignore failure (headless / no default browser).
-        // Skip entirely when MANIFOLD_MCP_NO_OPEN is set — used by tests and headless
-        // CI runs to avoid spawning a browser that would 404 once the server
-        // shuts down.
-        if (!process.env.MANIFOLD_MCP_NO_OPEN) {
-          open(handle.url).catch(() => undefined);
-        }
+        // Open the preview. Prefers a chromeless `--app` window when the
+        // user's default browser is Chromium; otherwise a normal tab. Best
+        // effort — ignores failure (headless / no browser). Skipped entirely
+        // when MANIFOLD_MCP_NO_OPEN is set (tests / headless CI) so we don't
+        // spawn a browser that would 404 once the server shuts down.
+        await launchPreview(handle.url);
         return handle;
       })().catch(err => {
         // Reset so the next call can retry.
