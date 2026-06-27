@@ -115,7 +115,7 @@ function syntheticMesh(): MeshPayload {
 describe.skipIf(skipUnlessBuilt)('preview server: multi-tab annotation merge', () => {
   beforeAll(async () => {
     previewModule = (await import(pathToFileURL(distPreview).href)) as PreviewModule;
-    handle = await previewModule.startPreviewServer(47471);
+    handle = await previewModule.startPreviewServer(48171);
   }, 15_000);
 
   afterAll(async () => {
