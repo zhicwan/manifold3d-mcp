@@ -1,6 +1,6 @@
 {
   "name": "@zhicwan/manifold3d-mcp",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "MCP server that lets an LLM build 3D models with manifold-3d, with live three.js preview and STL/3MF export.",
   "type": "module",
   "license": "Apache-2.0",
@@ -37,6 +37,7 @@
     "build:server": "tsc -p tsconfig.json",
     "build:viewer": "vite build --config src/viewer/vite.config.ts",
     "build:sandbox-types": "node scripts/emit-sandbox-types.mjs && prettier --write samples/manifold-sandbox.d.ts plugin/skills/use-manifold/references/manifold-sandbox.d.ts",
+    "check:sync": "node scripts/check-sync.mjs",
     "plugin:build": "npm run build",
     "plugin:copilot:install": "npm run build && copilot plugin install ./plugin",
     "mcp": "vite build --config src/viewer/vite.config.ts --logLevel error && npm run -s build:server && npm run -s build:sandbox-types && node dist/server/index.js",
@@ -95,5 +96,9 @@
   },
   "engines": {
     "node": ">=24"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   }
 }
