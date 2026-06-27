@@ -1,1 +1,26 @@
-../.github/plugin/marketplace.json
+{
+  "name": "manifold3d-mcp",
+  "owner": {
+    "name": "Zhicheng Wang",
+    "email": "imwosz@hotmail.com"
+  },
+  "metadata": {
+    "description": "MCP server and skill for designing 3D-printable models with manifold-3d in Copilot CLI.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "manifold",
+      "description": "MCP server + skill for designing 3D-printable models with manifold-3d. Validates LLM-generated TypeScript snippets and streams the result to a live three.js preview with STL/3MF export.",
+      "version": "1.0.0",
+      "source": "./plugin",
+      "author": {
+        "name": "Zhicheng Wang"
+      },
+      "homepage": "https://github.com/zhicwan/manifold3d-mcp",
+      "repository": "https://github.com/zhicwan/manifold3d-mcp",
+      "license": "Apache-2.0",
+      "keywords": ["mcp", "manifold-3d", "3d-printing", "cad", "copilot-cli"]
+    }
+  ]
+}

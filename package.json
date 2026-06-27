@@ -38,6 +38,7 @@
     "build:viewer": "vite build --config src/viewer/vite.config.ts",
     "build:sandbox-types": "node scripts/emit-sandbox-types.mjs && prettier --write samples/manifold-sandbox.d.ts plugin/skills/use-manifold/references/manifold-sandbox.d.ts",
     "check:sync": "node scripts/check-sync.mjs",
+    "version": "node scripts/sync-versions.mjs && git add plugin/plugin.json plugin/.claude-plugin/plugin.json .github/plugin/marketplace.json .claude-plugin/marketplace.json plugin/.mcp.json",
     "plugin:build": "npm run build",
     "plugin:copilot:install": "npm run build && copilot plugin install ./plugin",
     "mcp": "vite build --config src/viewer/vite.config.ts --logLevel error && npm run -s build:server && npm run -s build:sandbox-types && node dist/server/index.js",
@@ -54,7 +55,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "spike:headless-render": "tsx scripts/spike-headless-render.ts",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm test",
+    "prepublishOnly": "npm run check:sync && npm run lint && npm run typecheck && npm test",
     "prepack": "npm run clean && npm run build"
   },
   "dependencies": {

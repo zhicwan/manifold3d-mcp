@@ -13,21 +13,38 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: npm
 
-      - run: npm install -g npm@latest
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+      # Trusted Publishing auto-provenance needs npm >= 11.5.1. Pin a floor so
+      # the toolchain is reproducible and provenance is guaranteed.
+      - run: npm install -g npm@^11.5.1
 
+      - run: npm ci
+
+      # Fail fast if the pushed tag does not match the version being published,
+      # so a typo'd tag can never publish the wrong version.
+      - name: Verify tag matches package.json version
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version ($PKG)"
+            exit 1
+          fi
+
+      # Defense in depth: refuse to publish a release whose manifests / skill
+      # docs have drifted (prepublishOnly also runs this).
+      - run: npm run check:sync
+
+      # OIDC Trusted Publishing generates provenance automatically (npm >=
+      # 11.5.1), so no NPM_TOKEN and no --provenance flag are needed.
       - run: npm publish
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true

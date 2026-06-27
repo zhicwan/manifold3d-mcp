@@ -108,17 +108,67 @@ lockstep. Use this semver convention:
   same change.
 - Major: breaking changes.
 
-Release steps:
+Release steps (works with `main` branch protection):
+
+1. Create a release branch and bump the version **without** tagging. The npm
+   `version` lifecycle script (`scripts/sync-versions.mjs`) propagates the new
+   version to every plugin/marketplace manifest and repins the
+   `plugin/.mcp.json` `@x.y.x` range, staging them:
+
+   ```bash
+   git checkout -b release/v1.0.1
+   npm version patch --no-git-tag-version   # or minor/major
+   git commit -am "release: v1.0.1"
+   git push -u origin release/v1.0.1
+   ```
+
+2. Open a PR and merge it (CI runs `npm run check:sync`, which now passes
+   because every manifest moved in lockstep).
+
+3. Tag the **merged** commit on `main` and push the tag — this triggers the
+   publish workflow:
+
+   ```bash
+   git checkout main && git pull
+   git tag v1.0.1
+   git push origin v1.0.1
+   ```
+
+`.github/workflows/cd.yml` then verifies the tag matches `package.json`, runs
+`check:sync`, and publishes through npm OIDC Trusted Publishing (provenance is
+generated automatically; no token is used).
+
+> Do not `git push --follow-tags` straight to `main` — branch protection
+> rejects the direct push, which can leave the tag pushed without the version
+> commit on `main`.
+
+### First publish (one-time bootstrap)
+
+npm cannot register a Trusted Publisher for a package that does not exist yet,
+so the **first** publish must be done manually by a maintainer:
 
 ```bash
-npm version patch # or minor/major
-git push --follow-tags
+npm publish   # from a clean checkout; runs prepublishOnly + prepack
 ```
 
-GitHub Actions publishes tagged releases through npm OIDC Trusted Publishing.
-Before the first release, a maintainer must register this GitHub repository and
-the `cd.yml` workflow as a Trusted Publisher on the package access/settings page:
-https://www.npmjs.com/package/@zhicwan/manifold3d-mcp/access.
+Then register this repository and the `cd.yml` workflow as a Trusted Publisher
+on the package access page so all later releases publish via OIDC:
+https://www.npmjs.com/package/@zhicwan/manifold3d-mcp/access
+
+Note: this first manual publish does **not** carry OIDC provenance; every
+CI-published release afterwards does.
 
 CI runs `npm run check:sync` (`scripts/check-sync.mjs`) to prevent version drift
 and ensure the skill's documented tools match the MCP server's registered tools.
+
+### Consuming the published package
+
+The plugin's `plugin/.mcp.json` launches `@zhicwan/manifold3d-mcp@1.0.x`, so
+`npx` resolves the latest in-range **patch** on every server start. Two
+implications for users:
+
+- A network round-trip to the npm registry happens on each launch; if the
+  registry is unreachable and no compatible version is cached, startup fails.
+- A new **major** (e.g. `2.0.0`) is intentionally **not** auto-pulled — users
+  must update/reinstall the plugin (which raises the range) to move major
+  versions.
