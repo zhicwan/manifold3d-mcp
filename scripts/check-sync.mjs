@@ -15,7 +15,20 @@ function readText(relativePath) {
 }
 
 function readJson(relativePath) {
-  return JSON.parse(readText(relativePath));
+  const text = readText(relativePath);
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    // A common cause is a symlink that Git materialized as a plain text file
+    // (e.g. a Windows checkout without symlink support), leaving the target
+    // path rather than JSON in the file.
+    addFailure(
+      `${relativePath} is not valid JSON (${error.message}). If it is a Git ` +
+        `symlink materialized as text on Windows, enable core.symlinks or ` +
+        `replace it with a real file.`,
+    );
+    return undefined;
+  }
 }
 
 function addFailure(message) {
@@ -41,6 +54,11 @@ function checkVersions() {
   const claudePluginJson = readJson('plugin/.claude-plugin/plugin.json');
   const marketplaceJson = readJson('.claude-plugin/marketplace.json');
   const pluginMcpJson = readJson('plugin/.mcp.json');
+
+  if (!packageJson || !pluginJson || !claudePluginJson || !marketplaceJson || !pluginMcpJson) {
+    // readJson already recorded a clear failure for the unparseable file(s).
+    return;
+  }
 
   const marketplacePlugin = marketplaceJson.plugins?.find(plugin => plugin?.name === 'manifold');
   if (!marketplacePlugin) {
@@ -218,7 +236,35 @@ function checkToolDocs() {
   }
 }
 
+function checkMarketplaceCopies() {
+  // `.claude-plugin/marketplace.json` and `.github/plugin/marketplace.json`
+  // must stay byte-identical (they used to be a symlink; they are now two real
+  // files so Windows checkouts get real JSON). sync-versions.mjs keeps both in
+  // step; this guard catches any divergence.
+  let a;
+  let b;
+  try {
+    a = readText('.claude-plugin/marketplace.json');
+  } catch (error) {
+    addFailure(`Could not read .claude-plugin/marketplace.json: ${error.message}`);
+    return;
+  }
+  try {
+    b = readText('.github/plugin/marketplace.json');
+  } catch (error) {
+    addFailure(`Could not read .github/plugin/marketplace.json: ${error.message}`);
+    return;
+  }
+  if (a !== b) {
+    addFailure(
+      '.claude-plugin/marketplace.json and .github/plugin/marketplace.json must be ' +
+        'byte-identical. Run `node scripts/sync-versions.mjs` or copy one over the other.',
+    );
+  }
+}
+
 checkVersions();
+checkMarketplaceCopies();
 checkToolDocs();
 
 if (failures.length > 0) {
