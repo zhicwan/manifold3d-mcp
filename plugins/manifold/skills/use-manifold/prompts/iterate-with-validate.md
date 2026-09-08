@@ -76,7 +76,6 @@ flags first.
 When you do call `execute_script`, mention:
 
 - The triangle count and bounding box (from `stats`).
-- That they can rotate the view, toggle wireframe, and export as 3MF
-  (preferred for printing) or STL.
+- That they can rotate the view, toggle wireframe, and export as STL.
 - Any non-blocking warnings the report surfaced (e.g. `FEATURE_TOO_FINE`
   hint).

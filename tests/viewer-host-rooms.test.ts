@@ -408,6 +408,53 @@ describe('Viewer Host rooms', () => {
     }
   });
 
+  it('runs export handlers without requiring an annotation snapshot', async () => {
+    const room = host.createRoom();
+    const handler = vi.fn(() => ({ status: 'succeeded' as const, message: 'Download started' }));
+    room.registerAction(
+      {
+        id: 'export-stl',
+        label: 'Export STL',
+        icon: 'download',
+        slot: 'export-handler',
+        tone: 'default',
+        requires: ['model'],
+      },
+      handler,
+    );
+    room.pushModel(syntheticModel('download notification'));
+    const client = await openRoom(room);
+    try {
+      const version = room.getAnnotations().modelVersion;
+      client.socket.send(
+        JSON.stringify(
+          createHostActionInvocation({
+            requestId: 'export-model-request',
+            actionId: 'export-stl',
+            modelVersion: version,
+            annotationRevision: 0,
+          }),
+        ),
+      );
+
+      expect(
+        await client.messages.waitFor(
+          message =>
+            message.kind === 'host_action_status' &&
+            message.requestId === 'export-model-request' &&
+            message.state === 'succeeded',
+        ),
+      ).toMatchObject({ message: 'Download started' });
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          annotations: [],
+        }),
+      );
+    } finally {
+      client.socket.terminate();
+    }
+  });
+
   it('executes request IDs once, resolves annotations from the committed snapshot, and replays status', async () => {
     const room = host.createRoom();
     const contexts: Array<{

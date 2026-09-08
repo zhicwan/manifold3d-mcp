@@ -6,7 +6,7 @@
 
 Two plugins that let an agent design 3D-printable models with
 [manifold-3d](https://github.com/elalish/manifold), validate the generated
-TypeScript, and preview/export STL or 3MF. Both share the same modeling engine.
+TypeScript, and preview/export STL. Both share the same modeling engine.
 
 ## Install
 

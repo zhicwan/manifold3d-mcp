@@ -26,6 +26,7 @@ import {
   FIX_ANNOTATION_BATCH_ACTION_ID,
   FIX_ANNOTATION_BATCH_PROMPT,
   MANIFOLD_CANVAS_ID,
+  STL_EXPORT_ACTION_ID,
   startCopilotExtension,
   type CopilotExtensionApplication,
 } from '../src/composition.js';
@@ -91,6 +92,10 @@ describe('production Copilot Extension composition', () => {
             id: ATTACH_LOCATION_SELECTION_ACTION_ID,
             slot: 'selection-gesture',
           }),
+          expect.objectContaining({
+            id: STL_EXPORT_ACTION_ID,
+            slot: 'export-handler',
+          }),
         ]);
 
         const versionA = requiredString(
@@ -108,6 +113,16 @@ describe('production Copilot Extension composition', () => {
           ).modelVersion,
         );
         expect(versionA).not.toBe(versionB);
+        await invokeAction(clientA, {
+          requestId: 'export-model',
+          actionId: STL_EXPORT_ACTION_ID,
+          modelVersion: versionA,
+          annotationRevision: 0,
+        });
+        const exportedFile = resolve(testWorkspace, 'exports/first-r1.stl');
+        expect((await readFile(exportedFile)).byteLength).toBeGreaterThan(84);
+        expect(harness.log).toHaveBeenCalledWith(`Saved STL to ${exportedFile}`, { level: 'info' });
+
         clientA.socket.send(
           JSON.stringify(
             createAnnotationsMessage(versionA, 4, [

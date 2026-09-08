@@ -26,6 +26,7 @@ const harness = vi.hoisted(() => {
     pending: null as unknown,
     pendingWrites: 0,
     feed: null as ConnectOptions | null,
+    sentMessages: [] as unknown[],
     runtime: null as { scene: ViewerSceneRuntime } | null,
     exportReady,
     releaseExport,
@@ -83,14 +84,18 @@ vi.mock('@/transport/ws-client', async () => ({
   ...(await import('../packages/viewer/src/transport/ws-client.js')),
   connectMeshFeed: (feed: ConnectOptions) => {
     harness.feed = feed;
-    return { send: vi.fn(), isOpen: () => true, close: vi.fn() };
+    return {
+      send: (message: unknown) => harness.sentMessages.push(message),
+      isOpen: () => true,
+      close: vi.fn(),
+    };
   },
 }));
 vi.mock('@/exporters/stl', async () => {
   await harness.exportReady;
   return import('../packages/viewer/src/exporters/stl.js');
 });
-vi.mock('@/exporters/three-mf', () => ({ export3mf: vi.fn() }));
+vi.mock('@/exporters/filename', () => import('../packages/viewer/src/exporters/filename.js'));
 vi.mock('@/demo-payload', () => ({}));
 
 // Keep Viewer, MarkTool, their stores and HostActionsClient real; only replace
@@ -159,6 +164,14 @@ const fixAction: HostActionDescriptor = {
   requires: ['model', 'annotations'],
 };
 const attachAction: HostActionDescriptor = { ...fixAction, id: 'attach-annotation-batch', label: 'Attach' };
+const exportAction: HostActionDescriptor = {
+  id: 'export-stl-file',
+  label: 'Export STL',
+  icon: 'download',
+  slot: 'export-handler',
+  tone: 'default',
+  requires: ['model'],
+};
 let unmount: (() => void) | undefined;
 let store: ViewerStore;
 let download: { name: string; blob: Blob } | undefined;
@@ -170,6 +183,7 @@ beforeEach(() => {
   harness.pendingWrites = 0;
   harness.runtime = null;
   harness.feed = null;
+  harness.sentMessages = [];
   download = undefined;
   const element = () => ({
     style: {},
@@ -446,5 +460,20 @@ describe('Viewer component ownership', () => {
     expect(runtime.modelRoot.matrixWorld.equals(transform)).toBe(true);
     expect(store.getState().payload?.description).toBe('Replacement model');
     geometry.dispose();
+  });
+
+  it('delegates export to a host export handler instead of starting a browser download', async () => {
+    await mount();
+    harness.feed!.onHostActionsManifest?.(createHostActionsManifest([fixAction, attachAction, exportAction]));
+
+    await store.getState().viewerApi!.exportStl();
+
+    expect(download).toBeUndefined();
+    expect(harness.sentMessages).toContainEqual(
+      expect.objectContaining({
+        kind: 'host_action_invoke',
+        actionId: 'export-stl-file',
+      }),
+    );
   });
 });

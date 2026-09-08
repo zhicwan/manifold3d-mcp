@@ -35,7 +35,6 @@ export interface ViewerApi {
   /** Move the desktop perspective camera farther from the orbit target. */
   zoomOut(): void;
   /** Dynamically import an exporter, generate the file, and start its download. */
-  export3mf(): Promise<void>;
   exportStl(): Promise<void>;
 }
 

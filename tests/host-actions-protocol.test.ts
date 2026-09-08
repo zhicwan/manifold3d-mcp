@@ -29,6 +29,7 @@ describe('host action wire protocol', () => {
       descriptor,
       { ...descriptor, id: 'batch', slot: 'annotation-batch' },
       { ...descriptor, id: 'selection', slot: 'selection-gesture' },
+      { ...descriptor, id: 'export-handler', slot: 'export-handler' },
     ]);
     const invocation = createHostActionInvocation({
       requestId: 'request-1',

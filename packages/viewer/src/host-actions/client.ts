@@ -12,6 +12,7 @@ import type { HelloMessage } from '@manifold3d/protocol/wire/model.js';
 import type { ConnectionStatus } from '../transport/ws-client.js';
 
 export const LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
+export const STL_EXPORT_ACTION_ID = 'export-stl-file';
 
 export type HostActionsProtocolState = 'awaiting-manifest' | 'ready' | 'error';
 
@@ -35,6 +36,7 @@ export interface HostActionInvokeOptions {
   /** Explicit bounded subset. Omit to let the server use the full committed snapshot. */
   annotationIds?: readonly string[];
   input?: JsonValue;
+  synchronizeAnnotations?: boolean;
 }
 
 export interface HostActionsClientOptions {
@@ -163,7 +165,7 @@ export class HostActionsClient {
     }
     const requestId = this.options.createRequestId?.() ?? createRequestId();
     try {
-      if (!this.options.flushAnnotations()) {
+      if (options.synchronizeAnnotations !== false && !this.options.flushAnnotations()) {
         this.failLocally(requestId, actionId, 'Could not synchronize annotations before invoking the action.');
         return requestId;
       }
