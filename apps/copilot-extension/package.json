@@ -19,6 +19,7 @@
   "dependencies": {
     "@manifold3d/modeling": "0.0.0-private",
     "@manifold3d/protocol": "0.0.0-private",
+    "@manifold3d/viewer": "0.0.0-private",
     "@manifold3d/viewer-host": "0.0.0-private"
   },
   "devDependencies": {

@@ -1,7 +1,11 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve as resolvePath } from 'node:path';
+
 import type { CanvasOptions, JoinSessionConfig } from '@github/copilot-sdk/extension';
 import { ModelingEngine, ModelingSession, type CommittedModel } from '@manifold3d/modeling/modeling.js';
 import { toViewerModelFrame } from '@manifold3d/modeling/runner/model-artifact.js';
 import { Runner } from '@manifold3d/modeling/runner/host.js';
+import { serializeStl, stlFilename } from '@manifold3d/viewer/exporters';
 import {
   createInMemoryViewerAssetProvider,
   startViewerHost,
@@ -21,6 +25,7 @@ const MANIFOLD_CANVAS_DISPLAY_NAME = 'Manifold 3D Viewer';
 export const ATTACH_ANNOTATION_BATCH_ACTION_ID = 'attach-annotation-batch';
 export const FIX_ANNOTATION_BATCH_ACTION_ID = 'fix-annotation-batch';
 export const ATTACH_LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
+export const STL_EXPORT_ACTION_ID = 'export-stl-file';
 export const FIX_ANNOTATION_BATCH_PROMPT =
   'Revise the current manifold-3d model using the following static annotation batch snapshot.';
 const DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS = 500;
@@ -325,6 +330,17 @@ class ExtensionController {
           },
           context => this.attachLocationSelection(binding, context),
         ),
+        room.registerAction(
+          {
+            id: STL_EXPORT_ACTION_ID,
+            label: 'Export STL',
+            icon: 'download',
+            slot: 'export-handler',
+            tone: 'default',
+            requires: ['model'],
+          },
+          () => this.exportStl(),
+        ),
       );
       const current = this.modelingSession.getCurrentModel();
       if (current) {
@@ -415,6 +431,33 @@ class ExtensionController {
     });
     await this.pushAttachment(binding, locationSelectionTitle(attachment.annotations[0].partLabel), attachment);
     return { status: 'succeeded', message: 'Attached selected location.' };
+  }
+
+  private async exportStl(): Promise<HostActionHandlerResult> {
+    const current = this.modelingSession.getCurrentModel();
+    if (!current) {
+      throw new Error('No current model is available to export.');
+    }
+    const session = this.getSession();
+    if (!session.workspacePath) {
+      throw new Error('The Copilot session did not provide a workspace path for exports.');
+    }
+    const frame = toViewerModelFrame(current.artifact);
+    const payload = {
+      ...frame,
+      vertProperties: new Float32Array(frame.vertProperties),
+      triVerts: new Uint32Array(frame.triVerts),
+      triFeatureIds: new Uint32Array(frame.triFeatureIds),
+    };
+    const bytes = serializeStl(payload);
+    const filename = stlFilename(payload, current.revision);
+    const exportDirectory = resolvePath(session.workspacePath, 'exports');
+    const filePath = resolvePath(exportDirectory, filename);
+    await mkdir(exportDirectory, { recursive: true });
+    await writeFile(filePath, bytes);
+    const message = `Saved STL to ${filePath}`;
+    await this.logBestEffort(message, { level: 'info' });
+    return { status: 'succeeded', message };
   }
 
   private buildBatchAttachment(context: HostActionHandlerContext) {

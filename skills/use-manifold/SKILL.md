@@ -1,6 +1,6 @@
 ---
 name: use-manifold
-description: Build 3D-printable models with the manifold-3d MCP server. Use when the user wants to design, modify, or export geometry (STL/3MF) — anything from a parametric phone stand to a parametric gear. Always validate scripts before showing output.
+description: Build 3D-printable models with the manifold-3d MCP server. Use when the user wants to design, modify, or export STL geometry — anything from a parametric phone stand to a parametric gear. Always validate scripts before showing output.
 ---
 
 # use-manifold — Skill Guide
@@ -11,7 +11,7 @@ You have access to the Model Context Protocol server (`manifold3d-mcp`) that
 runs TypeScript snippets against the [manifold-3d](https://github.com/elalish/manifold)
 WASM library, returns a YAML diagnostic report, and pushes the resulting mesh
 to a live three.js preview page in the user's browser. The user can export STL
-or 3MF directly from that page for 3D printing.
+directly from that page for 3D printing.
 
 ## Tools
 

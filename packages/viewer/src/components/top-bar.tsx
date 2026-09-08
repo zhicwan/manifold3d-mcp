@@ -116,18 +116,10 @@ function ActionsCluster({
             Export
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuItem onClick={() => void api?.export3mf()}>
-              <span className="flex flex-col gap-0.5">
-                <span className="font-medium">3MF</span>
-                <span className="text-xs text-muted-foreground">
-                  Preserves manifold topology — recommended for slicers
-                </span>
-              </span>
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => void api?.exportStl()}>
               <span className="flex flex-col gap-0.5">
                 <span className="font-medium">STL</span>
-                <span className="text-xs text-muted-foreground">Widely supported, but vertices duplicate per face</span>
+                <span className="text-xs text-muted-foreground">Widely supported by slicers and CAD tools</span>
               </span>
             </DropdownMenuItem>
             <ExportMenuHostActions />

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
-import { HostActionsClient, LOCATION_SELECTION_ACTION_ID } from '@/host-actions/client';
+import { HostActionsClient, LOCATION_SELECTION_ACTION_ID, STL_EXPORT_ACTION_ID } from '@/host-actions/client';
+import { stlFilename } from '@/exporters/filename';
 import { installMarks } from '@/marks';
 import type { MarkMode } from '@/marks/types';
 import { installAnnotationsUplink } from '@/marks/ws-uplink';
@@ -10,7 +11,6 @@ import { useViewerStore, type ViewerStore } from '@/store';
 import { connectMeshFeed, validateResumeIdentity, type MeshFeedHandle } from '@/transport/ws-client';
 import { createViewerGenerationDisposer } from '@/viewer-runtime-lifecycle';
 import { useViewerRuntimeHost, type ViewerRuntimeHost } from '@/viewer-runtime';
-import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
 
 interface ViewerGeneration {
   readonly viewer: Viewer;
@@ -287,21 +287,16 @@ async function startViewerGeneration(
       zoomOut(): void {
         viewer.zoomOut();
       },
-      // Exporters are dynamically imported on first use (~85 KB min).
-      async export3mf(): Promise<void> {
-        const payload = viewerStore.getState().payload;
-        if (!payload) {
-          return;
-        }
-        const { export3mf } = await import('@/exporters/three-mf');
-        download(export3mf(payload), filename(payload, '3mf'));
-      },
+      // The browser exporter is dynamically imported on first use.
       async exportStl(): Promise<void> {
         const payload = viewerStore.getState().payload;
         if (!payload) {
           return;
         }
-        const name = filename(payload, 'stl');
+        if (requestHostStlExport(hostActions)) {
+          return;
+        }
+        const name = stlFilename(payload);
         const { exportStl } = await import('@/exporters/stl');
         download(exportStl(payload), name);
       },
@@ -354,14 +349,14 @@ async function startViewerGeneration(
   }
 }
 
-function filename(payload: ViewerModel, ext: string): string {
-  const slug =
-    (payload.description || 'model')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'model';
-  return `${slug}.${ext}`;
+function requestHostStlExport(hostActions: HostActionsClient): boolean {
+  if (!hostActions.getSnapshot().actions.some(action => action.id === STL_EXPORT_ACTION_ID)) {
+    return false;
+  }
+  hostActions.invoke(STL_EXPORT_ACTION_ID, {
+    synchronizeAnnotations: false,
+  });
+  return true;
 }
 
 function download(blob: Blob, name: string): void {

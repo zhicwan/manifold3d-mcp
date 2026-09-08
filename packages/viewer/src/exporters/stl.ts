@@ -6,20 +6,23 @@ import { payloadToGeometry } from '../scene/mesh-bridge.js';
 
 /**
  * Serialize canonical model geometry as binary STL, without scene/XR transforms.
- * Note: STL is a lossy format — vertices get duplicated per face, so the
- * round-trip mesh may no longer be manifold. Prefer 3MF when possible.
+ * STL duplicates vertices per face, so consumers should treat the exported
+ * triangle soup as a print artifact rather than the canonical indexed mesh.
  */
 export function exportStl(payload: ViewerModel): Blob {
+  const bytes = serializeStl(payload);
+  return new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], {
+    type: 'model/stl',
+  });
+}
+
+export function serializeStl(payload: ViewerModel): Uint8Array {
   const geometry = payloadToGeometry(payload);
   const material = new THREE.MeshBasicMaterial();
   try {
     const exporter = new STLExporter();
-    const data = exporter.parse(new THREE.Mesh(geometry, material), { binary: true });
-    // STLExporter binary mode returns a DataView; wrap its underlying buffer.
-    // Cast through ArrayBuffer to satisfy strict BlobPart typing (TS treats
-    // ArrayBufferLike as possibly SharedArrayBuffer).
-    const buffer = (data as DataView).buffer as ArrayBuffer;
-    return new Blob([buffer], { type: 'model/stl' });
+    const data = exporter.parse(new THREE.Mesh(geometry, material), { binary: true }) as DataView;
+    return new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength).slice();
   } finally {
     geometry.dispose();
     material.dispose();

@@ -10,7 +10,8 @@ const MAX_HOST_ACTION_JSON_DEPTH = 8;
 
 export type HostActionProtocolVersion = typeof HOST_ACTION_PROTOCOL_VERSION;
 export type HostActionIcon = 'bot' | 'check' | 'download' | 'message' | 'play' | 'sparkles' | 'wand';
-export type HostActionSlot = 'toolbar' | 'annotation-footer' | 'export-menu' | 'annotation-batch' | 'selection-gesture';
+export type HostActionSlot =
+  'toolbar' | 'annotation-footer' | 'export-menu' | 'export-handler' | 'annotation-batch' | 'selection-gesture';
 export type HostActionTone = 'default' | 'primary' | 'danger';
 export type HostActionRequirement = 'model' | 'annotations';
 export type HostActionState = 'accepted' | 'running' | 'succeeded' | 'failed';
@@ -429,6 +430,7 @@ function isHostActionSlot(value: unknown): value is HostActionSlot {
     value === 'toolbar' ||
     value === 'annotation-footer' ||
     value === 'export-menu' ||
+    value === 'export-handler' ||
     value === 'annotation-batch' ||
     value === 'selection-gesture'
   );

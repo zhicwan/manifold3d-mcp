@@ -771,36 +771,39 @@ class ViewerRoomImpl implements ViewerRoom {
       this.sendFailure(client, invocation, 'Action model version does not match the room.');
       return;
     }
-    const snapshot = client.snapshot;
-    if (!snapshot || snapshot.modelVersion !== this.modelVersion) {
-      this.sendFailure(client, invocation, 'No committed annotation snapshot exists for this model.');
-      return;
-    }
-    if (invocation.annotationRevision < snapshot.revision) {
-      this.sendFailure(client, invocation, 'Action annotation revision is stale.');
-      return;
-    }
-    if (invocation.annotationRevision > snapshot.revision) {
-      this.sendFailure(client, invocation, 'Action annotation revision is newer than the committed snapshot.');
-      return;
-    }
     if (registration.descriptor.requires.includes('model') && !this.lastModel) {
       this.sendFailure(client, invocation, 'This action requires a model.');
       return;
     }
-    const annotationIds = invocation.annotationIds ?? [...snapshot.items.keys()];
     const annotations: WireAnnotation[] = [];
-    for (const id of annotationIds) {
-      const annotation = snapshot.items.get(id);
-      if (!annotation) {
-        this.sendFailure(client, invocation, `Annotation "${id}" is not in the committed snapshot.`);
+    const usesAnnotations = registration.descriptor.slot !== 'export-handler' || invocation.annotationIds !== undefined;
+    if (usesAnnotations) {
+      const snapshot = client.snapshot;
+      if (!snapshot || snapshot.modelVersion !== this.modelVersion) {
+        this.sendFailure(client, invocation, 'No committed annotation snapshot exists for this model.');
         return;
       }
-      annotations.push(cloneAnnotation(annotation));
-    }
-    if (registration.descriptor.requires.includes('annotations') && annotations.length === 0) {
-      this.sendFailure(client, invocation, 'This action requires annotations.');
-      return;
+      if (invocation.annotationRevision < snapshot.revision) {
+        this.sendFailure(client, invocation, 'Action annotation revision is stale.');
+        return;
+      }
+      if (invocation.annotationRevision > snapshot.revision) {
+        this.sendFailure(client, invocation, 'Action annotation revision is newer than the committed snapshot.');
+        return;
+      }
+      const annotationIds = invocation.annotationIds ?? [...snapshot.items.keys()];
+      for (const id of annotationIds) {
+        const annotation = snapshot.items.get(id);
+        if (!annotation) {
+          this.sendFailure(client, invocation, `Annotation "${id}" is not in the committed snapshot.`);
+          return;
+        }
+        annotations.push(cloneAnnotation(annotation));
+      }
+      if (registration.descriptor.requires.includes('annotations') && annotations.length === 0) {
+        this.sendFailure(client, invocation, 'This action requires annotations.');
+        return;
+      }
     }
 
     const accepted = createHostActionStatus({

@@ -107,7 +107,7 @@ support — describe what you actually want and let the user decide.
 ## Units
 
 The sandbox interprets all coordinates as **millimetres** (this is what
-`Export STL` / `Export 3MF` will write into the file). Manifold itself has no
+`Export STL` will write into the file). Manifold itself has no
 unit system, so this is purely a convention surfaced as a hint in every
 report.
 

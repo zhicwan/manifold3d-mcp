@@ -70,8 +70,11 @@ See [session behavior](../tests/modeling-session.test.ts) and
 
 Canonical model coordinates and Viewer/XR placement are separate. Moving or
 scaling a model for immersive viewing must not change its printable geometry.
-Exports use a captured payload, not the live scene mesh. Likewise, CSS dimensions
-and drawing-buffer pixels are distinct units.
+Exports use a captured payload, not the live scene mesh. The browser host downloads
+the generated file through the browser, while the Extension host serializes the
+same canonical payload into `session.workspacePath/exports/` and reports the
+completed path. Likewise, CSS dimensions and drawing-buffer pixels are distinct
+units.
 
 The flat Viewer must not import XR implementation. The default browser entry
 opts into the [XR subpath](../packages/viewer/src/xr/index.tsx) through the existing
