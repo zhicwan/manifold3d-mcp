@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Vector2 } from 'three';
+import { BoxGeometry, Mesh, PerspectiveCamera, Vector2, Vector3 } from 'three';
 
 import { Viewer } from '../packages/viewer/src/scene/viewer.js';
 import { createViewerGenerationDisposer } from '../packages/viewer/src/viewer-runtime-lifecycle.js';
@@ -54,6 +54,44 @@ describe('Viewer render lifecycle', () => {
 
     expect(stop).toHaveBeenCalledOnce();
     expect(disposeResources).toHaveBeenCalledOnce();
+  });
+
+  it.each([0.4, 1, 2])('fits every bounding corner in an aspect %s viewport without moving geometry', aspect => {
+    const mesh = new Mesh(new BoxGeometry(80, 50, 40));
+    const camera = new PerspectiveCamera(40, aspect, 0.1, 5000);
+    camera.position.set(80, -80, 120);
+    const target = new Vector3();
+    const controls = {
+      target,
+      update: () => {
+        camera.lookAt(target);
+        camera.updateMatrixWorld();
+      },
+    };
+    const viewer = Object.assign(Object.create(Viewer.prototype) as Pick<Viewer, 'fitToModel'>, {
+      mesh,
+      camera,
+      controls,
+      modelRadius: 80,
+      immersivePresenting: false,
+      requestRender: vi.fn(),
+    });
+    const direction = camera.position.clone().normalize();
+    viewer.fitToModel();
+    expect(camera.position.clone().sub(target).normalize().distanceTo(direction)).toBeLessThan(0.000001);
+    for (const x of [-40, 40]) {
+      for (const y of [-25, 25]) {
+        for (const z of [-20, 20]) {
+          const projected = new Vector3(x, y, z).project(camera);
+          expect(Math.abs(projected.x)).toBeLessThan(1);
+          expect(Math.abs(projected.y)).toBeLessThan(1);
+          expect(Math.abs(projected.z)).toBeLessThan(1);
+        }
+      }
+    }
+    expect(mesh.position.toArray()).toEqual([0, 0, 0]);
+    expect(mesh.scale.toArray()).toEqual([1, 1, 1]);
+    mesh.geometry.dispose();
   });
 
   it('stops once, clears public state, then disposes contributions before scene resources', async () => {

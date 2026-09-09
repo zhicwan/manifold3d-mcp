@@ -4,14 +4,8 @@ import type { AnnotationStore } from './annotation-store.js';
 import type { Annotation } from './types.js';
 
 /**
- * Renders 3D markers for annotations:
- *  - draft comments: bright red/yellow
- *  - pending selections: cyan
- *  - committed annotations: subdued variants of their intent color
- *
- * Markers always render on top of the model (depthTest off) so users
- * never lose track of where they marked, even when rotating the camera
- * to the back of the model.
+ * Region surface tint and boundary. Point anchors live in the projected DOM
+ * layer so their size and accessibility do not depend on model dimensions.
  */
 export class MarkerRenderer {
   private readonly group = new THREE.Group();
@@ -54,6 +48,9 @@ export class MarkerRenderer {
       }
     }
     for (const ann of items) {
+      if (ann.kind === 'point') {
+        continue;
+      }
       const existing = this.perAnnotation.get(ann.id);
       const visualKey = `${ann.intent}:${ann.state}`;
       if (existing?.userData.annotationVisualKey === visualKey) {
@@ -63,7 +60,7 @@ export class MarkerRenderer {
         this.group.remove(existing);
         this.disposeObject(existing);
       }
-      const obj = ann.kind === 'point' ? this.makePointMarker(ann) : this.makeRegionMarker(ann);
+      const obj = this.makeRegionMarker(ann);
       if (obj) {
         obj.userData.annotationVisualKey = visualKey;
         this.perAnnotation.set(ann.id, obj);
@@ -73,23 +70,6 @@ export class MarkerRenderer {
       }
     }
     this.requestRender();
-  }
-
-  private makePointMarker(ann: Annotation): THREE.Object3D {
-    const style = markerStyle(ann);
-    const geom = new THREE.SphereGeometry(0.6, 16, 12);
-    const mat = new THREE.MeshBasicMaterial({
-      color: style.color,
-      depthTest: false,
-      depthWrite: false,
-      transparent: true,
-      opacity: style.pointOpacity,
-    });
-    const sphere = new THREE.Mesh(geom, mat);
-    sphere.position.fromArray(ann.anchorWorld);
-    sphere.renderOrder = 999;
-    sphere.userData.annotationId = ann.id;
-    return sphere;
   }
 
   private makeRegionMarker(ann: Annotation): THREE.Object3D | null {
@@ -107,10 +87,32 @@ export class MarkerRenderer {
 
     // Build a sub-geometry containing just the selected triangles.
     const positions = new Float32Array(ann.triIds.length * 9);
+    const edges = new Map<string, { a: number; b: number; count: number }>();
+    const vertexKeys = new Map<number, string>();
+    const vertexKey = (index: number): string => {
+      let key = vertexKeys.get(index);
+      if (key === undefined) {
+        key = `${sourcePos.getX(index)},${sourcePos.getY(index)},${sourcePos.getZ(index)}`;
+        vertexKeys.set(index, key);
+      }
+      return key;
+    };
     let cursor = 0;
     for (const tri of ann.triIds) {
       for (let k = 0; k < 3; k++) {
         const vi = sourceIndex.getX(tri * 3 + k);
+        const next = sourceIndex.getX(tri * 3 + ((k + 1) % 3));
+        // Attribute seams may duplicate vertices; only the visual perimeter
+        // should remain, not a wireframe of every selected triangle.
+        const a = vertexKey(vi);
+        const b = vertexKey(next);
+        const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+        const edge = edges.get(key);
+        if (edge) {
+          edge.count++;
+        } else {
+          edges.set(key, { a: vi, b: next, count: 1 });
+        }
         positions[cursor++] = sourcePos.getX(vi);
         positions[cursor++] = sourcePos.getY(vi);
         positions[cursor++] = sourcePos.getZ(vi);
@@ -118,20 +120,44 @@ export class MarkerRenderer {
     }
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geom.computeVertexNormals();
     const mat = new THREE.MeshBasicMaterial({
       color: style.color,
       transparent: true,
       opacity: style.regionOpacity,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
       side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     });
     const overlay = new THREE.Mesh(geom, mat);
     overlay.matrix.copy(mesh.matrixWorld);
     overlay.matrixAutoUpdate = false;
     overlay.renderOrder = 998;
     overlay.userData.annotationId = ann.id;
+    const boundary: number[] = [];
+    for (const edge of edges.values()) {
+      if (edge.count === 1) {
+        for (const index of [edge.a, edge.b]) {
+          boundary.push(sourcePos.getX(index), sourcePos.getY(index), sourcePos.getZ(index));
+        }
+      }
+    }
+    const outline = new THREE.BufferGeometry();
+    outline.setAttribute('position', new THREE.Float32BufferAttribute(boundary, 3));
+    overlay.add(
+      new THREE.LineSegments(
+        outline,
+        new THREE.LineBasicMaterial({
+          color: style.color,
+          transparent: true,
+          opacity: ann.state === 'committed' ? 0.35 : 0.8,
+          depthTest: true,
+          depthWrite: false,
+        }),
+      ),
+    );
     return overlay;
   }
 
@@ -153,19 +179,6 @@ export class MarkerRenderer {
   }
 }
 
-function markerStyle(ann: Annotation): { color: number; pointOpacity: number; regionOpacity: number } {
-  if (ann.intent === 'selection') {
-    return ann.state === 'pending'
-      ? { color: 0x22d3ee, pointOpacity: 0.95, regionOpacity: 0.48 }
-      : { color: 0x3b82f6, pointOpacity: 0.52, regionOpacity: 0.24 };
-  }
-  if (ann.state === 'pending') {
-    return { color: 0xf59e0b, pointOpacity: 0.65, regionOpacity: 0.3 };
-  }
-  if (ann.state === 'committed') {
-    return { color: 0x94a3b8, pointOpacity: 0.42, regionOpacity: 0.2 };
-  }
-  return ann.kind === 'point'
-    ? { color: 0xff3030, pointOpacity: 0.95, regionOpacity: 0.55 }
-    : { color: 0xffd23f, pointOpacity: 0.95, regionOpacity: 0.55 };
+function markerStyle(ann: Annotation): { color: number; regionOpacity: number } {
+  return { color: 0x3979e3, regionOpacity: ann.state === 'committed' ? 0.1 : ann.state === 'pending' ? 0.22 : 0.16 };
 }

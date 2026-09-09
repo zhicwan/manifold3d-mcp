@@ -1,4 +1,4 @@
-import { Check, LoaderCircle, MessageSquare, Trash2, WandSparkles } from 'lucide-react';
+import { Check, LoaderCircle, MessageSquare, WandSparkles } from 'lucide-react';
 import { useState } from 'react';
 
 import { glass } from '@/components/glass';
@@ -28,6 +28,9 @@ export function AnnotationBatchBar() {
   }
 
   const batch = marks.store.getDraftBatch();
+  if (batch.annotationIds.length === 0) {
+    return null;
+  }
   const attachAction = hostActions.actions.find(action => action.id === ATTACH_BATCH_ACTION);
   const fixAction = hostActions.actions.find(action => action.id === FIX_BATCH_ACTION);
   const hasHostBatchActions = attachAction !== undefined || fixAction !== undefined;
@@ -115,33 +118,23 @@ export function AnnotationBatchBar() {
 
   return (
     <section
+      data-viewer-obstacle
       aria-label="Annotation batch actions"
-      className={`${glass} fixed bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-2xl p-2`}
+      className={`${glass} viewer-batch-bar flex items-center gap-1 p-1.5`}
     >
-      <span className="px-2 text-xs font-medium text-muted-foreground">
-        {batch.annotationIds.length} {batch.annotationIds.length === 1 ? 'annotation' : 'annotations'}
+      <span
+        className="viewer-batch-count px-2 text-xs font-medium text-muted-foreground"
+        aria-label={`${batch.annotationIds.length} annotations`}
+      >
+        {batch.annotationIds.length}
+        <span className="viewer-batch-count-label"> {batch.annotationIds.length === 1 ? 'note' : 'notes'}</span>
       </span>
-      {fixAction && (
-        <Button
-          size="sm"
-          disabled={batchEmpty || busy || disabledReason(fixAction) !== undefined}
-          title={disabledReason(fixAction)}
-          onClick={() => invoke(fixAction.id)}
-        >
-          {pendingAction === fixAction.id ? (
-            <LoaderCircle className="animate-spin" aria-hidden="true" />
-          ) : (
-            <WandSparkles aria-hidden="true" />
-          )}
-          Fix them
-        </Button>
-      )}
       {attachAction && (
         <Button
-          variant="ghost"
           size="sm"
+          className="viewer-batch-button rounded-full"
           disabled={batchEmpty || busy || disabledReason(attachAction) !== undefined}
-          title={disabledReason(attachAction)}
+          title={disabledReason(attachAction) ?? 'Add notes to chat context'}
           onClick={() => invoke(attachAction.id)}
         >
           {pendingAction === attachAction.id ? (
@@ -152,14 +145,41 @@ export function AnnotationBatchBar() {
           Attach
         </Button>
       )}
+      {fixAction && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="viewer-batch-button rounded-full"
+          disabled={batchEmpty || busy || disabledReason(fixAction) !== undefined}
+          title={disabledReason(fixAction) ?? 'Send notes and ask AI to fix'}
+          onClick={() => invoke(fixAction.id)}
+        >
+          {pendingAction === fixAction.id ? (
+            <LoaderCircle className="animate-spin" aria-hidden="true" />
+          ) : (
+            <WandSparkles aria-hidden="true" />
+          )}
+          Fix
+        </Button>
+      )}
       {!hasHostBatchActions && (
-        <Button variant="ghost" size="sm" disabled={batchEmpty || busy} onClick={() => finishLocally('freeze')}>
+        <Button
+          size="sm"
+          className="viewer-batch-button rounded-full"
+          disabled={batchEmpty || busy}
+          onClick={() => finishLocally('freeze')}
+        >
           <Check aria-hidden="true" />
           Done
         </Button>
       )}
-      <Button variant="ghost" size="sm" disabled={busy} onClick={() => finishLocally('cancel')}>
-        <Trash2 aria-hidden="true" />
+      <Button
+        variant="ghost"
+        size="sm"
+        className="viewer-batch-button rounded-full text-muted-foreground"
+        disabled={busy}
+        onClick={() => finishLocally('cancel')}
+      >
         Cancel
       </Button>
     </section>

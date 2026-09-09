@@ -30,7 +30,8 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^3.6.0",
-    "three": "^0.185.0"
+    "three": "^0.185.0",
+    "three-mesh-bvh": "^0.9.14"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",

@@ -6,6 +6,15 @@ them together:
 - **Fix** sends the saved annotation batch directly as the model-edit request.
 - **Attach** adds a pill to the composer and does not send the edit request.
 
+For location-only context, **Select to chat** is the primary Canvas tool:
+press **S**, then click a point or drag a region. A valid selection attaches
+once and returns to browsing; it does not send a message. Use **M** for notes,
+**V** to browse, or hold **Space** to temporarily navigate while marking.
+
+Numbered anchors open one compact note card at a time. The check button or
+Enter saves that note; the cross or Escape cancels the edit. Committed snapshots
+can be inspected but not changed. Marker display numbers are not annotation ids.
+
 ## Rules of thumb
 
 1. Use **Fix** when the user wants you to apply their notes to the current

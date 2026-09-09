@@ -44,8 +44,7 @@ export interface FlyoutControllerViewBridge {
  *  - {@link dismissAll} commits the currently-expanded draft (the
  *    "click outside to save" behaviour).
  *
- * Selection annotations and committed comments are read-only and ignored by
- * every editing entry point.
+ * Selection annotations and committed comments may be inspected but never edited.
  */
 export class FlyoutController {
   private expandedId: string | null = null;
@@ -75,13 +74,15 @@ export class FlyoutController {
    */
   open(id: string): void {
     const ann = this.store.get(id);
-    if (!ann || ann.intent !== 'comment' || ann.state !== 'draft') {
+    if (!ann) {
       return;
     }
     if (this.expandedId !== null && this.expandedId !== id) {
       this.commit(this.expandedId);
     }
-    this.drafts.set(id, ann.note);
+    if (ann.intent === 'comment' && ann.state === 'draft') {
+      this.drafts.set(id, ann.note);
+    }
     const previous = this.expandedId;
     this.expandedId = id;
     if (previous !== null && previous !== id) {
@@ -160,13 +161,15 @@ export class FlyoutController {
    * Reconcile internal state with the current editable-comment ids. Drops
    * drafts/expansion for annotations that were removed or became committed.
    */
-  syncAlive(editableIds: ReadonlySet<string>): void {
+  syncAlive(aliveIds: ReadonlySet<string>, editableIds: ReadonlySet<string> = aliveIds): void {
+    const editingBecameReadOnly =
+      this.expandedId !== null && this.drafts.has(this.expandedId) && !editableIds.has(this.expandedId);
     for (const id of [...this.drafts.keys()]) {
       if (!editableIds.has(id)) {
         this.drafts.delete(id);
       }
     }
-    if (this.expandedId !== null && !editableIds.has(this.expandedId)) {
+    if (this.expandedId !== null && (!aliveIds.has(this.expandedId) || editingBecameReadOnly)) {
       this.expandedId = null;
     }
   }

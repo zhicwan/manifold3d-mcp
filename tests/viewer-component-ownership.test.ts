@@ -28,6 +28,7 @@ const harness = vi.hoisted(() => {
     feed: null as ConnectOptions | null,
     sentMessages: [] as unknown[],
     runtime: null as { scene: ViewerSceneRuntime } | null,
+    selectionCreated: null as ((id: string) => void) | null,
     exportReady,
     releaseExport,
   };
@@ -63,7 +64,16 @@ vi.mock('@/components/host-actions', () => ({
   useHostActionsSnapshot: () => harness.store!.getState().hostActionsClient!.getSnapshot(),
 }));
 vi.mock('@/host-actions/client', () => import('../packages/viewer/src/host-actions/client.js'));
-vi.mock('@/marks', () => import('../packages/viewer/src/marks/index.js'));
+vi.mock('@/marks', async () => {
+  const module = await import('../packages/viewer/src/marks/index.js');
+  return {
+    ...module,
+    installMarks: (deps: Parameters<typeof module.installMarks>[0]) => {
+      harness.selectionCreated = deps.onSelectionCreated ?? null;
+      return module.installMarks(deps);
+    },
+  };
+});
 vi.mock('@/marks/ws-uplink', () => import('../packages/viewer/src/marks/ws-uplink.js'));
 vi.mock('@/scene/viewer', () => import('../packages/viewer/src/scene/viewer.js'));
 vi.mock('@/scene/viewer-canvas-ownership', () => import('../packages/viewer/src/scene/viewer-canvas-ownership.js'));
@@ -187,6 +197,8 @@ beforeEach(() => {
   download = undefined;
   const element = () => ({
     style: {},
+    dataset: {},
+    closest: () => null,
     appendChild: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
@@ -208,6 +220,8 @@ beforeEach(() => {
   });
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
   vi.stubGlobal('document', {
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     body: { dataset: {}, appendChild: vi.fn() },
     createElement: () => ({
       ...element(),
@@ -304,7 +318,7 @@ describe('Viewer component ownership', () => {
     const oldMarks = store.getState().marksRuntime!;
     const oldApi = store.getState().viewerApi!;
     const draft = addDraft();
-    button('Fix them').onClick();
+    button('Fix').onClick();
     expect(oldMarks.store.get(draft.id)?.state).toBe('pending');
     const oldSetMode = vi.spyOn(oldApi, 'setMarkMode');
     const oldFlush = vi.spyOn(oldMarks, 'flushAnnotations');
@@ -319,7 +333,7 @@ describe('Viewer component ownership', () => {
     expect(store.getState().markMode).toBe('orbit');
     expect(document.body.dataset.markMode).toBeUndefined();
     addDraft();
-    expect(button('Fix them').disabled).toBe(false);
+    expect(button('Fix').disabled).toBe(false);
   });
 
   it.each(['succeeded', 'failed', 'disposed'] as const)(
@@ -346,7 +360,7 @@ describe('Viewer component ownership', () => {
         ),
       );
       const oldDraft = addDraft();
-      button('Fix them').onClick();
+      button('Fix').onClick();
       if (outcome !== 'disposed') {
         oldClient.receiveStatus(
           createHostActionStatus({
@@ -384,7 +398,7 @@ describe('Viewer component ownership', () => {
     const marks = store.getState().marksRuntime!;
     const client = store.getState().hostActionsClient!;
     const draft = addDraft();
-    button('Fix them').onClick();
+    button('Fix').onClick();
     if (failure === 'failed') {
       client.receiveStatus(createHostActionStatus({ ...client.getSnapshot().latestStatus!, state: 'failed' }));
     } else {
@@ -401,12 +415,13 @@ describe('Viewer component ownership', () => {
     expect(marks.store.get(draft.id)?.state).toBe('draft');
     expect(marks.store.update(draft.id, { note: 'Recovered edit' })).toBe(true);
     expect(store.getState().markMode).toBe('annotate');
-    expect(document.body.dataset.markMode).toBe('annotate');
+    expect((harness.refs[0] as { dataset: Record<string, string> }).dataset.markMode).toBe('annotate');
+    expect(document.body.dataset.markMode).toBeUndefined();
     expect(button('Cancel').disabled).toBe(false);
     expect(harness.pending).toBeNull();
   });
 
-  it.each(['Fix them', 'Attach'])('freezes only the submitted batch after %s succeeds', async label => {
+  it.each(['Fix', 'Attach'])('freezes only the submitted batch after %s succeeds', async label => {
     await mount();
     const marks = store.getState().marksRuntime!;
     const client = store.getState().hostActionsClient!;
@@ -475,5 +490,42 @@ describe('Viewer component ownership', () => {
         actionId: 'export-stl-file',
       }),
     );
+  });
+
+  it.each(['succeeded', 'failed'] as const)('ignores a late location %s after model replacement', async state => {
+    await mount();
+    const marks = store.getState().marksRuntime!;
+    const client = store.getState().hostActionsClient!;
+    client.receiveManifest(
+      createHostActionsManifest([
+        {
+          ...attachAction,
+          id: 'attach-location-selection',
+          label: 'Attach location',
+          slot: 'selection-gesture',
+        },
+      ]),
+    );
+    const oldSelection = marks.store.addSelection({
+      kind: 'point',
+      anchorWorld: [1, 2, 3],
+      worldCoord: [1, 2, 3],
+      triIds: [],
+    });
+    harness.selectionCreated!(oldSelection.id);
+    const pending = client.getSnapshot().latestStatus!;
+    harness.feed!.onModelVersion?.('model-v2');
+    const replacement = marks.store.addSelection({
+      kind: 'point',
+      anchorWorld: [4, 5, 6],
+      worldCoord: [4, 5, 6],
+      triIds: [],
+    });
+    store.getState().viewerApi!.setMarkMode('annotate');
+    client.receiveStatus(createHostActionStatus({ ...pending, state }));
+    await settle();
+    expect(marks.store.get(replacement.id)?.state).toBe('pending');
+    expect(store.getState().markMode).toBe('annotate');
+    expect(store.getState().annotationSyncError).toBeNull();
   });
 });

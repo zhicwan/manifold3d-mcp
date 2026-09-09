@@ -166,10 +166,14 @@ async function startViewerGeneration(
       }),
     });
     attachSelection = id => {
+      const selection = marks.store.get(id);
+      if (!selection) {
+        return;
+      }
       void hostActions
         .invokeAndWait(LOCATION_SELECTION_ACTION_ID, { annotationIds: [id] })
         .then(status => {
-          if (!mounted) {
+          if (!mounted || marks.store.get(id) !== selection) {
             return;
           }
           if (status.state === 'succeeded') {
@@ -180,7 +184,7 @@ async function startViewerGeneration(
           uplink.flushNow();
         })
         .catch(error => {
-          if (!mounted) {
+          if (!mounted || marks.store.get(id) !== selection) {
             return;
           }
           marks.store.removeSelection(id);
@@ -286,6 +290,9 @@ async function startViewerGeneration(
       },
       zoomOut(): void {
         viewer.zoomOut();
+      },
+      fitToModel(): void {
+        viewer.fitToModel();
       },
       // The browser exporter is dynamically imported on first use.
       async exportStl(): Promise<void> {

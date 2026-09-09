@@ -166,11 +166,14 @@ describe('FlyoutController', () => {
     expect(controller.getDraft(b)).toBe('orphan');
   });
 
-  it('does not open or edit committed comments', () => {
+  it('opens committed comments for inspection without allowing edits', () => {
     const id = seed(store, 'frozen');
     store.freezeBatch(store.getDraftBatch().batchId);
 
     controller.open(id);
+    expect(controller.getExpandedId()).toBe(id);
+    controller.syncAlive(new Set([id]), new Set());
+    expect(controller.getExpandedId()).toBe(id);
     controller.setDraft(id, 'changed');
     controller.commit(id);
     controller.cancel(id);
@@ -178,7 +181,7 @@ describe('FlyoutController', () => {
     expect(controller.getExpandedId()).toBeNull();
     expect(controller.getDraft(id)).toBeUndefined();
     expect(store.get(id)?.note).toBe('frozen');
-    expect(bridge.focus).not.toHaveBeenCalled();
+    expect(bridge.focus).toHaveBeenCalledWith(id);
   });
 
   it('drops an open draft when the comment batch becomes committed', () => {
@@ -194,7 +197,7 @@ describe('FlyoutController', () => {
     expect(store.get(id)?.note).toBe('ready');
   });
 
-  it('does not open or edit selection annotations', () => {
+  it('inspects selections without creating editable drafts', () => {
     const selection = store.addSelection({
       kind: 'point',
       worldCoord: [0, 0, 0],
@@ -203,6 +206,7 @@ describe('FlyoutController', () => {
     });
 
     controller.open(selection.id);
+    expect(controller.getExpandedId()).toBe(selection.id);
     controller.setDraft(selection.id, 'changed');
     controller.commit(selection.id);
     controller.cancel(selection.id);
@@ -210,6 +214,6 @@ describe('FlyoutController', () => {
     expect(controller.getExpandedId()).toBeNull();
     expect(controller.getDraft(selection.id)).toBeUndefined();
     expect(store.get(selection.id)).toMatchObject({ state: 'pending', note: '' });
-    expect(bridge.focus).not.toHaveBeenCalled();
+    expect(bridge.focus).toHaveBeenCalledWith(selection.id);
   });
 });

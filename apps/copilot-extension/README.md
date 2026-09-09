@@ -105,6 +105,14 @@ annotation revision before dispatch. Saving or editing annotations alone never
 adds pills, and the Extension does not rewrite transformed prompts or maintain
 live attachment tokens.
 
+The Canvas prioritizes this location-selection path over commented batches.
+A valid selection is one-shot: the tool returns to browsing while delivery is
+pending, and cannot be rearmed until that selection finishes. Delivery feedback
+describes attachment, not message sending or completion of a model edit. Late
+results cannot change a replacement model's annotations or the user's next tool.
+Commented batches remain available through Annotate; Attach and Fix retain their
+distinct side effects. Numbered on-model anchors are presentation, not wire ids.
+
 Shutdown drains pending programmatic fix sends for a bounded interval. Explicit
 disconnect has its own timeout, while parent `SIGTERM` performs local cleanup
 without requesting disconnect from the dying SDK parent. Session shutdown is

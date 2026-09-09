@@ -56,6 +56,24 @@ can retain the project directory. To use `filePath` outside that directory,
 explicitly authorize roots with `MANIFOLD_MCP_SCRIPT_ROOTS`; the server never
 guesses a project root or broadens file access.
 
+## Point at what you mean
+
+The Viewer turns a point or region on the model into context for your AI
+conversation. In the Extension, **Select to chat** attaches a location without
+sending a message, then returns to browsing. In the MCP browser, **Annotate**
+combines a location with a note for the agent's `get_annotations` workflow.
+
+Small numbered anchors reveal their notes on demand. The compact editor saves
+with the check button or Enter; the cross or Escape cancels the current edit.
+Shift+Enter adds a line. Committed notes remain readable but cannot change
+already-attached snapshots.
+
+While the Viewer is focused, **V** browses, **M** annotates, **S** selects a
+location when supported, and **F** fits the model. Hold **Space** to temporarily
+orbit while marking. Middle/right drag still pans and the wheel zooms.
+**?** opens the remaining gestures and shortcuts; typing in a note never changes
+the active tool.
+
 ## Development
 
 ```sh

@@ -8,6 +8,18 @@ rendered model:
 - **Done** commits the current batch for `get_annotations`; **Cancel** discards
   the current draft batch.
 
+Markers use compact display numbers; open one to read or edit its note.
+The check button or Enter saves the current note, the cross or Escape cancels
+that edit, and Shift+Enter adds a line. These actions are separate from Done /
+Cancel for the whole batch. Committed notes can be inspected but not edited.
+Use the returned `id`, `partLabel` and coordinates to identify a location, not
+the marker's display number.
+
+With the Viewer focused, **M** activates Annotate, **V** returns to browsing,
+and holding **Space** temporarily restores camera navigation. Middle/right drag
+and wheel zoom remain available; **F** fits the model and **?** opens help.
+The MCP browser does not offer the Extension-only location attachment tool.
+
 Each annotation has:
 
 - a **partLabel** — automatically derived from which primitive the
@@ -84,7 +96,8 @@ edit to see whether the user has left feedback. The call is cheap
   to leak into a subsequent run.
 - Annotations live in the viewer's memory only — they are not
   persisted across browser refresh.
-- Draft annotations can be edited or deleted from their on-model flyouts.
+- Draft notes can be edited from their on-model flyouts. Cancelling a new empty
+  edit removes that mark; batch Cancel discards the current draft batch.
 
 ## Recommended workflow when responding to marks
 

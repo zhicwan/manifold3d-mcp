@@ -8,9 +8,10 @@ import {
   Play,
   Sparkles,
   WandSparkles,
+  X,
   type LucideIcon,
 } from 'lucide-react';
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { glass } from '@/components/glass';
 import { Button } from '@/components/ui/button';
@@ -66,7 +67,7 @@ export function ToolbarHostActions() {
                 <Button
                   variant={buttonVariant(action.tone)}
                   size="sm"
-                  className="h-8 rounded-full px-3"
+                  className="viewer-host-action viewer-top-button rounded-full px-3"
                   disabled={disabledReason !== undefined}
                   aria-label={action.label}
                   aria-busy={pending}
@@ -79,7 +80,7 @@ export function ToolbarHostActions() {
               ) : (
                 <Icon className={cn('size-4', status?.state === 'failed' && 'text-destructive')} aria-hidden="true" />
               )}
-              {action.label}
+              <span className="viewer-host-action-label">{action.label}</span>
             </TooltipTrigger>
             <TooltipContent side="bottom">{disabledReason ?? status?.message ?? action.label}</TooltipContent>
           </Tooltip>
@@ -118,7 +119,7 @@ export function ExportMenuHostActions() {
               {(disabledReason || status?.message) && (
                 <span
                   className={cn(
-                    'truncate text-xs text-muted-foreground',
+                    'break-words text-xs text-muted-foreground',
                     status?.state === 'failed' && 'text-destructive',
                   )}
                 >
@@ -135,34 +136,56 @@ export function ExportMenuHostActions() {
 
 export function HostActionStatusRegion() {
   const { snapshot } = useHostActionsView();
-  const markMode = useViewerState(state => state.markMode);
+  const protocolError = useViewerState(state => state.protocolError);
+  const annotationSyncError = useViewerState(state => state.annotationSyncError);
+  const [dismissed, setDismissed] = useState<object | null>(null);
   const status = snapshot.latestStatus;
-  if (!status) {
+  const error = protocolError ?? annotationSyncError;
+  if (!error && (!status || dismissed === status)) {
     return null;
   }
-  const action = snapshot.actions.find(item => item.id === status.actionId);
+  const action = snapshot.actions.find(item => item.id === status?.actionId);
   const label = action?.label ?? 'Viewer Host action';
   const message =
-    status.message ??
-    (status.state === 'accepted'
-      ? 'Accepted'
-      : status.state === 'running'
-        ? 'Running'
-        : status.state === 'succeeded'
-          ? 'Succeeded'
+    status?.message ??
+    (status?.state === 'accepted'
+      ? 'Sending…'
+      : status?.state === 'running'
+        ? 'Working…'
+        : status?.state === 'succeeded'
+          ? 'Done'
           : 'Failed');
+  const failed = Boolean(error) || status?.state === 'failed';
   return (
     <div
-      role={status.state === 'failed' ? 'alert' : 'status'}
-      aria-live={status.state === 'failed' ? 'assertive' : 'polite'}
+      data-viewer-obstacle
+      role={failed ? 'alert' : 'status'}
+      aria-live={failed ? 'assertive' : 'polite'}
       className={cn(
         glass,
-        'pointer-events-none fixed left-1/2 z-40 max-w-md -translate-x-1/2 px-3 py-2 text-xs',
-        markMode === 'annotate' ? 'bottom-20' : 'bottom-4',
-        status.state === 'failed' && 'text-destructive',
+        'viewer-action-status flex items-start gap-2 px-3 py-2 text-xs',
+        failed && 'text-destructive',
       )}
     >
-      <span className="font-medium">{label}:</span> {message}
+      <div className="min-w-0 flex-1 select-text break-words leading-relaxed">
+        {error && <p>{error}</p>}
+        {status && dismissed !== status && (
+          <p>
+            <span className="font-medium">{label}:</span> {message}
+          </p>
+        )}
+      </div>
+      {!error && status?.state === 'succeeded' && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0 rounded-full"
+          aria-label="Dismiss status"
+          onClick={() => setDismissed(status)}
+        >
+          <X className="size-3.5" aria-hidden="true" />
+        </Button>
+      )}
     </div>
   );
 }

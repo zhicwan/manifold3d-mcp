@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { AnnotationStore } from '../annotation-store.js';
 import type { Annotation } from '../types.js';
 import { FlyoutController } from './flyout-controller.js';
-import { updatePositions as projectFlyouts } from './flyout-projection.js';
+import { updatePositions as projectFlyouts, type ScreenRect } from './flyout-projection.js';
 import { FlyoutView, type FlyoutViewModel } from './flyout-view.js';
 
 /**
@@ -30,30 +30,33 @@ import { FlyoutView, type FlyoutViewModel } from './flyout-view.js';
  *
  * Save semantics for draft comments:
  *  - opening a flyout puts focus in the textarea
- *  - clicking outside the flyout (or pressing Esc) "dismisses" it
- *  - on dismiss: if the textarea is non-empty, we save; if empty, we
- *    discard the annotation (so accidental marks leave no trace)
- *  - committed comments retain a subdued read-only pill
- *  - selection annotations never create flyouts
+ *  - clicking outside commits a non-empty draft; Escape cancels the edit
+ *  - an empty, never-saved annotation is discarded
+ *  - committed comments and selections can be inspected without editing
  */
 export class FlyoutLayer {
   private readonly host: HTMLDivElement;
   private readonly views = new Map<string, FlyoutView>();
+  private readonly elements = new Map<string, HTMLElement>();
+  private readonly numbers = new Map<string, number>();
+  private nextNumber = 1;
   private readonly controller: FlyoutController;
   private unsubscribe: (() => void) | null = null;
 
-  /**
-   * Cached canvas bounding rect. Refreshed on `window.resize` only --
-   * computing it every frame in {@link frame} forces a synchronous
-   * layout in browsers and shows up as a hot spot when the model and
-   * camera are idle. The rect can become stale if the canvas is moved
-   * by something other than a resize (e.g. an animated panel slide);
-   * if that becomes a real concern, the right fix is a ResizeObserver
-   * on the canvas, not going back to per-frame measurement.
-   */
+  /** Cached CSS-pixel dimensions, invalidated by canvas resizing rather than every frame. */
   private readonly screenSize = { x: 0, y: 0 };
   private readonly projectionScratch = new THREE.Vector3();
-  private readonly onResize = () => this.refreshScreenSize();
+  private readonly cameraMatrix = new THREE.Matrix4();
+  private readonly projectionMatrix = new THREE.Matrix4();
+  private projectionDirty = true;
+  private layoutDirty = true;
+  private obstacles: ScreenRect[] = [];
+  private readonly observer: ResizeObserver;
+  private readonly onResize = () => {
+    this.refreshScreenSize();
+    this.invalidateLayout();
+  };
+  private readonly onPointerDown = () => this.invalidateLayout();
 
   constructor(
     parent: HTMLElement,
@@ -62,6 +65,7 @@ export class FlyoutLayer {
     private readonly store: AnnotationStore,
     private readonly requestRender: () => void,
     onCommit?: () => void,
+    private readonly getMesh: () => THREE.Mesh | null = () => null,
   ) {
     this.host = document.createElement('div');
     this.host.className = 'marks-flyout-layer';
@@ -81,7 +85,10 @@ export class FlyoutLayer {
     );
 
     this.refreshScreenSize();
+    this.observer = new ResizeObserver(this.onResize);
+    this.observer.observe(canvas);
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('pointerdown', this.onPointerDown);
     this.unsubscribe = store.subscribe(items => this.sync(items));
   }
 
@@ -89,10 +96,13 @@ export class FlyoutLayer {
     this.unsubscribe?.();
     this.unsubscribe = null;
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('pointerdown', this.onPointerDown);
+    this.observer.disconnect();
     for (const v of this.views.values()) {
       v.dispose();
     }
     this.views.clear();
+    this.elements.clear();
     this.host.remove();
   }
 
@@ -101,11 +111,43 @@ export class FlyoutLayer {
    * frame from the viewer loop so labels follow the model.
    */
   updatePositions(): void {
-    const elements: Map<string, HTMLElement> = new Map();
-    for (const [id, v] of this.views) {
-      elements.set(id, v.element);
+    this.camera.updateMatrixWorld();
+    if (
+      !this.projectionDirty &&
+      this.cameraMatrix.equals(this.camera.matrixWorld) &&
+      this.projectionMatrix.equals(this.camera.projectionMatrix)
+    ) {
+      return;
     }
-    projectFlyouts(this.camera, this.store, elements, this.screenSize, this.projectionScratch);
+    if (this.layoutDirty) {
+      const canvasRect = this.canvas.getBoundingClientRect();
+      const root = this.canvas.closest('[data-viewer-root]') ?? this.canvas.parentElement;
+      const obstacles =
+        root?.querySelectorAll<HTMLElement>(
+          '[data-viewer-obstacle], header, nav, [aria-label="Annotation batch actions"]',
+        ) ?? [];
+      this.obstacles = [...obstacles]
+        .filter(element => !this.host.contains(element))
+        .map(element => {
+          const rect = element.getBoundingClientRect();
+          return {
+            x: rect.left - canvasRect.left,
+            y: rect.top - canvasRect.top,
+            width: rect.width,
+            height: rect.height,
+          };
+        });
+      this.layoutDirty = false;
+    }
+    const editorSizes = new Map([...this.views].map(([id, view]) => [id, view.editorSize]));
+    projectFlyouts(this.camera, this.store, this.elements, this.screenSize, this.projectionScratch, {
+      mesh: this.getMesh(),
+      editorSizes,
+      obstacles: this.obstacles,
+    });
+    this.cameraMatrix.copy(this.camera.matrixWorld);
+    this.projectionMatrix.copy(this.camera.projectionMatrix);
+    this.projectionDirty = false;
   }
 
   /** Open the flyout for a freshly created annotation in expanded mode. */
@@ -137,12 +179,17 @@ export class FlyoutLayer {
       if (!aliveIds.has(id)) {
         v.dispose();
         this.views.delete(id);
+        this.elements.delete(id);
       }
     }
-    this.controller.syncAlive(editableIds);
+    this.controller.syncAlive(aliveIds, editableIds);
+    if (items.length === 0) {
+      this.numbers.clear();
+      this.nextNumber = 1;
+    }
     for (const ann of items) {
-      if (ann.intent === 'selection') {
-        continue;
+      if (!this.numbers.has(ann.id)) {
+        this.numbers.set(ann.id, this.nextNumber++);
       }
       const existing = this.views.get(ann.id);
       if (existing) {
@@ -164,13 +211,23 @@ export class FlyoutLayer {
               v?.setView(this.toViewModelWithNote(cur, value));
             }
           },
-          onCommit: () => this.controller.commit(ann.id),
-          onCancel: () => this.controller.cancel(ann.id),
+          onCommit: () => {
+            this.controller.commit(ann.id);
+            this.canvas.focus({ preventScroll: true });
+          },
+          onCancel: () => {
+            this.controller.cancel(ann.id);
+            this.canvas.focus({ preventScroll: true });
+          },
+          onLayout: () => this.invalidateLayout(),
         });
         this.views.set(ann.id, view);
+        this.elements.set(ann.id, view.element);
         this.host.appendChild(view.element);
       }
     }
+    this.projectionDirty = true;
+    this.layoutDirty = true;
     this.updatePositions();
     this.requestRender();
   }
@@ -189,7 +246,11 @@ export class FlyoutLayer {
     if (!v) {
       return;
     }
-    requestAnimationFrame(() => v.focusTextarea());
+    requestAnimationFrame(() => {
+      if (this.views.get(id) === v && this.controller.getExpandedId() === id) {
+        v.focusTextarea();
+      }
+    });
   }
 
   private toViewModel(ann: Annotation): FlyoutViewModel {
@@ -202,8 +263,11 @@ export class FlyoutLayer {
       partLabel: ann.partLabel,
       note,
       kind: ann.kind,
-      expanded: ann.state === 'draft' && this.controller.getExpandedId() === ann.id,
-      readOnly: ann.state !== 'draft',
+      expanded: this.controller.getExpandedId() === ann.id,
+      readOnly: ann.intent === 'selection' || ann.state !== 'draft',
+      number: this.numbers.get(ann.id)!,
+      intent: ann.intent,
+      state: ann.state,
     };
   }
 
@@ -211,5 +275,11 @@ export class FlyoutLayer {
     const rect = this.canvas.getBoundingClientRect();
     this.screenSize.x = rect.width;
     this.screenSize.y = rect.height;
+  }
+
+  private invalidateLayout(): void {
+    this.projectionDirty = true;
+    this.layoutDirty = true;
+    this.requestRender();
   }
 }

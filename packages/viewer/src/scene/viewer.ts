@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
 
 import { payloadToGeometry } from './mesh-bridge.js';
+import { prepareMeshPicking } from './mesh-picking.js';
 import { ViewCube } from './view-cube.js';
 import { computeDesktopCameraClipping } from './camera-clipping.js';
 import { applyModelPresentation } from './model-presentation.js';
@@ -29,8 +30,8 @@ const THEME_COLORS: Record<
   ViewerTheme,
   { background: number; gridMajor: number; gridMinor: number; model: number; edges: number }
 > = {
-  light: { background: 0xf5f5f5, gridMajor: 0xb8b8b8, gridMinor: 0xd8d8d8, model: 0xc4c8cc, edges: 0x242424 },
-  dark: { background: 0x131316, gridMajor: 0x3a3a40, gridMinor: 0x27272c, model: 0x8b9096, edges: 0xd6d6dc },
+  light: { background: 0xf5f5f5, gridMajor: 0xc4c8ce, gridMinor: 0xe0e2e6, model: 0xc4c8cc, edges: 0x242424 },
+  dark: { background: 0x131316, gridMajor: 0x30333a, gridMinor: 0x22252b, model: 0x8b9096, edges: 0xd6d6dc },
 };
 
 /**
@@ -92,6 +93,7 @@ export class Viewer {
       MIDDLE: THREE.MOUSE.PAN,
       RIGHT: THREE.MOUSE.PAN,
     };
+    this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.controls.addEventListener('change', this.requestRender);
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -106,7 +108,7 @@ export class Viewer {
     // GridHelper draws in the XZ plane by default (Y-up). Rotate it 90°
     // around X so it sits in the XY plane — that's the natural "ground"
     // for Manifold's Z-up world.
-    this.grid = new THREE.GridHelper(200, 20, 0xb8b8b8, 0xd8d8d8);
+    this.grid = new THREE.GridHelper(200, 20, THEME_COLORS.light.gridMajor, THEME_COLORS.light.gridMinor);
     this.grid.rotation.x = Math.PI / 2;
     this.scene.add(this.grid);
     this.axes = new THREE.AxesHelper(20);
@@ -227,6 +229,28 @@ export class Viewer {
     this.zoomDesktopCamera(1.25);
   }
 
+  fitToModel(): void {
+    if (!this.mesh || this.immersivePresenting) {
+      return;
+    }
+    const box = new THREE.Box3().setFromObject(this.mesh);
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const direction = this.camera.position.clone().sub(this.controls.target).normalize();
+    if (direction.lengthSq() === 0) {
+      direction.set(1, -1, 1).normalize();
+    }
+    const vertical = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
+    const distance = (sphere.radius * 1.2) / Math.sin(Math.min(vertical, horizontal));
+    this.controls.target.copy(sphere.center);
+    this.camera.position.copy(sphere.center).addScaledVector(direction, distance);
+    this.camera.near = computeDesktopCameraClipping(this.modelRadius).near;
+    this.camera.far = Math.max(computeDesktopCameraClipping(this.modelRadius).far, distance + sphere.radius * 4);
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+    this.requestRender();
+  }
+
   setMesh(payload: ViewerModel): THREE.Mesh {
     if (this.mesh) {
       this.mesh.geometry.dispose();
@@ -236,6 +260,7 @@ export class Viewer {
 
     const geom = payloadToGeometry(payload);
     this.mesh = new THREE.Mesh(geom, this.material);
+    prepareMeshPicking(this.mesh);
     this.modelRoot.add(this.mesh);
     this.frameModel(geom);
     this.applyRenderMode();

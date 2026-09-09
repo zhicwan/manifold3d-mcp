@@ -34,6 +34,8 @@ export interface ViewerApi {
   zoomIn(): void;
   /** Move the desktop perspective camera farther from the orbit target. */
   zoomOut(): void;
+  /** Fit the current model in the desktop viewport without changing its orientation. */
+  fitToModel(): void;
   /** Dynamically import an exporter, generate the file, and start its download. */
   exportStl(): Promise<void>;
 }

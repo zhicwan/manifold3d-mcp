@@ -98,6 +98,16 @@ The Viewer owns editable drafts and on-model markers. The host application owns
 delivery outside the Viewer. Saving or editing a draft does not itself create
 chat context.
 
+The shared glass-island UI prioritizes actions from the advertised host
+capabilities: direct location context in the Extension, commented annotations
+in the MCP browser. Screen-projected anchors and compact editors are
+presentation; their display numbers never replace annotation identity or model
+coordinates. Input modes only take the primary pointer when explicitly armed;
+camera navigation and keyboard focus retain their own boundaries.
+The displayed mesh owns an indirect BVH for picking and anchor occlusion,
+released with its geometry; acceleration does not reorder canonical triangle ids
+or patch Three.js prototypes globally.
+
 | Action                       | External effect                                                             |
 | ---------------------------- | --------------------------------------------------------------------------- |
 | Extension Fix                | Send the complete bounded snapshot in an enqueued message; no composer pill |

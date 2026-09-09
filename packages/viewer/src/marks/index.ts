@@ -45,6 +45,7 @@ export function installMarks(deps: MarksDeps): MarksHandle {
     store,
     deps.requestRender,
     deps.onAnnotationCommit,
+    deps.getMesh,
   );
   const markers = new MarkerRenderer(deps.scene, store, deps.getMesh, deps.requestRender);
   let resolver: FeatureResolver | null = null;

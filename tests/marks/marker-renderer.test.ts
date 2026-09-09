@@ -4,56 +4,50 @@ import * as THREE from 'three';
 import { AnnotationStore } from '../../packages/viewer/src/marks/annotation-store.js';
 import { MarkerRenderer } from '../../packages/viewer/src/marks/marker-renderer.js';
 
-function markerMaterial(scene: THREE.Scene): THREE.MeshBasicMaterial {
-  const group = scene.getObjectByName('marks-overlay');
-  return (group?.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
-}
-
-describe('MarkerRenderer transaction styles', () => {
-  it('refreshes a draft comment marker to a subdued committed style', () => {
+describe('Annotation surface presentation', () => {
+  it('does not draw world-sized point spheres; anchors belong to the screen projection', () => {
     const scene = new THREE.Scene();
     const store = new AnnotationStore();
     const renderer = new MarkerRenderer(scene, store, () => null, vi.fn());
-    try {
-      store.addComment({
-        kind: 'point',
-        anchorWorld: [0, 0, 0],
-        worldCoord: [0, 0, 0],
-        triIds: [],
-        note: 'review',
-      });
-      const draftMaterial = markerMaterial(scene);
-      expect(draftMaterial.color.getHex()).toBe(0xff3030);
-      expect(draftMaterial.opacity).toBe(0.95);
-
-      store.freezeBatch(store.getDraftBatch().batchId);
-      const committedMaterial = markerMaterial(scene);
-      expect(committedMaterial).not.toBe(draftMaterial);
-      expect(committedMaterial.color.getHex()).toBe(0x94a3b8);
-      expect(committedMaterial.opacity).toBe(0.42);
-    } finally {
-      renderer.dispose();
-    }
+    store.addComment({ kind: 'point', anchorWorld: [0, 0, 0], worldCoord: [0, 0, 0], triIds: [], note: 'here' });
+    expect(scene.getObjectByName('marks-overlay')?.children).toHaveLength(0);
+    renderer.dispose();
   });
 
-  it('distinguishes pending and committed selection markers', () => {
+  it.each([false, true])('outlines only the perimeter (attribute seams=%s) and subdues committed regions', seams => {
     const scene = new THREE.Scene();
     const store = new AnnotationStore();
-    const renderer = new MarkerRenderer(scene, store, () => null, vi.fn());
-    try {
-      const selection = store.addSelection({
-        kind: 'point',
-        anchorWorld: [0, 0, 0],
-        worldCoord: [0, 0, 0],
-        triIds: [],
-      });
-      expect(markerMaterial(scene).color.getHex()).toBe(0x22d3ee);
-
-      store.commitSelection(selection.id);
-      expect(markerMaterial(scene).color.getHex()).toBe(0x3b82f6);
-      expect(markerMaterial(scene).opacity).toBe(0.52);
-    } finally {
-      renderer.dispose();
+    const geometry = new THREE.PlaneGeometry(10, 10);
+    const mesh = new THREE.Mesh(seams ? geometry.toNonIndexed() : geometry);
+    if (seams) {
+      mesh.geometry.setIndex([0, 1, 2, 3, 4, 5]);
+      geometry.dispose();
     }
+    const renderer = new MarkerRenderer(scene, store, () => mesh, vi.fn());
+    store.addComment({
+      kind: 'region',
+      anchorWorld: [0, 0, 0],
+      worldCoord: [0, 0, 0],
+      triIds: [0, 1],
+      note: 'this area',
+    });
+    const overlay = scene.getObjectByName('marks-overlay')!.children[0] as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshBasicMaterial
+    >;
+    const outline = overlay.children[0] as THREE.LineSegments;
+    expect(overlay.material.depthTest).toBe(true);
+    expect(overlay.material.opacity).toBeLessThan(0.25);
+    expect(outline.geometry.getAttribute('position').count).toBe(8);
+    const dispose = vi.spyOn(overlay.geometry, 'dispose');
+    store.freezeBatch(store.getDraftBatch().batchId);
+    const committed = scene.getObjectByName('marks-overlay')!.children[0] as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshBasicMaterial
+    >;
+    expect(committed.material.opacity).toBeLessThan(overlay.material.opacity);
+    expect(dispose).toHaveBeenCalledOnce();
+    renderer.dispose();
+    mesh.geometry.dispose();
   });
 });

@@ -57,7 +57,7 @@ export class HoverHighlight {
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x60ffff,
+      color: 0x3979e3,
       transparent: true,
       opacity: 0.18,
       depthTest: false,
@@ -82,12 +82,22 @@ export class HoverHighlight {
       }
       this.scheduleRefresh(ev);
     };
-    const onLeave = (): void => this.clear();
+    const onLeave = (): void => {
+      this.lastMouseEvent = null;
+      this.clear();
+    };
 
     // Re-trigger / clear on Alt key transitions so the highlight follows
     // the modifier state even when the mouse is stationary.
     const onKeyDown = (ev: KeyboardEvent): void => {
-      if (!this.enabled || ev.key !== 'Alt' || !this.lastMouseEvent) {
+      if (
+        !this.enabled ||
+        ev.key !== 'Alt' ||
+        ev.isComposing ||
+        ev.defaultPrevented ||
+        document.activeElement !== this.canvas ||
+        !this.lastMouseEvent
+      ) {
         return;
       }
       this.scheduleRefresh(this.lastMouseEvent);
@@ -102,11 +112,13 @@ export class HoverHighlight {
     canvas.addEventListener('mouseleave', onLeave);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onLeave);
     this.listeners = [
       () => canvas.removeEventListener('mousemove', onMove),
       () => canvas.removeEventListener('mouseleave', onLeave),
       () => window.removeEventListener('keydown', onKeyDown),
       () => window.removeEventListener('keyup', onKeyUp),
+      () => window.removeEventListener('blur', onLeave),
     ];
   }
 
@@ -256,6 +268,11 @@ export class HoverHighlight {
   }
 
   private clear(): void {
+    if (this.raf !== 0) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    }
+    this.pendingEvent = null;
     if (!this.overlay.visible && this.currentFeatureIdx === -1) {
       return;
     }

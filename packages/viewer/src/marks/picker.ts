@@ -36,6 +36,7 @@ export function eventToNdc(ev: Pick<MouseEvent, 'clientX' | 'clientY'>, canvas: 
  */
 export function pickPoint(ndc: THREE.Vector2, camera: THREE.Camera, mesh: THREE.Mesh): PointPick | null {
   const ray = new THREE.Raycaster();
+  ray.firstHitOnly = true;
   ray.setFromCamera(ndc, camera);
   const hits = ray.intersectObject(mesh, false);
   if (hits.length === 0) {

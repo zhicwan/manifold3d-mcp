@@ -1,6 +1,7 @@
-import { Box, Check, Download, Info, Moon, Sun, X } from 'lucide-react';
+import { Popover } from '@base-ui/react/popover';
+import { Box, Download, Info, Moon, Sun, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -9,158 +10,203 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ExportMenuHostActions, ToolbarHostActions } from '@/components/host-actions';
+import { ExportMenuHostActions, ToolbarHostActions, useHostActionsSnapshot } from '@/components/host-actions';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { glass, glassPill } from '@/components/glass';
+import { glassPill, glassPopup } from '@/components/glass';
+import { useViewerPopupEscape } from '@/components/viewer-shortcuts';
+import { getLatestHostActionStatus, hasPendingHostActionRequest, STL_EXPORT_ACTION_ID } from '@/host-actions/client';
 import { cn } from '@/lib/utils';
 import { useViewerState, type ViewerApi } from '@/store';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
 
-/**
- * Top-right control cluster: everything that identifies the model or acts
- * on it lives here. Left of the actions pill sits the identity pill
- * (name + live-connection dot); the actions pill holds theme, export and
- * a collapsible model-info card.
- */
 export function TopBar({ toolbarEnd }: { toolbarEnd?: ReactNode }) {
   const payload = useViewerState(s => s.payload);
   const status = useViewerState(s => s.status);
   const modelVersion = useViewerState(s => s.modelVersion);
   const api = useViewerState(s => s.viewerApi);
-  const protocolError = useViewerState(s => s.protocolError);
-  const annotationSyncError = useViewerState(s => s.annotationSyncError);
-  const actionsEnabled = payload !== null && api !== null;
-
-  const isDemo = modelVersion === 'demo';
-  const statusLabel = isDemo
-    ? 'Demo'
-    : status === 'connected'
-      ? 'Live'
-      : status === 'connecting'
-        ? 'Connecting…'
-        : status === 'protocol-error'
-          ? 'Protocol error'
-          : 'Disconnected';
+  const statusLabel =
+    status === 'protocol-error'
+      ? 'Protocol error'
+      : status === 'disconnected'
+        ? 'Disconnected'
+        : modelVersion === 'demo'
+          ? 'Demo'
+          : status === 'connected'
+            ? 'Live'
+            : 'Connecting…';
+  const title = payload?.description || 'Manifold 3D';
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-30 flex items-start justify-end gap-3 p-4">
-      {/* Identity pill */}
-      <div className={cn(glassPill, 'flex h-11 min-w-0 items-center gap-2.5 pl-3.5 pr-4')}>
+    <header className="viewer-top-bar pointer-events-none absolute inset-x-0 top-0 z-30">
+      <div data-viewer-obstacle className={cn(glassPill, 'viewer-identity flex min-w-0 items-center gap-2.5 px-3.5')}>
         <Box className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="truncate text-sm font-medium">{payload?.description || 'manifold3d viewer'}</span>
+        <span className="min-w-0 truncate text-sm font-medium" title={title}>
+          {title}
+        </span>
         <Tooltip>
           <TooltipTrigger
             render={
               <span
-                className="inline-flex size-4 shrink-0 items-center justify-center"
+                className="viewer-connection inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
                 role="status"
                 aria-live="polite"
                 aria-label={`Status: ${statusLabel}`}
+                tabIndex={0}
               />
             }
           >
             <span
+              aria-hidden="true"
               className={cn(
-                'size-2 rounded-full',
-                status === 'connected' && 'bg-teal-500',
-                status === 'connecting' && 'animate-pulse bg-amber-500',
+                'size-1.5 rounded-full',
+                status === 'connected' && 'bg-teal-600 dark:bg-teal-400',
+                status === 'connecting' && 'bg-amber-600 dark:bg-amber-400',
                 (status === 'disconnected' || status === 'protocol-error') && 'bg-destructive',
               )}
             />
+            {statusLabel !== 'Live' && <span>{statusLabel}</span>}
           </TooltipTrigger>
           <TooltipContent side="bottom">{statusLabel}</TooltipContent>
         </Tooltip>
       </div>
-
-      {/* Actions pill + collapsible info card */}
-      <ActionsCluster
-        payload={payload}
-        actionsEnabled={actionsEnabled}
-        api={api}
-        toolbarEnd={toolbarEnd}
-        error={protocolError ?? annotationSyncError}
-      />
+      <ActionsCluster payload={payload} api={api} toolbarEnd={toolbarEnd} />
     </header>
   );
 }
 
 function ActionsCluster({
   payload,
-  actionsEnabled,
   api,
   toolbarEnd,
-  error,
 }: {
   payload: ViewerModel | null;
-  actionsEnabled: boolean;
   api: ViewerApi | null;
   toolbarEnd?: ReactNode;
-  error: string | null;
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const infoTrigger = useRef<HTMLButtonElement>(null);
+  const infoPopup = useRef<HTMLDivElement>(null);
+  const exportTrigger = useRef<HTMLButtonElement>(null);
+  const exportPopup = useRef<HTMLDivElement>(null);
+  const snapshot = useHostActionsSnapshot();
+  const exportStatus = getLatestHostActionStatus(snapshot, STL_EXPORT_ACTION_ID);
+  const savedExport = [...snapshot.requestOrder]
+    .reverse()
+    .map(requestId => snapshot.statuses[requestId])
+    .find(status => status?.actionId === STL_EXPORT_ACTION_ID && status.state === 'succeeded');
+  const actionsEnabled = payload !== null && api !== null;
+  useViewerPopupEscape(infoOpen, () => setInfoOpen(false), infoTrigger, infoPopup);
+  useViewerPopupEscape(exportOpen, () => setExportOpen(false), exportTrigger, exportPopup);
 
   return (
-    <div className="relative">
-      <div className={cn(glassPill, 'flex h-11 items-center gap-1 px-1.5')}>
-        <ToolbarHostActions />
-        <ThemeToggle />
-        {toolbarEnd}
-        <div className="h-5 w-px bg-border/70" aria-hidden="true" />
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="sm" className="h-8 gap-1.5 rounded-full px-3" disabled={!actionsEnabled} />
-            }
-          >
-            <Download className="size-4" aria-hidden="true" />
-            Export
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuItem onClick={() => void api?.exportStl()}>
-              <span className="flex flex-col gap-0.5">
-                <span className="font-medium">STL</span>
-                <span className="text-xs text-muted-foreground">Widely supported by slicers and CAD tools</span>
-              </span>
-            </DropdownMenuItem>
-            <ExportMenuHostActions />
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="h-5 w-px bg-border/70" aria-hidden="true" />
+    <div data-viewer-obstacle className={cn(glassPill, 'viewer-top-actions flex shrink-0 items-center gap-0.5 px-1')}>
+      <ToolbarHostActions />
+      <ThemeToggle />
+      {toolbarEnd}
+      <div className="mx-0.5 h-5 w-px bg-border/70" aria-hidden="true" />
+      <DropdownMenu open={exportOpen} onOpenChange={setExportOpen} modal={false}>
         <Tooltip>
           <TooltipTrigger
             render={
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn('h-8 gap-1.5 rounded-full px-3', infoOpen && 'bg-muted text-foreground')}
-                aria-expanded={infoOpen}
-                aria-label={infoOpen ? 'Hide model information' : 'Show model information'}
-                disabled={!payload}
-                onClick={() => setInfoOpen(v => !v)}
+              <DropdownMenuTrigger
+                ref={exportTrigger}
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="viewer-top-button rounded-full"
+                    aria-label="Export"
+                    disabled={!actionsEnabled || hasPendingHostActionRequest(snapshot, STL_EXPORT_ACTION_ID)}
+                  />
+                }
+              />
+            }
+          >
+            <Download className="size-4" aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Export</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent
+          data-viewer-popup
+          data-viewer-obstacle
+          container={exportTrigger.current?.closest('[data-viewer-root]')}
+          ref={exportPopup}
+          align="end"
+          className={cn(glassPopup, 'viewer-popup w-56')}
+        >
+          <DropdownMenuItem className="min-h-10 rounded-xl" onClick={() => void api?.exportStl()}>
+            <Download className="size-4" aria-hidden="true" />
+            Export STL
+          </DropdownMenuItem>
+          <ExportMenuHostActions />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Popover.Root open={infoOpen} onOpenChange={setInfoOpen}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Popover.Trigger
+                ref={infoTrigger}
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="viewer-top-button rounded-full"
+                    aria-label="Model information"
+                    disabled={!payload && !exportStatus}
+                  />
+                }
               />
             }
           >
             <Info className="size-4" aria-hidden="true" />
-            Info
           </TooltipTrigger>
           <TooltipContent side="bottom">Model information</TooltipContent>
         </Tooltip>
-      </div>
-
-      {(error || (infoOpen && payload)) && (
-        <div className="pointer-events-none absolute right-0 top-full mt-2 flex w-72 flex-col items-end gap-2">
-          {error && (
-            <p role="alert" className={cn(glass, 'pointer-events-auto w-full px-3 py-2 text-xs text-destructive')}>
-              {error}
-            </p>
-          )}
-          {infoOpen && payload && (
-            <section aria-label="Model information" className={cn(glass, 'pointer-events-auto w-64 p-4')}>
-              <ModelStats payload={payload} />
-            </section>
-          )}
-        </div>
-      )}
+        <Popover.Portal container={infoTrigger.current?.closest('[data-viewer-root]')}>
+          <Popover.Positioner align="end" sideOffset={8} collisionPadding={12} className="z-50">
+            <Popover.Popup
+              data-viewer-popup
+              data-viewer-obstacle
+              ref={infoPopup}
+              className={cn(glassPopup, 'viewer-popup viewer-model-info p-4')}
+            >
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <Popover.Title className="text-sm font-semibold">Model information</Popover.Title>
+                <Popover.Close
+                  render={
+                    <Button variant="ghost" size="icon" className="rounded-full" aria-label="Close model information" />
+                  }
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </Popover.Close>
+              </div>
+              {payload && (
+                <>
+                  <p className="mb-3 max-h-24 overflow-auto break-words text-sm font-medium">
+                    {payload.description || 'Untitled model'}
+                  </p>
+                  <ModelStats payload={payload} />
+                </>
+              )}
+              {(savedExport?.message || exportStatus?.message) && (
+                <div className="mt-3 border-t border-border/60 pt-3 text-xs">
+                  <h3 className="mb-1 font-medium">{savedExport ? 'Last saved STL' : 'Last STL export'}</h3>
+                  <p
+                    className={cn(
+                      'select-text break-words',
+                      !savedExport && exportStatus?.state === 'failed' && 'text-destructive',
+                    )}
+                  >
+                    {savedExport?.message ?? exportStatus?.message}
+                  </p>
+                </div>
+              )}
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
 }
@@ -169,29 +215,21 @@ function ModelStats({ payload }: { payload: ViewerModel }) {
   const sx = payload.bboxMax[0] - payload.bboxMin[0];
   const sy = payload.bboxMax[1] - payload.bboxMin[1];
   const sz = payload.bboxMax[2] - payload.bboxMin[2];
-  const watertight = payload.genus === 0;
 
   return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
-      <dt className="text-muted-foreground">Bounding box</dt>
-      <dd className="truncate text-right font-mono tabular-nums">
-        {fmt(sx)} x {fmt(sy)} x {fmt(sz)} mm
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+      <dt className="text-muted-foreground">Dimensions</dt>
+      <dd className="text-right tabular-nums">
+        {fmt(sx)} × {fmt(sy)} × {fmt(sz)} mm
       </dd>
       <dt className="text-muted-foreground">Volume</dt>
-      <dd className="text-right font-mono tabular-nums">{(payload.volume / 1000).toFixed(2)} cm3</dd>
+      <dd className="text-right tabular-nums">{(payload.volume / 1000).toFixed(2)} cm³</dd>
       <dt className="text-muted-foreground">Surface area</dt>
-      <dd className="text-right font-mono tabular-nums">{(payload.surfaceArea / 100).toFixed(1)} cm2</dd>
+      <dd className="text-right tabular-nums">{(payload.surfaceArea / 100).toFixed(1)} cm²</dd>
       <dt className="text-muted-foreground">Triangles</dt>
-      <dd className="text-right font-mono tabular-nums">{payload.triangles.toLocaleString()}</dd>
-      <dt className="text-muted-foreground">Watertight</dt>
-      <dd className="flex items-center justify-end gap-1">
-        {watertight ? (
-          <Check className="size-3 text-teal-600 dark:text-teal-400" aria-hidden="true" />
-        ) : (
-          <X className="size-3 text-destructive" aria-hidden="true" />
-        )}
-        {watertight ? 'Yes' : `No (genus ${payload.genus})`}
-      </dd>
+      <dd className="text-right tabular-nums">{payload.triangles.toLocaleString()}</dd>
+      <dt className="text-muted-foreground">Genus</dt>
+      <dd className="text-right tabular-nums">{payload.genus}</dd>
     </dl>
   );
 }
@@ -200,7 +238,6 @@ function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-
   const isDark = mounted && resolvedTheme === 'dark';
 
   return (
@@ -210,7 +247,7 @@ function ThemeToggle() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 rounded-full"
+            className="viewer-top-button rounded-full"
             aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
           />
@@ -227,8 +264,5 @@ function fmt(n: number): string {
   if (!Number.isFinite(n)) {
     return '-';
   }
-  if (Math.abs(n) >= 100) {
-    return n.toFixed(0);
-  }
-  return n.toFixed(1);
+  return Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(1);
 }

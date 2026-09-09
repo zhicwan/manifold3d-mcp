@@ -5,7 +5,6 @@ import { useViewerState, ViewerStoreProvider } from '@/store';
 import { ViewerCanvas } from './viewer-canvas';
 import { TopBar } from './top-bar';
 import { RightRail } from './right-rail';
-import { ModeHint } from './mode-hint';
 import { EmptyState } from './empty-state';
 import { HostActionStatusRegion } from './host-actions';
 import { AnnotationBatchBar } from './annotation-batch-bar';
@@ -28,8 +27,7 @@ export interface ViewerAppProps {
  * Layout map:
  *   top-right — TopBar (identity / status / theme / export / info)
  *   right     — RightRail (tools + render-mode combo)
- *   center    — ModeHint while a mark tool is armed; EmptyState before
- *               any model arrives
+ *   bottom    — contextual batch actions and readable action status
  */
 export function ViewerApp({ slots = {}, resumeIdentity = 'default' }: ViewerAppProps) {
   return (
@@ -53,15 +51,16 @@ function ViewerShell({ slots, resumeIdentity }: { slots: ViewerSlots; resumeIden
   }, [viewerApi, resolvedTheme]);
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-background">
+    <main data-viewer-root tabIndex={-1} className="viewer-shell relative h-dvh w-full overflow-hidden bg-background">
       <ViewerCanvas resumeIdentity={resumeIdentity} />
       {slots.sceneLayers}
       <EmptyState />
       <TopBar toolbarEnd={slots.toolbarEnd} />
       <RightRail />
-      <ModeHint />
-      <AnnotationBatchBar />
-      <HostActionStatusRegion />
+      <div className="viewer-bottom-islands">
+        <HostActionStatusRegion />
+        <AnnotationBatchBar />
+      </div>
       {slots.overlays}
     </main>
   );

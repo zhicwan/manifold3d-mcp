@@ -1,32 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Grid3X3, MapPin, MousePointer2, PenLine, Scan, Send, ZoomIn, ZoomOut } from 'lucide-react';
+import { Box, Focus, Grid3X3, PenLine, Scan, ZoomIn, ZoomOut } from 'lucide-react';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useHostActionsSnapshot } from '@/components/host-actions';
-import { glass } from '@/components/glass';
+import { glass, glassPopup } from '@/components/glass';
+import {
+  selectionDisabledReason,
+  toolForShortcut,
+  useViewerPopupEscape,
+  ViewerHelp,
+  viewerTools,
+} from '@/components/viewer-shortcuts';
 import { supportsLocationSelection } from '@/host-actions/client';
+import { isViewerShortcutEvent } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
-import type { MarkMode } from '@/marks/types';
 import type { RenderMode } from '@/scene/viewer';
 import { useViewerState } from '@/store';
-
-const TOOLS: Array<{ mode: MarkMode; label: string; shortcut: string; hint: string; icon: typeof MousePointer2 }> = [
-  { mode: 'orbit', label: 'Orbit', shortcut: 'V', hint: 'Rotate, pan and zoom the camera', icon: MousePointer2 },
-  {
-    mode: 'annotate',
-    label: 'Annotate',
-    shortcut: 'M',
-    hint: 'Click for a point or drag for a commented region',
-    icon: MapPin,
-  },
-  {
-    mode: 'select',
-    label: 'Select to chat',
-    shortcut: 'S',
-    hint: 'Click or drag to attach a location without a comment',
-    icon: Send,
-  },
-];
 
 const RENDER_OPTIONS: Array<{ value: RenderMode; label: string; icon: typeof Box }> = [
   { value: 'solid', label: 'Solid', icon: Box },
@@ -34,17 +30,7 @@ const RENDER_OPTIONS: Array<{ value: RenderMode; label: string; icon: typeof Box
   { value: 'edges', label: 'Edges', icon: PenLine },
   { value: 'xray', label: 'X-Ray', icon: Scan },
 ];
-const RENDER_ICONS: Record<RenderMode, typeof Box> = {
-  solid: Box,
-  wireframe: Grid3X3,
-  edges: PenLine,
-  xray: Scan,
-};
 
-/**
- * Right-edge control column. Annotation editing remains on the model; hosts
- * contribute transactional actions through the bottom batch bar.
- */
 export function RightRail() {
   const markMode = useViewerState(s => s.markMode);
   const renderMode = useViewerState(s => s.renderMode);
@@ -52,38 +38,44 @@ export function RightRail() {
   const payload = useViewerState(s => s.payload);
   const hostActions = useHostActionsSnapshot();
   const supportsSelect = supportsLocationSelection(hostActions.actions);
+  const selectReason = selectionDisabledReason(hostActions, payload !== null);
   const enabled = api !== null && payload !== null;
-
   const [renderOpen, setRenderOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
+  const renderTrigger = useRef<HTMLButtonElement>(null);
+  const renderPopup = useRef<HTMLDivElement>(null);
+  useViewerPopupEscape(renderOpen, () => setRenderOpen(false), renderTrigger, renderPopup);
 
-  // Keyboard shortcuts V / M / S (skipped while typing).
   useEffect(() => {
-    const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') {
-        setRenderOpen(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      const root = rootRef.current?.closest<HTMLElement>('[data-viewer-root]') ?? null;
+      if (event.repeat || renderOpen || helpOpen || !isViewerShortcutEvent(event, root)) {
         return;
       }
-      if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+      if (event.key === '?') {
+        event.preventDefault();
+        setHelpOpen(true);
         return;
       }
-      if (!api || !payload) {
+      if (!enabled) {
         return;
       }
-      const target = ev.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        api.fitToModel();
         return;
       }
-      const tool = TOOLS.find(
-        t => (t.mode !== 'select' || supportsSelect) && t.shortcut.toLowerCase() === ev.key.toLowerCase(),
-      );
-      if (tool) {
-        api.setMarkMode(tool.mode);
+      const mode = toolForShortcut(event.key, supportsSelect, selectReason !== undefined);
+      if (mode) {
+        event.preventDefault();
+        api.setMarkMode(mode);
+        root?.querySelector<HTMLCanvasElement>('#view')?.focus({ preventScroll: true });
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [api, payload, supportsSelect]);
+  }, [api, enabled, supportsSelect, selectReason, renderOpen, helpOpen]);
 
   useEffect(() => {
     if (markMode === 'select' && !supportsSelect) {
@@ -91,157 +83,128 @@ export function RightRail() {
     }
   }, [api, markMode, supportsSelect]);
 
-  // Close flyouts on outside pointer press.
-  useEffect(() => {
-    const onDown = (ev: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(ev.target as Node)) {
-        setRenderOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, []);
-
-  const ActiveRenderIcon = RENDER_ICONS[renderMode];
+  const ActiveRenderIcon = RENDER_OPTIONS.find(option => option.value === renderMode)!.icon;
 
   return (
-    <nav
-      ref={rootRef}
-      aria-label="Viewer tools"
-      className={cn(glass, 'fixed right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-1 p-1.5')}
-    >
-      {/* Interaction tools */}
-      {TOOLS.filter(tool => tool.mode !== 'select' || supportsSelect).map(tool => {
-        const Icon = tool.icon;
-        const active = markMode === tool.mode;
-        return (
-          <Tooltip key={tool.mode}>
+    <nav data-viewer-obstacle ref={rootRef} aria-label="Viewer tools" className={cn(glass, 'viewer-right-rail')}>
+      <div className="flex flex-col gap-1">
+        {viewerTools(supportsSelect).map(tool => {
+          const Icon = tool.icon;
+          const primary = tool.mode === (supportsSelect ? 'select' : 'annotate');
+          const disabled = !enabled || (tool.mode === 'select' && selectReason !== undefined);
+          return (
+            <Tooltip key={tool.mode}>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`${tool.label} (${tool.shortcut})`}
+                    aria-pressed={markMode === tool.mode}
+                    data-primary={primary || undefined}
+                    disabled={disabled}
+                    title={tool.mode === 'select' ? selectReason : undefined}
+                    className="viewer-rail-button viewer-tool-button"
+                    onClick={() => {
+                      if (disabled) {
+                        return;
+                      }
+                      api?.setMarkMode(tool.mode);
+                      rootRef.current
+                        ?.closest('[data-viewer-root]')
+                        ?.querySelector<HTMLCanvasElement>('#view')
+                        ?.focus({ preventScroll: true });
+                    }}
+                  />
+                }
+              >
+                <Icon className="size-4 shrink-0" aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {tool.label} <kbd>{tool.shortcut}</kbd>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+      <div className="viewer-rail-divider" aria-hidden="true" />
+      <div className="viewer-view-controls">
+        <RailAction label="Zoom in" icon={ZoomIn} disabled={!enabled} onClick={() => api?.zoomIn()} />
+        <RailAction label="Zoom out" icon={ZoomOut} disabled={!enabled} onClick={() => api?.zoomOut()} />
+        <RailAction label="Fit model" shortcut="F" icon={Focus} disabled={!enabled} onClick={() => api?.fitToModel()} />
+        <DropdownMenu open={renderOpen} onOpenChange={setRenderOpen} modal={false}>
+          <Tooltip>
             <TooltipTrigger
               render={
-                <button
-                  type="button"
-                  aria-label={`${tool.label} (${tool.shortcut})`}
-                  aria-pressed={active}
+                <DropdownMenuTrigger
+                  ref={renderTrigger}
+                  className="viewer-rail-button viewer-rail-secondary"
+                  aria-label="Render mode"
                   disabled={!enabled}
-                  className={railBtn(active, !enabled)}
-                  onClick={() => api?.setMarkMode(tool.mode)}
                 />
               }
             >
-              <Icon className="size-4" aria-hidden="true" />
+              <ActiveRenderIcon className="size-4" aria-hidden="true" />
             </TooltipTrigger>
-            <TooltipContent side="left">
-              <span className="flex items-center gap-2">
-                {tool.label}
-                <kbd className="rounded bg-background/20 px-1 font-mono text-[10px]">{tool.shortcut}</kbd>
-              </span>
-              <span className="block text-[11px] opacity-80">{tool.hint}</span>
-            </TooltipContent>
+            <TooltipContent side="left">Render mode</TooltipContent>
           </Tooltip>
-        );
-      })}
-
-      <div className="mx-1 my-0.5 h-px bg-border/60" aria-hidden="true" />
-
-      {/* Controller-friendly zoom controls for flat browser mode. */}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              aria-label="Zoom in"
-              disabled={!enabled}
-              className={railBtn(false, !enabled)}
-              onClick={() => api?.zoomIn()}
-            />
-          }
-        >
-          <ZoomIn className="size-4" aria-hidden="true" />
-        </TooltipTrigger>
-        <TooltipContent side="left">Zoom in</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              aria-label="Zoom out"
-              disabled={!enabled}
-              className={railBtn(false, !enabled)}
-              onClick={() => api?.zoomOut()}
-            />
-          }
-        >
-          <ZoomOut className="size-4" aria-hidden="true" />
-        </TooltipTrigger>
-        <TooltipContent side="left">Zoom out</TooltipContent>
-      </Tooltip>
-
-      <div className="mx-1 my-0.5 h-px bg-border/60" aria-hidden="true" />
-
-      {/* Render-mode combo */}
-      <div className="relative">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                aria-haspopup="menu"
-                aria-expanded={renderOpen}
-                aria-label="Render mode"
-                disabled={!enabled}
-                className={railBtn(renderOpen, !enabled)}
-                onClick={() => setRenderOpen(open => !open)}
-              />
-            }
+          <DropdownMenuContent
+            data-viewer-popup
+            data-viewer-obstacle
+            container={rootRef.current?.closest('[data-viewer-root]')}
+            ref={renderPopup}
+            side="left"
+            align="center"
+            sideOffset={8}
+            className={cn(glassPopup, 'viewer-popup w-40')}
           >
-            <ActiveRenderIcon className="size-4" aria-hidden="true" />
-          </TooltipTrigger>
-          <TooltipContent side="left">Render mode</TooltipContent>
-        </Tooltip>
-
-        {renderOpen && (
-          <div
-            role="radiogroup"
-            aria-label="Render mode"
-            className={cn(glass, 'absolute right-full top-1/2 mr-2 flex w-40 -translate-y-1/2 flex-col gap-0.5 p-1')}
-          >
-            {RENDER_OPTIONS.map(opt => {
-              const Icon = opt.icon;
-              const active = renderMode === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  className={cn(
-                    'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                  onClick={() => {
-                    api?.setRenderMode(opt.value);
-                    setRenderOpen(false);
-                  }}
-                >
-                  <Icon className="size-4" aria-hidden="true" />
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
+            <DropdownMenuRadioGroup value={renderMode} onValueChange={value => api?.setRenderMode(value as RenderMode)}>
+              {RENDER_OPTIONS.map(option => (
+                <DropdownMenuRadioItem key={option.value} value={option.value} className="min-h-9 gap-2 rounded-xl">
+                  <option.icon className="size-4" aria-hidden="true" />
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      <div className="viewer-rail-divider" aria-hidden="true" />
+      <ViewerHelp open={helpOpen} onOpenChange={setHelpOpen} supportsSelect={supportsSelect} />
     </nav>
   );
 }
 
-function railBtn(active: boolean, disabled: boolean): string {
-  return cn(
-    'flex size-9 items-center justify-center rounded-xl transition-colors',
-    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-    disabled && 'pointer-events-none opacity-40',
+function RailAction({
+  label,
+  shortcut,
+  icon: Icon,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  shortcut?: string;
+  icon: typeof Box;
+  disabled: boolean;
+  onClick(): void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={shortcut ? `${label} (${shortcut})` : label}
+            disabled={disabled}
+            className="viewer-rail-button viewer-rail-secondary"
+            onClick={onClick}
+          />
+        }
+      >
+        <Icon className="size-4" aria-hidden="true" />
+      </TooltipTrigger>
+      <TooltipContent side="left">
+        {label} {shortcut && <kbd>{shortcut}</kbd>}
+      </TooltipContent>
+    </Tooltip>
   );
 }
