@@ -4,6 +4,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 
 import type { ViewerModel } from '../packages/protocol/src/wire/model.js';
+import { stlFilename } from '../packages/viewer/src/exporters/filename.js';
 import { exportStl } from '../packages/viewer/src/exporters/stl.js';
 import { payloadToGeometry } from '../packages/viewer/src/scene/mesh-bridge.js';
 import { applyTransform, computeXrHomeTransform } from '../packages/viewer/src/xr/model-placement.js';
@@ -24,6 +25,31 @@ function model(): ViewerModel {
     bboxMax: [10, 20, 30],
   };
 }
+
+describe('STL filenames', () => {
+  it.each([
+    ['', 'model.stl'],
+    ['---', 'model.stl'],
+    ['__My / PART 42!!', 'my-part-42.stl'],
+    ['A'.repeat(41), `${'a'.repeat(40)}.stl`],
+    [`${'a'.repeat(39)} b`, `${'a'.repeat(39)}-.stl`],
+  ])('normalizes %j without changing the slug limit', (description, expected) => {
+    expect(stlFilename({ ...model(), description })).toBe(expected);
+  });
+
+  it('preserves the fallback name and optional revision suffix', () => {
+    expect(stlFilename(model())).toBe('model.stl');
+    expect(stlFilename(model(), 0)).toBe('model-r0.stl');
+    expect(stlFilename({ ...model(), description: 'Original Model' }, 12)).toBe('original-model-r12.stl');
+  });
+
+  it('collapses long leading, interior and trailing separator runs', () => {
+    const separators = '-'.repeat(100_000);
+    const description = `${separators}A${separators}B${separators}`;
+    expect(stlFilename({ ...model(), description })).toBe('a-b.stl');
+    expect(stlFilename({ ...model(), description: separators })).toBe('model.stl');
+  });
+});
 
 describe('canonical STL export', () => {
   afterEach(() => {

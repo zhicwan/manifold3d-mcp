@@ -5,7 +5,7 @@ export function stlFilename(payload: ViewerModel, revision?: number): string {
     (payload.description || 'model')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
+      .replace(/^-|-$/g, '')
       .slice(0, 40) || 'model';
   const revisionSuffix = revision === undefined ? '' : `-r${revision}`;
   return `${slug}${revisionSuffix}.stl`;
