@@ -1,0 +1,317 @@
+#view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#view:focus-visible {
+  outline: 2px solid var(--spatial);
+  outline-offset: -3px;
+}
+
+#view[data-navigating='true'] {
+  cursor: grabbing;
+}
+
+#view[data-mark-mode='annotate'] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M9 2v14M2 9h14m3 7 6-6 3 3-6 6-4 1z'/%3E%3C/g%3E%3Cg fill='none' stroke='%232e67c2' stroke-width='1.5'%3E%3Cpath d='M9 2v14M2 9h14m3 7 6-6 3 3-6 6-4 1z'/%3E%3C/g%3E%3C/svg%3E")
+      9 9,
+    crosshair;
+}
+
+#view[data-mark-mode='select'] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M9 2v14M2 9h14m3 7h11v8h-7l-4 3z'/%3E%3C/g%3E%3Cg fill='none' stroke='%232e67c2' stroke-width='1.5'%3E%3Cpath d='M9 2v14M2 9h14m3 7h11v8h-7l-4 3z'/%3E%3C/g%3E%3C/svg%3E")
+      9 9,
+    crosshair;
+}
+
+#marks-overlay,
+.marks-flyout-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#marks-overlay {
+  z-index: 10;
+}
+
+.marks-rubber-band {
+  position: absolute;
+  border: 1px solid var(--spatial);
+  background: color-mix(in srgb, var(--spatial) 9%, transparent);
+  border-radius: 3px;
+}
+
+.marks-target-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.marks-target-preview::after {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--spatial);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--spatial) 16%, transparent);
+}
+
+.marks-flyout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  --editor-x: 18px;
+  --editor-y: 18px;
+}
+
+.marks-flyout.expanded {
+  z-index: 2;
+}
+
+.marks-leader {
+  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--spatial);
+  stroke-width: 1;
+  opacity: 0.45;
+}
+
+.marks-flyout.expanded .marks-leader {
+  display: block;
+}
+
+.marks-flyout-pill {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  padding: 3px;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.marks-flyout-number {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--spatial) 65%, white);
+  background: color-mix(in srgb, var(--color-background) 86%, transparent);
+  color: var(--spatial);
+  font: 600 11px/1 var(--font-sans, system-ui, sans-serif);
+  box-shadow: 0 2px 6px #0002;
+  backdrop-filter: blur(8px);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.marks-flyout[data-intent='selection'] .marks-flyout-number {
+  border-radius: 7px;
+}
+
+.marks-flyout[data-state='committed'] .marks-flyout-number {
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+
+.marks-flyout[data-state='pending'] .marks-flyout-number {
+  border-style: dashed;
+}
+
+.marks-flyout[data-occluded='true'] .marks-flyout-number {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--color-background) 50%, transparent);
+  opacity: 0.65;
+}
+
+.marks-flyout-pill:hover .marks-flyout-number,
+.marks-flyout.expanded .marks-flyout-number {
+  background: var(--spatial);
+  color: var(--spatial-foreground, white);
+  opacity: 1;
+}
+
+.marks-flyout-pill:focus-visible,
+.marks-flyout-btn:focus-visible {
+  outline: 2px solid var(--spatial);
+  outline-offset: 2px;
+}
+
+.marks-flyout-preview {
+  display: none;
+  position: absolute;
+  left: 18px;
+  top: -14px;
+  max-width: min(220px, 55vw);
+  padding: 6px 9px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-popover) 90%, transparent);
+  color: var(--color-popover-foreground);
+  font: 12px/1.4 var(--font-sans, system-ui, sans-serif);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 3px 12px #0002;
+}
+
+.marks-flyout:not(.expanded):has(.marks-flyout-pill:hover, .marks-flyout-pill:focus-visible) .marks-flyout-preview {
+  display: block;
+}
+
+.marks-flyout[data-label-side='left'] .marks-flyout-preview {
+  left: auto;
+  right: 18px;
+}
+
+.marks-flyout-body {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(var(--editor-x), var(--editor-y));
+  align-items: flex-end;
+  gap: 6px;
+  width: min(320px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: 15px;
+  background: var(--glass-editor-background, color-mix(in srgb, var(--color-popover) 86%, transparent));
+  color: var(--color-popover-foreground);
+  box-shadow:
+    0 8px 28px #0002,
+    0 1px 3px #0001;
+  backdrop-filter: blur(24px) saturate(130%);
+  pointer-events: auto;
+}
+
+.marks-flyout.expanded .marks-flyout-body {
+  display: flex;
+}
+
+.marks-flyout-textarea {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  max-height: 120px;
+  box-sizing: border-box;
+  border: 0;
+  outline: none;
+  padding: 2px 4px;
+  margin: 2px 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: 13px/20px var(--font-sans, system-ui, sans-serif);
+  overflow-y: auto;
+}
+
+.marks-flyout-body:has(.marks-flyout-textarea:focus-visible) {
+  border-color: var(--spatial);
+}
+
+.marks-flyout-textarea::placeholder {
+  color: var(--color-muted-foreground);
+}
+
+.marks-flyout-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.marks-flyout-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+}
+
+.marks-flyout-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.marks-flyout-btn:hover {
+  background: var(--color-accent);
+  color: var(--color-foreground);
+}
+
+.marks-flyout-save {
+  color: var(--spatial);
+  background: color-mix(in srgb, var(--spatial) 12%, transparent);
+}
+
+.marks-readonly-note {
+  flex: 1;
+  min-width: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  margin: 4px;
+  font: 13px/1.5 var(--font-sans, system-ui, sans-serif);
+}
+
+.marks-flyout [hidden],
+.marks-rubber-band[hidden],
+.marks-target-preview[hidden] {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .marks-flyout-pill {
+    width: 44px;
+    height: 44px;
+  }
+  .marks-flyout-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .marks-flyout-textarea {
+    font-size: 16px;
+    line-height: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marks-flyout-number {
+    transition: none;
+  }
+}

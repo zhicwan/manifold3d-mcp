@@ -1,0 +1,411 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-geist-sans), 'Geist Fallback';
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback';
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-spatial: var(--spatial);
+  --color-spatial-foreground: var(--spatial-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --spatial: #3979e3;
+  --spatial-foreground: #ffffff;
+  --glass-background: rgb(255 255 255 / 68%);
+  --glass-editor-background: rgb(255 255 255 / 91%);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.46 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --spatial: #78aaff;
+  --spatial-foreground: #101d32;
+  --glass-background: rgb(28 30 34 / 68%);
+  --glass-editor-background: rgb(28 30 34 / 93%);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.77 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --spatial: #78aaff;
+    --spatial-foreground: #101d32;
+    --glass-background: rgb(28 30 34 / 68%);
+    --glass-editor-background: rgb(28 30 34 / 93%);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.77 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/*
+ * Geist is loaded via @fontsource-variable in main.tsx (no next/font in
+ * the Vite build). Bind the CSS vars that the @theme inline block above
+ * reads for --font-sans / --font-mono.
+ */
+:root {
+  --font-geist-sans: 'Geist Variable';
+  --font-geist-mono: 'Geist Mono Variable';
+}
+
+/*
+ * The viewer is a fullscreen canvas with floating chrome. Body/#root
+ * resets live here (not in a component) because the canvas is driven
+ * imperatively by three.js, not React.
+ */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+.viewer-shell {
+  container: viewer / inline-size;
+  --viewer-rail-inset: 80px;
+  --viewer-bottom-clearance: 104px;
+}
+
+.viewer-glass {
+  border: 1px solid color-mix(in srgb, var(--foreground) 11%, transparent);
+  background: var(--glass-background);
+  color: var(--foreground);
+  box-shadow:
+    0 5px 20px rgb(0 0 0 / 8%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
+  backdrop-filter: blur(18px);
+}
+
+.viewer-glass-popup {
+  background: var(--glass-editor-background);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 14%);
+  backdrop-filter: blur(14px);
+}
+
+.viewer-top-bar {
+  display: flex;
+  align-items: start;
+  justify-content: end;
+  gap: 10px;
+  padding: 16px;
+}
+
+.viewer-identity,
+.viewer-top-actions {
+  min-height: 46px;
+}
+
+.viewer-identity {
+  max-width: 30rem;
+}
+
+.viewer-top-button {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.viewer-popup {
+  max-width: min(360px, calc(100vw - 24px), var(--available-width));
+  max-height: min(560px, var(--available-height));
+  overflow: auto;
+  outline: none;
+}
+
+.viewer-model-info,
+.viewer-help {
+  width: 304px;
+}
+
+.viewer-shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.viewer-right-rail {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 48px;
+  max-height: max(44px, calc(100% - 2 * var(--viewer-rail-inset)));
+  gap: 5px;
+  padding: 5px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.viewer-rail-button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background-color 140ms ease-out,
+    color 140ms ease-out;
+}
+
+.viewer-tool-button[data-primary] {
+  color: var(--foreground);
+}
+
+.viewer-rail-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
+}
+
+.viewer-rail-button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--spatial) 16%, transparent);
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--spatial) 42%, transparent);
+}
+
+.viewer-rail-button[aria-pressed='true'] svg {
+  color: var(--spatial);
+}
+
+.viewer-rail-button:disabled {
+  opacity: 0.4;
+}
+
+.viewer-shell button:focus-visible,
+.viewer-popup button:focus-visible,
+.viewer-connection:focus-visible {
+  outline: 2px solid var(--spatial);
+  outline-offset: 2px;
+}
+
+.viewer-view-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+}
+
+.viewer-rail-divider {
+  min-height: 1px;
+  margin: 1px 5px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.viewer-bottom-islands {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  width: min(480px, calc(100% - 280px));
+  transform: translateX(-50%);
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.viewer-batch-bar {
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.viewer-batch-button {
+  min-height: 36px;
+}
+
+.viewer-action-status {
+  width: 100%;
+  max-height: min(24vh, 160px);
+  overflow: auto;
+  background: var(--glass-editor-background);
+}
+
+.viewer-shell:has(.viewer-action-status) {
+  --viewer-bottom-clearance: min(40%, 272px);
+}
+
+.viewer-empty-state {
+  padding: 120px 76px 120px 24px;
+}
+
+@container viewer (max-width: 640px) {
+  .viewer-top-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .viewer-identity {
+    flex: 1 0 100%;
+    justify-content: start;
+    max-width: 100%;
+  }
+
+  .viewer-connection {
+    margin-left: auto;
+  }
+
+  .viewer-right-rail {
+    --viewer-rail-inset: max(124px, var(--viewer-bottom-clearance));
+    right: 12px;
+  }
+
+  .viewer-top-actions {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: end;
+  }
+
+  .viewer-host-action-label {
+    display: none;
+  }
+
+  .viewer-host-action {
+    padding-inline: 8px;
+  }
+
+  .viewer-bottom-islands {
+    right: 12px;
+    bottom: 12px;
+    left: auto;
+    width: calc(100% - 144px);
+    transform: none;
+  }
+
+  .viewer-batch-count-label {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .viewer-top-button,
+  .viewer-rail-button,
+  .viewer-batch-button,
+  .viewer-popup button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .viewer-right-rail {
+    width: 56px;
+  }
+
+  .viewer-top-actions,
+  .viewer-identity {
+    min-height: 54px;
+  }
+
+  @container viewer (max-width: 640px) {
+    .viewer-right-rail {
+      --viewer-rail-inset: max(144px, var(--viewer-bottom-clearance));
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-shell *,
+  .viewer-popup {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
