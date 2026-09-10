@@ -3,13 +3,13 @@
   "owner": { "name": "Zhicheng Wang" },
   "metadata": {
     "description": "Design, validate and preview 3D-printable models with shared Manifold tooling.",
-    "version": "1.2.0"
+    "version": "1.2.1"
   },
   "plugins": [
     {
       "name": "manifold",
       "description": "Manifold modeling tools, browser/XR Viewer and skill over MCP.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "source": "./plugins/manifold",
       "author": { "name": "Zhicheng Wang" },
       "homepage": "https://github.com/zhicwan/manifold3d-mcp",
@@ -20,7 +20,7 @@
     {
       "name": "manifold-extension",
       "description": "Manifold modeling tools, native Copilot Canvas and annotation messages.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "source": "./plugins/manifold-extension",
       "author": { "name": "Zhicheng Wang" },
       "homepage": "https://github.com/zhicwan/manifold3d-mcp",

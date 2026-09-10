@@ -1,9 +1,8 @@
 import { Popover } from '@base-ui/react/popover';
-import { CircleHelp, MapPin, MessageSquare, MousePointer2, X } from 'lucide-react';
+import { CircleHelp, MapPin, MessageSquare, MousePointer2 } from 'lucide-react';
 import { useEffect, useRef, type RefObject } from 'react';
 
 import { glassPopup } from '@/components/glass';
-import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   hasPendingHostActionRequest,
@@ -12,30 +11,40 @@ import {
   type HostActionsSnapshot,
 } from '@/host-actions/client';
 import type { MarkMode } from '@/marks/types';
+import { useViewerI18n } from '@/store';
+import type { ViewerI18n } from '@/i18n';
 
 export const VIEWER_TOOLS = [
-  { mode: 'orbit', label: 'Orbit', shortcut: 'V', icon: MousePointer2 },
-  { mode: 'annotate', label: 'Annotate', shortcut: 'M', icon: MapPin },
-  { mode: 'select', label: 'Select to chat', shortcut: 'S', icon: MessageSquare },
+  { mode: 'orbit', shortcut: 'V', icon: MousePointer2 },
+  { mode: 'annotate', shortcut: 'M', icon: MapPin },
+  { mode: 'select', shortcut: 'S', icon: MessageSquare },
 ] as const;
 
 export function viewerTools(supportsSelect: boolean) {
   return supportsSelect ? [VIEWER_TOOLS[0], VIEWER_TOOLS[2], VIEWER_TOOLS[1]] : [VIEWER_TOOLS[0], VIEWER_TOOLS[1]];
 }
 
-export function selectionDisabledReason(snapshot: HostActionsSnapshot, hasModel: boolean): string | undefined {
+export function selectionDisabledReason(
+  snapshot: HostActionsSnapshot,
+  hasModel: boolean,
+  i18n: ViewerI18n,
+): string | undefined {
   const action = snapshot.actions.find(item => item.id === LOCATION_SELECTION_ACTION_ID);
   if (!action) {
-    return 'Location attachment is unavailable.';
+    return i18n.t('locationUnavailable');
   }
-  return hostActionDisabledReason(action, {
-    connected: snapshot.connected,
-    protocolReady: snapshot.protocolState === 'ready',
-    hasModel,
-    // The gesture creates the annotation; no pre-existing annotation is required.
-    annotationCount: 1,
-    pending: hasPendingHostActionRequest(snapshot, LOCATION_SELECTION_ACTION_ID),
-  });
+  return hostActionDisabledReason(
+    action,
+    {
+      connected: snapshot.connected,
+      protocolReady: snapshot.protocolState === 'ready',
+      hasModel,
+      // The gesture creates the annotation; no pre-existing annotation is required.
+      annotationCount: 1,
+      pending: hasPendingHostActionRequest(snapshot, LOCATION_SELECTION_ACTION_ID),
+    },
+    i18n,
+  );
 }
 
 export function toolForShortcut(key: string, supportsSelect: boolean, selectDisabled: boolean): MarkMode | undefined {
@@ -91,6 +100,7 @@ export function ViewerHelp({
   onOpenChange(open: boolean): void;
   supportsSelect: boolean;
 }) {
+  const i18n = useViewerI18n();
   const trigger = useRef<HTMLButtonElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   useViewerPopupEscape(open, () => onOpenChange(false), trigger, popup);
@@ -100,13 +110,17 @@ export function ViewerHelp({
       <Tooltip>
         <TooltipTrigger
           render={
-            <Popover.Trigger ref={trigger} className="viewer-rail-button viewer-rail-secondary" aria-label="Help (?)" />
+            <Popover.Trigger
+              ref={trigger}
+              className="viewer-rail-button viewer-rail-secondary"
+              aria-label={i18n.t('shortcutLabel', i18n.t('help'), '?')}
+            />
           }
         >
           <CircleHelp className="size-4" aria-hidden="true" />
         </TooltipTrigger>
         <TooltipContent side="left">
-          Help <kbd>?</kbd>
+          {i18n.t('help')} <kbd>?</kbd>
         </TooltipContent>
       </Tooltip>
       <Popover.Portal container={trigger.current?.closest('[data-viewer-root]')}>
@@ -117,30 +131,23 @@ export function ViewerHelp({
             ref={popup}
             className={`${glassPopup} viewer-help viewer-popup p-4`}
           >
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <Popover.Title className="text-sm font-semibold">Controls</Popover.Title>
-              <Popover.Close
-                render={<Button variant="ghost" size="icon" className="rounded-full" aria-label="Close help" />}
-              >
-                <X className="size-4" aria-hidden="true" />
-              </Popover.Close>
-            </div>
+            <Popover.Title className="sr-only">{i18n.t('controls')}</Popover.Title>
             <dl className="viewer-shortcut-list">
               {viewerTools(supportsSelect).map(tool => (
-                <ShortcutRow key={tool.mode} label={tool.label} value={tool.shortcut} />
+                <ShortcutRow key={tool.mode} label={i18n.t(tool.mode)} value={tool.shortcut} />
               ))}
-              <ShortcutRow label="Fit model" value="F" />
-              <ShortcutRow label="Help" value="?" />
-              <ShortcutRow label="Temporary orbit" value="Hold Space" />
-              <ShortcutRow label="Cancel / exit" value="Esc" />
+              <ShortcutRow label={i18n.t('fitModel')} value="F" />
+              <ShortcutRow label={i18n.t('help')} value="?" />
+              <ShortcutRow label={i18n.t('temporaryOrbit')} value={i18n.t('holdSpace')} />
+              <ShortcutRow label={i18n.t('cancelExit')} value="Esc" />
             </dl>
             <dl className="viewer-shortcut-list mt-3 border-t border-border/60 pt-3">
-              <ShortcutRow label="Point / region" value="Click / drag" />
-              <ShortcutRow label="Orbit" value="Left drag" />
-              <ShortcutRow label="Pan" value="Middle / right drag" />
-              <ShortcutRow label="Zoom" value="Scroll / pinch" />
-              <ShortcutRow label="Feature preview" value="Hold Alt" />
-              <ShortcutRow label="Save / new line" value="Enter / Shift Enter" />
+              <ShortcutRow label={i18n.t('pointRegion')} value={i18n.t('clickDrag')} />
+              <ShortcutRow label={i18n.t('orbit')} value={i18n.t('leftDrag')} />
+              <ShortcutRow label={i18n.t('pan')} value={i18n.t('middleRightDrag')} />
+              <ShortcutRow label={i18n.t('zoom')} value={i18n.t('scrollPinch')} />
+              <ShortcutRow label={i18n.t('featurePreview')} value={i18n.t('holdAlt')} />
+              <ShortcutRow label={i18n.t('saveNewLine')} value={i18n.t('enterShiftEnter')} />
             </dl>
           </Popover.Popup>
         </Popover.Positioner>
@@ -153,7 +160,7 @@ function ShortcutRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-xs">
       <dt>{label}</dt>
-      <dd className="shrink-0 text-muted-foreground">{value}</dd>
+      <dd className="min-w-0 text-right text-muted-foreground">{value}</dd>
     </div>
   );
 }

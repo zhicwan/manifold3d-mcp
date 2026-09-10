@@ -1,5 +1,6 @@
 import type { Annotation, AnnotationKind } from '../types.js';
 import { MAX_ANNOTATION_NOTE_LENGTH } from '@manifold3d/protocol/wire/annotations.js';
+import { createViewerI18n, type ViewerI18n } from '../../i18n/index.js';
 
 export interface FlyoutViewModel {
   partLabel: string;
@@ -35,12 +36,14 @@ export class FlyoutView {
   private readonly cancel: HTMLButtonElement;
   private readonly save: HTMLButtonElement;
   private readonly observer: ResizeObserver;
+  private readonly unsubscribeLocale: () => void;
   private vm: FlyoutViewModel;
 
   constructor(
     annId: string,
     vm: FlyoutViewModel,
     private readonly callbacks: FlyoutViewCallbacks,
+    private readonly i18n: ViewerI18n = createViewerI18n('en'),
   ) {
     this.vm = vm;
     const wrap = document.createElement('div');
@@ -52,12 +55,12 @@ export class FlyoutView {
         <span class="marks-flyout-number"></span>
       </button>
       <span class="marks-flyout-preview" role="tooltip"></span>
-      <div class="marks-flyout-body" data-viewer-popup role="group" aria-label="Location note">
-        <textarea class="marks-flyout-textarea" rows="1" placeholder="Add a note..." aria-label="Annotation note"></textarea>
+      <div class="marks-flyout-body" data-viewer-popup role="group">
+        <textarea class="marks-flyout-textarea" rows="1"></textarea>
         <p class="marks-readonly-note"></p>
         <div class="marks-flyout-actions">
-          <button class="marks-flyout-cancel marks-flyout-btn" type="button" aria-label="Cancel edit" title="Cancel (Esc)">${CLOSE_ICON}</button>
-          <button class="marks-flyout-save marks-flyout-btn" type="button" aria-label="Save note" title="Save (Enter)">${CHECK_ICON}</button>
+          <button class="marks-flyout-cancel marks-flyout-btn" type="button">${CLOSE_ICON}</button>
+          <button class="marks-flyout-save marks-flyout-btn" type="button">${CHECK_ICON}</button>
         </div>
       </div>`;
     this.element = wrap;
@@ -115,6 +118,11 @@ export class FlyoutView {
     });
     this.observer.observe(this.body);
     this.applyVm();
+    this.unsubscribeLocale = i18n.subscribe(() => {
+      this.applyLocale();
+      this.resizeTextarea();
+      this.callbacks.onLayout();
+    });
   }
 
   setView(vm: FlyoutViewModel): void {
@@ -148,6 +156,7 @@ export class FlyoutView {
   }
 
   dispose(): void {
+    this.unsubscribeLocale();
     this.observer.disconnect();
     this.element.remove();
   }
@@ -166,11 +175,7 @@ export class FlyoutView {
     this.element.dataset.state = vm.state;
     this.element.dataset.intent = vm.intent;
     this.element.dataset.kind = vm.kind;
-    this.pill.querySelector('.marks-flyout-number')!.textContent = String(vm.number);
-    this.pill.setAttribute(
-      'aria-label',
-      `${vm.intent === 'selection' ? 'Location' : 'Note'} ${vm.number}: ${vm.partLabel}`,
-    );
+    this.applyLocale();
     this.pill.setAttribute('aria-expanded', String(vm.expanded));
     this.previewEl.textContent = vm.note.trim() || vm.partLabel;
     this.textarea.readOnly = vm.readOnly;
@@ -178,10 +183,24 @@ export class FlyoutView {
     this.readOnlyNote.hidden = !vm.readOnly;
     this.readOnlyNote.textContent = vm.note || vm.partLabel;
     this.save.hidden = vm.readOnly;
-    this.cancel.setAttribute('aria-label', vm.readOnly ? 'Close note' : 'Cancel edit');
-    this.cancel.title = vm.readOnly ? 'Close (Esc)' : 'Cancel (Esc)';
     if (!this.textareaHasFocus() && this.textarea.value !== vm.note) {
       this.textarea.value = vm.note;
     }
+  }
+
+  private applyLocale(): void {
+    const vm = this.vm;
+    this.body.setAttribute('aria-label', this.i18n.t('markLocationNote'));
+    this.textarea.placeholder = this.i18n.t('markAddNote');
+    this.textarea.setAttribute('aria-label', this.i18n.t('markAnnotationNote'));
+    this.save.setAttribute('aria-label', this.i18n.t('markSaveNote'));
+    this.save.title = this.i18n.t('markSaveShortcut');
+    this.cancel.setAttribute('aria-label', this.i18n.t(vm.readOnly ? 'markCloseNote' : 'markCancelEdit'));
+    this.cancel.title = this.i18n.t(vm.readOnly ? 'markCloseShortcut' : 'markCancelShortcut');
+    this.pill.querySelector('.marks-flyout-number')!.textContent = this.i18n.number(vm.number);
+    this.pill.setAttribute(
+      'aria-label',
+      this.i18n.t(vm.intent === 'selection' ? 'markLocationLabel' : 'markNoteLabel', vm.number, vm.partLabel),
+    );
   }
 }

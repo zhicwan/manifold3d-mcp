@@ -9,6 +9,7 @@ import {
 import { HostActionsClient, type HostActionsSnapshot } from '../packages/viewer/src/host-actions/client.js';
 import { AnnotationStore } from '../packages/viewer/src/marks/annotation-store.js';
 import { createViewerStore, type ViewerApi, type ViewerState, type ViewerStore } from '../packages/viewer/src/store.js';
+import type { ViewerI18n } from '../packages/viewer/src/i18n/index.js';
 
 const harness = vi.hoisted(() => ({
   store: null as ViewerStore | null,
@@ -38,6 +39,7 @@ vi.mock('react', async importOriginal => ({
 vi.mock('@/store', () => ({
   useViewerState: <T>(select: (state: ViewerState) => T): T => select(harness.store!.getState()),
   useViewerStore: () => harness.store,
+  useViewerI18n: () => harness.store!.i18n,
   useAnnotations: () => undefined,
 }));
 vi.mock('@/components/glass', () => ({ glass: '', glassPopup: '' }));
@@ -76,9 +78,9 @@ const { ViewerHelp, selectionDisabledReason, toolForShortcut, viewerTools } = (a
   `${components}/viewer-shortcuts.tsx`
 )) as {
   ViewerHelp(props: { open: boolean; onOpenChange(open: boolean): void; supportsSelect: boolean }): React.ReactElement;
-  selectionDisabledReason(snapshot: HostActionsSnapshot, hasModel: boolean): string | undefined;
+  selectionDisabledReason(snapshot: HostActionsSnapshot, hasModel: boolean, i18n: ViewerI18n): string | undefined;
   toolForShortcut(key: string, supportsSelect: boolean, selectDisabled: boolean): string | undefined;
-  viewerTools(supportsSelect: boolean): Array<{ mode: string; label: string }>;
+  viewerTools(supportsSelect: boolean): Array<{ mode: string }>;
 };
 
 class Element {
@@ -250,6 +252,22 @@ function nodes(tree: React.ReactNode): Array<React.ReactElement<NodeProps>> {
 }
 
 describe('Viewer controls', () => {
+  it('updates controls in Chinese without changing the active tool or model', () => {
+    harness.snapshot!.actions = [selectionAction];
+    harness.store!.setMarkMode('annotate');
+    const state = harness.store!.getState();
+    const english = nodes(mount());
+    expect(english.some(node => node.props['aria-label'] === 'Select to chat (S)')).toBe(true);
+    harness.store!.i18n.setPreference('zh-CN');
+    harness.refIndex = 0;
+    harness.stateIndex = 0;
+    const chinese = nodes(RightRail());
+    expect(chinese.some(node => node.props['aria-label'] === '选择并附加到聊天（S）')).toBe(true);
+    expect(chinese.some(node => node.props['aria-label'] === '添加批注（M）')).toBe(true);
+    expect(harness.store!.getState()).toBe(state);
+    expect(api.setMarkMode).not.toHaveBeenCalled();
+  });
+
   it('keeps tool buttons icon-only while preserving names and shortcuts in tooltips', () => {
     harness.snapshot!.actions = [selectionAction];
     const tree = nodes(mount());
@@ -311,7 +329,7 @@ describe('Viewer controls', () => {
         };
         harness.snapshot!.latestStatus = harness.snapshot!.statuses.newer!;
       }
-      expect(selectionDisabledReason(harness.snapshot!, true)).toBeDefined();
+      expect(selectionDisabledReason(harness.snapshot!, true, harness.store!.i18n)).toBeDefined();
       const select = nodes(mount()).find(node => node.props['aria-label'] === 'Select to chat (S)');
       expect(select?.props.disabled).toBe(true);
       select?.props.onClick?.();

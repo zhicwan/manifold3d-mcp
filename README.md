@@ -74,6 +74,20 @@ orbit while marking. Middle/right drag still pans and the wheel zooms.
 **?** opens the remaining gestures and shortcuts; typing in a note never changes
 the active tool.
 
+### Viewer language
+
+The browser and Canvas Viewers support English and Simplified Chinese. Open
+**Language** in the top toolbar to choose **English** or **简体中文**.
+The initial language follows the browser's preferred supported language;
+unsupported languages fall back to English. Chinese script/region
+preferences distinguish Simplified from Traditional Chinese.
+
+The choice applies to the current Viewer until it is closed or reloaded.
+Switching language preserves the model, camera, drafts and pending actions.
+Model descriptions, your notes, exported files and chat attachments are not
+translated. Technical diagnostics from the server or host remain available
+alongside localized status and error labels.
+
 ## Development
 
 ```sh

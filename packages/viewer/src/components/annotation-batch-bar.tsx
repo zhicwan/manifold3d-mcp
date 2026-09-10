@@ -5,13 +5,14 @@ import { glass } from '@/components/glass';
 import { useHostActionsSnapshot } from '@/components/host-actions';
 import { Button } from '@/components/ui/button';
 import { hasPendingHostActionRequest, hostActionDisabledReason } from '@/host-actions/client';
-import { useAnnotations, useViewerState, useViewerStore, type MarksRuntime } from '@/store';
+import { useAnnotations, useViewerI18n, useViewerState, useViewerStore, type MarksRuntime } from '@/store';
 import { MAX_HOST_ACTION_ANNOTATION_IDS, type HostActionDescriptor } from '@manifold3d/protocol/wire/host-actions.js';
 
 const ATTACH_BATCH_ACTION = 'attach-annotation-batch';
 const FIX_BATCH_ACTION = 'fix-annotation-batch';
 
 export function AnnotationBatchBar() {
+  const i18n = useViewerI18n();
   const viewerStore = useViewerStore();
   const markMode = useViewerState(state => state.markMode);
   const payload = useViewerState(state => state.payload);
@@ -43,14 +44,18 @@ export function AnnotationBatchBar() {
   };
   const disabledReason = (action: HostActionDescriptor): string | undefined =>
     batchTooLarge
-      ? `A batch can contain at most ${MAX_HOST_ACTION_ANNOTATION_IDS} annotations.`
-      : hostActionDisabledReason(action, {
-          connected: hostActions.connected,
-          protocolReady: hostActions.protocolState === 'ready',
-          hasModel: payload !== null,
-          annotationCount: batch.annotationIds.length,
-          pending: hasPendingHostActionRequest(hostActions, action.id),
-        });
+      ? i18n.t('actionBatchLimit', MAX_HOST_ACTION_ANNOTATION_IDS)
+      : hostActionDisabledReason(
+          action,
+          {
+            connected: hostActions.connected,
+            protocolReady: hostActions.protocolState === 'ready',
+            hasModel: payload !== null,
+            annotationCount: batch.annotationIds.length,
+            pending: hasPendingHostActionRequest(hostActions, action.id),
+          },
+          i18n,
+        );
 
   const finishLocally = (kind: 'freeze' | 'cancel'): void => {
     if (!isCurrent()) {
@@ -119,22 +124,24 @@ export function AnnotationBatchBar() {
   return (
     <section
       data-viewer-obstacle
-      aria-label="Annotation batch actions"
+      aria-label={i18n.t('actionBatchActions')}
       className={`${glass} viewer-batch-bar flex items-center gap-1 p-1.5`}
     >
-      <span
-        className="viewer-batch-count px-2 text-xs font-medium text-muted-foreground"
-        aria-label={`${batch.annotationIds.length} annotations`}
-      >
-        {batch.annotationIds.length}
-        <span className="viewer-batch-count-label"> {batch.annotationIds.length === 1 ? 'note' : 'notes'}</span>
+      <span className="viewer-batch-count px-2 text-xs font-medium text-muted-foreground">
+        <span className="sr-only">{i18n.t('actionAnnotations', batch.annotationIds.length)}</span>
+        <span className="viewer-batch-count-label" aria-hidden="true">
+          {i18n.t('actionNotes', batch.annotationIds.length)}
+        </span>
+        <span className="viewer-batch-count-compact" aria-hidden="true">
+          {i18n.number(batch.annotationIds.length)}
+        </span>
       </span>
       {attachAction && (
         <Button
           size="sm"
-          className="viewer-batch-button rounded-full"
+          className="viewer-batch-button rounded-xl"
           disabled={batchEmpty || busy || disabledReason(attachAction) !== undefined}
-          title={disabledReason(attachAction) ?? 'Add notes to chat context'}
+          title={disabledReason(attachAction) ?? i18n.t('actionAttachTooltip')}
           onClick={() => invoke(attachAction.id)}
         >
           {pendingAction === attachAction.id ? (
@@ -142,16 +149,16 @@ export function AnnotationBatchBar() {
           ) : (
             <MessageSquare aria-hidden="true" />
           )}
-          Attach
+          {i18n.t('actionAttach')}
         </Button>
       )}
       {fixAction && (
         <Button
           variant="ghost"
           size="sm"
-          className="viewer-batch-button rounded-full"
+          className="viewer-batch-button rounded-xl"
           disabled={batchEmpty || busy || disabledReason(fixAction) !== undefined}
-          title={disabledReason(fixAction) ?? 'Send notes and ask AI to fix'}
+          title={disabledReason(fixAction) ?? i18n.t('actionFixTooltip')}
           onClick={() => invoke(fixAction.id)}
         >
           {pendingAction === fixAction.id ? (
@@ -159,28 +166,28 @@ export function AnnotationBatchBar() {
           ) : (
             <WandSparkles aria-hidden="true" />
           )}
-          Fix
+          {i18n.t('actionFix')}
         </Button>
       )}
       {!hasHostBatchActions && (
         <Button
           size="sm"
-          className="viewer-batch-button rounded-full"
+          className="viewer-batch-button rounded-xl"
           disabled={batchEmpty || busy}
           onClick={() => finishLocally('freeze')}
         >
           <Check aria-hidden="true" />
-          Done
+          {i18n.t('actionDone')}
         </Button>
       )}
       <Button
         variant="ghost"
         size="sm"
-        className="viewer-batch-button rounded-full text-muted-foreground"
+        className="viewer-batch-button rounded-xl text-muted-foreground"
         disabled={busy}
         onClick={() => finishLocally('cancel')}
       >
-        Cancel
+        {i18n.t('actionCancel')}
       </Button>
     </section>
   );

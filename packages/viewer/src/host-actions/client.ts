@@ -10,18 +10,24 @@ import {
 } from '@manifold3d/protocol/wire/host-actions.js';
 import type { HelloMessage } from '@manifold3d/protocol/wire/model.js';
 import type { ConnectionStatus } from '../transport/ws-client.js';
+import type { ViewerI18n } from '../i18n/index.js';
+import { enActions } from '../i18n/actions.js';
 
 export const LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
 export const STL_EXPORT_ACTION_ID = 'export-stl-file';
 
 export type HostActionsProtocolState = 'awaiting-manifest' | 'ready' | 'error';
 
+export interface HostActionClientStatus extends HostActionStatusMessage {
+  localFailure?: 'annotation-sync';
+}
+
 export interface HostActionsSnapshot {
   actions: readonly HostActionDescriptor[];
   /** Request-scoped status records keyed by requestId. */
-  statuses: Readonly<Record<string, HostActionStatusMessage>>;
+  statuses: Readonly<Record<string, HostActionClientStatus>>;
   requestOrder: readonly string[];
-  latestStatus: HostActionStatusMessage | null;
+  latestStatus: HostActionClientStatus | null;
   clientId: string | null;
   connected: boolean;
   protocolState: HostActionsProtocolState;
@@ -138,7 +144,7 @@ export class HostActionsClient {
     });
   }
 
-  receiveStatus(status: HostActionStatusMessage): void {
+  receiveStatus(status: HostActionClientStatus): void {
     if (status.state === 'succeeded' || status.state === 'failed') {
       this.retainedInvocations.delete(status.requestId);
       const waiter = this.terminalWaiters.get(status.requestId);
@@ -166,7 +172,7 @@ export class HostActionsClient {
     const requestId = this.options.createRequestId?.() ?? createRequestId();
     try {
       if (options.synchronizeAnnotations !== false && !this.options.flushAnnotations()) {
-        this.failLocally(requestId, actionId, 'Could not synchronize annotations before invoking the action.');
+        this.failLocally(requestId, actionId, enActions.actionSyncFailed, 'annotation-sync');
         return requestId;
       }
       const context = this.options.getInvocationContext();
@@ -184,7 +190,6 @@ export class HostActionsClient {
         requestId,
         actionId,
         state: 'accepted',
-        message: 'Sending…',
       });
       this.receiveStatus(optimistic);
       this.options.send(retainedInvocation);
@@ -219,15 +224,21 @@ export class HostActionsClient {
     this.snapshot = INITIAL_SNAPSHOT;
   }
 
-  private failLocally(requestId: string, actionId: string, message: string): void {
-    this.receiveStatus(
-      createHostActionStatus({
+  private failLocally(
+    requestId: string,
+    actionId: string,
+    message: string,
+    localFailure?: HostActionClientStatus['localFailure'],
+  ): void {
+    this.receiveStatus({
+      ...createHostActionStatus({
         requestId,
         actionId,
         state: 'failed',
         message: message.slice(0, MAX_HOST_ACTION_MESSAGE_LENGTH),
       }),
-    );
+      ...(localFailure ? { localFailure } : {}),
+    });
   }
 
   private retransmitNonterminalInvocations(): void {
@@ -265,7 +276,7 @@ export class HostActionsClient {
 export function getLatestHostActionStatus(
   snapshot: HostActionsSnapshot,
   actionId: string,
-): HostActionStatusMessage | undefined {
+): HostActionClientStatus | undefined {
   for (let index = snapshot.requestOrder.length - 1; index >= 0; index -= 1) {
     const requestId = snapshot.requestOrder[index];
     const status = requestId === undefined ? undefined : snapshot.statuses[requestId];
@@ -289,32 +300,90 @@ export function supportsLocationSelection(actions: readonly Pick<HostActionDescr
 export function hostActionDisabledReason(
   descriptor: HostActionDescriptor,
   availability: HostActionAvailability,
+  i18n?: ViewerI18n,
 ): string | undefined {
   if (descriptor.disabledReason) {
-    return descriptor.disabledReason;
+    return i18n ? i18n.t('actionUnavailableDetail', descriptor.disabledReason) : descriptor.disabledReason;
   }
   if (!availability.connected) {
-    return 'Viewer Host is disconnected.';
+    return i18n?.t('actionDisconnected') ?? enActions.actionDisconnected;
   }
   if (!availability.protocolReady) {
-    return 'Viewer Host actions are not ready.';
+    return i18n?.t('actionNotReady') ?? enActions.actionNotReady;
   }
   if (descriptor.requires.includes('model') && !availability.hasModel) {
-    return 'This action requires a model.';
+    return i18n?.t('actionRequiresModel') ?? enActions.actionRequiresModel;
   }
   if (descriptor.requires.includes('annotations') && availability.annotationCount === 0) {
-    return 'This action requires annotations.';
+    return i18n?.t('actionRequiresAnnotations') ?? enActions.actionRequiresAnnotations;
   }
   if (availability.pending) {
-    return 'This action is already running.';
+    return i18n?.t('actionAlreadyRunning') ?? enActions.actionAlreadyRunning;
   }
   return undefined;
 }
 
+export function hostActionLabel(action: HostActionDescriptor, i18n: ViewerI18n): string {
+  switch (action.id) {
+    case 'attach-annotation-batch':
+      return i18n.t('actionAttach');
+    case 'fix-annotation-batch':
+      return i18n.t('actionFix');
+    case LOCATION_SELECTION_ACTION_ID:
+      return i18n.t('actionAttachLocation');
+    case STL_EXPORT_ACTION_ID:
+      return i18n.t('actionExportStl');
+    default:
+      return action.label;
+  }
+}
+
+export function hostActionStatusMessage(status: HostActionClientStatus, i18n: ViewerI18n): string {
+  if (status.state === 'failed') {
+    if (status.localFailure === 'annotation-sync') {
+      return i18n.t('actionSyncFailed');
+    }
+    return status.message ? i18n.t('actionFailureDetail', status.message) : i18n.t('actionFailed');
+  }
+  if (status.state === 'succeeded') {
+    if (status.resultDetails?.kind === 'annotations-attached') {
+      return i18n.t('actionAttachedCount', status.resultDetails.count);
+    }
+    if (status.resultDetails?.kind === 'stl-saved') {
+      return i18n.t('actionStlSavedPath', status.resultDetails.path);
+    }
+    switch (status.actionId) {
+      case 'attach-annotation-batch':
+        return i18n.t('actionAttached');
+      case 'fix-annotation-batch':
+        return i18n.t('actionFixEnqueued');
+      case LOCATION_SELECTION_ACTION_ID:
+        return i18n.t('actionLocationAttached');
+      case STL_EXPORT_ACTION_ID:
+        // Older hosts may only provide the saved path in their diagnostic message.
+        return status.message ?? i18n.t('actionStlSaved');
+      default:
+        return status.message ?? i18n.t('actionDone');
+    }
+  }
+  switch (status.actionId) {
+    case 'attach-annotation-batch':
+      return i18n.t('actionAttaching');
+    case 'fix-annotation-batch':
+      return i18n.t('actionSendingFix');
+    case LOCATION_SELECTION_ACTION_ID:
+      return i18n.t('actionAttachingLocation');
+    case STL_EXPORT_ACTION_ID:
+      return i18n.t('actionSavingStl');
+    default:
+      return status.message ?? i18n.t(status.state === 'accepted' ? 'actionSending' : 'actionWorking');
+  }
+}
+
 function latestStatusInOrder(
-  statuses: Readonly<Record<string, HostActionStatusMessage>>,
+  statuses: Readonly<Record<string, HostActionClientStatus>>,
   requestOrder: readonly string[],
-): HostActionStatusMessage | null {
+): HostActionClientStatus | null {
   const requestId = requestOrder.at(-1);
   return requestId === undefined ? null : (statuses[requestId] ?? null);
 }

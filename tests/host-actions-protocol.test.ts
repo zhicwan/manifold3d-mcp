@@ -24,6 +24,36 @@ const descriptor: HostActionDescriptor = {
 };
 
 describe('host action wire protocol', () => {
+  it('validates bounded typed completion details without interpreting diagnostic text', () => {
+    const base = {
+      requestId: 'request-1',
+      actionId: 'export-stl-file',
+      state: 'succeeded' as const,
+      message: 'raw diagnostic',
+    };
+    const saved = createHostActionStatus({ ...base, resultDetails: { kind: 'stl-saved', path: '/exports/模型.stl' } });
+    expect(saved.resultDetails).toEqual({ kind: 'stl-saved', path: '/exports/模型.stl' });
+    expect(saved.message).toBe('raw diagnostic');
+    expect(
+      createHostActionStatus({
+        ...base,
+        resultDetails: { kind: 'annotations-attached', count: 2 },
+      }).resultDetails,
+    ).toEqual({ kind: 'annotations-attached', count: 2 });
+    for (const resultDetails of [
+      { kind: 'annotations-attached', count: -1 },
+      { kind: 'annotations-attached', count: 129 },
+      { kind: 'annotations-attached', count: 1.5 },
+      { kind: 'stl-saved', path: '' },
+      { kind: 'stl-saved', path: 'x'.repeat(513) },
+      { kind: 'stl-saved', path: '/model.stl', url: 'https://example.com' },
+      { kind: 'unknown' },
+    ]) {
+      expect(isHostActionStatus({ ...saved, resultDetails })).toBe(false);
+    }
+    expect(isHostActionStatus({ ...saved, state: 'running' })).toBe(false);
+  });
+
   it('accepts versioned safe descriptors, invocations, and statuses', () => {
     const manifest = createHostActionsManifest([
       descriptor,

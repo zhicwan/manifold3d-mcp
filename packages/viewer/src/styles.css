@@ -199,7 +199,7 @@
   box-sizing: border-box;
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  border-radius: 15px;
+  border-radius: var(--radius-2xl);
   background: var(--glass-editor-background, color-mix(in srgb, var(--color-popover) 86%, transparent));
   color: var(--color-popover-foreground);
   box-shadow:
@@ -252,7 +252,7 @@
   height: 28px;
   padding: 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-xl);
   background: transparent;
   color: var(--color-muted-foreground);
   cursor: pointer;

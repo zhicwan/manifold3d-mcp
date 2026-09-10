@@ -1,5 +1,5 @@
 import { Popover } from '@base-ui/react/popover';
-import { Box, Download, Info, Moon, Sun, X } from 'lucide-react';
+import { Box, Download, Info, Languages, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -8,68 +8,79 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ExportMenuHostActions, ToolbarHostActions, useHostActionsSnapshot } from '@/components/host-actions';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { glassPill, glassPopup } from '@/components/glass';
+import { glass, glassPopup } from '@/components/glass';
 import { useViewerPopupEscape } from '@/components/viewer-shortcuts';
-import { getLatestHostActionStatus, hasPendingHostActionRequest, STL_EXPORT_ACTION_ID } from '@/host-actions/client';
+import {
+  getLatestHostActionStatus,
+  hasPendingHostActionRequest,
+  hostActionStatusMessage,
+  STL_EXPORT_ACTION_ID,
+} from '@/host-actions/client';
 import { cn } from '@/lib/utils';
-import { useViewerState, type ViewerApi } from '@/store';
+import { useViewerI18n, useViewerState, type ViewerApi } from '@/store';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
 
 export function TopBar({ toolbarEnd }: { toolbarEnd?: ReactNode }) {
+  const i18n = useViewerI18n();
   const payload = useViewerState(s => s.payload);
   const status = useViewerState(s => s.status);
   const modelVersion = useViewerState(s => s.modelVersion);
   const api = useViewerState(s => s.viewerApi);
   const statusLabel =
     status === 'protocol-error'
-      ? 'Protocol error'
+      ? i18n.t('protocolError')
       : status === 'disconnected'
-        ? 'Disconnected'
+        ? i18n.t('disconnected')
         : modelVersion === 'demo'
-          ? 'Demo'
+          ? i18n.t('demo')
           : status === 'connected'
-            ? 'Live'
-            : 'Connecting…';
+            ? i18n.t('live')
+            : i18n.t('connecting');
   const title = payload?.description || 'Manifold 3D';
 
   return (
     <header className="viewer-top-bar pointer-events-none absolute inset-x-0 top-0 z-30">
-      <div data-viewer-obstacle className={cn(glassPill, 'viewer-identity flex min-w-0 items-center gap-2.5 px-3.5')}>
-        <Box className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="min-w-0 truncate text-sm font-medium" title={title}>
-          {title}
-        </span>
-        <Tooltip>
-          <TooltipTrigger
-            render={
+      <div data-viewer-obstacle className={cn(glass, 'viewer-top-island')}>
+        <div className="viewer-identity flex min-w-0 items-center gap-2.5 px-3.5">
+          <Box className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="min-w-0 truncate text-sm font-medium" title={title}>
+            {title}
+          </span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  className="viewer-connection inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                  aria-label={i18n.t('connectionStatus', statusLabel)}
+                  tabIndex={0}
+                />
+              }
+            >
               <span
-                className="viewer-connection inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
-                role="status"
-                aria-live="polite"
-                aria-label={`Status: ${statusLabel}`}
-                tabIndex={0}
+                aria-hidden="true"
+                className={cn(
+                  'size-1.5 rounded-full',
+                  status === 'connected' && 'bg-teal-600 dark:bg-teal-400',
+                  status === 'connecting' && 'bg-amber-600 dark:bg-amber-400',
+                  (status === 'disconnected' || status === 'protocol-error') && 'bg-destructive',
+                )}
               />
-            }
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                'size-1.5 rounded-full',
-                status === 'connected' && 'bg-teal-600 dark:bg-teal-400',
-                status === 'connecting' && 'bg-amber-600 dark:bg-amber-400',
-                (status === 'disconnected' || status === 'protocol-error') && 'bg-destructive',
-              )}
-            />
-            {statusLabel !== 'Live' && <span>{statusLabel}</span>}
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{statusLabel}</TooltipContent>
-        </Tooltip>
+              {(status !== 'connected' || modelVersion === 'demo') && <span>{statusLabel}</span>}
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{statusLabel}</TooltipContent>
+          </Tooltip>
+        </div>
+        <div className="viewer-top-divider" aria-hidden="true" />
+        <ActionsCluster payload={payload} api={api} toolbarEnd={toolbarEnd} />
       </div>
-      <ActionsCluster payload={payload} api={api} toolbarEnd={toolbarEnd} />
     </header>
   );
 }
@@ -83,6 +94,7 @@ function ActionsCluster({
   api: ViewerApi | null;
   toolbarEnd?: ReactNode;
 }) {
+  const i18n = useViewerI18n();
   const [infoOpen, setInfoOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const infoTrigger = useRef<HTMLButtonElement>(null);
@@ -95,14 +107,16 @@ function ActionsCluster({
     .reverse()
     .map(requestId => snapshot.statuses[requestId])
     .find(status => status?.actionId === STL_EXPORT_ACTION_ID && status.state === 'succeeded');
+  const displayedExport = savedExport ?? exportStatus;
   const actionsEnabled = payload !== null && api !== null;
   useViewerPopupEscape(infoOpen, () => setInfoOpen(false), infoTrigger, infoPopup);
   useViewerPopupEscape(exportOpen, () => setExportOpen(false), exportTrigger, exportPopup);
 
   return (
-    <div data-viewer-obstacle className={cn(glassPill, 'viewer-top-actions flex shrink-0 items-center gap-0.5 px-1')}>
+    <div className="viewer-top-actions flex shrink-0 items-center gap-0.5 px-1">
       <ToolbarHostActions />
       <ThemeToggle />
+      <LanguageMenu />
       {toolbarEnd}
       <div className="mx-0.5 h-5 w-px bg-border/70" aria-hidden="true" />
       <DropdownMenu open={exportOpen} onOpenChange={setExportOpen} modal={false}>
@@ -115,8 +129,8 @@ function ActionsCluster({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="viewer-top-button rounded-full"
-                    aria-label="Export"
+                    className="viewer-top-button rounded-xl"
+                    aria-label={i18n.t('export')}
                     disabled={!actionsEnabled || hasPendingHostActionRequest(snapshot, STL_EXPORT_ACTION_ID)}
                   />
                 }
@@ -125,7 +139,7 @@ function ActionsCluster({
           >
             <Download className="size-4" aria-hidden="true" />
           </TooltipTrigger>
-          <TooltipContent side="bottom">Export</TooltipContent>
+          <TooltipContent side="bottom">{i18n.t('export')}</TooltipContent>
         </Tooltip>
         <DropdownMenuContent
           data-viewer-popup
@@ -133,11 +147,11 @@ function ActionsCluster({
           container={exportTrigger.current?.closest('[data-viewer-root]')}
           ref={exportPopup}
           align="end"
-          className={cn(glassPopup, 'viewer-popup w-56')}
+          className={cn(glassPopup, 'viewer-popup')}
         >
           <DropdownMenuItem className="min-h-10 rounded-xl" onClick={() => void api?.exportStl()}>
             <Download className="size-4" aria-hidden="true" />
-            Export STL
+            {i18n.t('exportStl')}
           </DropdownMenuItem>
           <ExportMenuHostActions />
         </DropdownMenuContent>
@@ -152,8 +166,8 @@ function ActionsCluster({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="viewer-top-button rounded-full"
-                    aria-label="Model information"
+                    className="viewer-top-button rounded-xl"
+                    aria-label={i18n.t('modelInformation')}
                     disabled={!payload && !exportStatus}
                   />
                 }
@@ -162,7 +176,7 @@ function ActionsCluster({
           >
             <Info className="size-4" aria-hidden="true" />
           </TooltipTrigger>
-          <TooltipContent side="bottom">Model information</TooltipContent>
+          <TooltipContent side="bottom">{i18n.t('modelInformation')}</TooltipContent>
         </Tooltip>
         <Popover.Portal container={infoTrigger.current?.closest('[data-viewer-root]')}>
           <Popover.Positioner align="end" sideOffset={8} collisionPadding={12} className="z-50">
@@ -172,34 +186,25 @@ function ActionsCluster({
               ref={infoPopup}
               className={cn(glassPopup, 'viewer-popup viewer-model-info p-4')}
             >
-              <div className="mb-3 flex items-center justify-between gap-4">
-                <Popover.Title className="text-sm font-semibold">Model information</Popover.Title>
-                <Popover.Close
-                  render={
-                    <Button variant="ghost" size="icon" className="rounded-full" aria-label="Close model information" />
-                  }
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </Popover.Close>
-              </div>
+              <Popover.Title className="sr-only">{i18n.t('modelInformation')}</Popover.Title>
               {payload && (
                 <>
                   <p className="mb-3 max-h-24 overflow-auto break-words text-sm font-medium">
-                    {payload.description || 'Untitled model'}
+                    {payload.description || i18n.t('untitledModel')}
                   </p>
                   <ModelStats payload={payload} />
                 </>
               )}
-              {(savedExport?.message || exportStatus?.message) && (
+              {displayedExport && (
                 <div className="mt-3 border-t border-border/60 pt-3 text-xs">
-                  <h3 className="mb-1 font-medium">{savedExport ? 'Last saved STL' : 'Last STL export'}</h3>
+                  <h3 className="mb-1 font-medium">{i18n.t(savedExport ? 'lastSavedStl' : 'lastStlExport')}</h3>
                   <p
                     className={cn(
                       'select-text break-words',
                       !savedExport && exportStatus?.state === 'failed' && 'text-destructive',
                     )}
                   >
-                    {savedExport?.message ?? exportStatus?.message}
+                    {hostActionStatusMessage(displayedExport, i18n)}
                   </p>
                 </div>
               )}
@@ -212,29 +217,40 @@ function ActionsCluster({
 }
 
 function ModelStats({ payload }: { payload: ViewerModel }) {
+  const i18n = useViewerI18n();
+  const fmt = (n: number) =>
+    i18n.number(n, {
+      minimumFractionDigits: Math.abs(n) >= 100 ? 0 : 1,
+      maximumFractionDigits: Math.abs(n) >= 100 ? 0 : 1,
+    });
   const sx = payload.bboxMax[0] - payload.bboxMin[0];
   const sy = payload.bboxMax[1] - payload.bboxMin[1];
   const sz = payload.bboxMax[2] - payload.bboxMin[2];
 
   return (
     <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-      <dt className="text-muted-foreground">Dimensions</dt>
+      <dt className="text-muted-foreground">{i18n.t('dimensions')}</dt>
       <dd className="text-right tabular-nums">
         {fmt(sx)} × {fmt(sy)} × {fmt(sz)} mm
       </dd>
-      <dt className="text-muted-foreground">Volume</dt>
-      <dd className="text-right tabular-nums">{(payload.volume / 1000).toFixed(2)} cm³</dd>
-      <dt className="text-muted-foreground">Surface area</dt>
-      <dd className="text-right tabular-nums">{(payload.surfaceArea / 100).toFixed(1)} cm²</dd>
-      <dt className="text-muted-foreground">Triangles</dt>
-      <dd className="text-right tabular-nums">{payload.triangles.toLocaleString()}</dd>
-      <dt className="text-muted-foreground">Genus</dt>
-      <dd className="text-right tabular-nums">{payload.genus}</dd>
+      <dt className="text-muted-foreground">{i18n.t('volume')}</dt>
+      <dd className="text-right tabular-nums">
+        {i18n.number(payload.volume / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cm³
+      </dd>
+      <dt className="text-muted-foreground">{i18n.t('surfaceArea')}</dt>
+      <dd className="text-right tabular-nums">
+        {i18n.number(payload.surfaceArea / 100, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} cm²
+      </dd>
+      <dt className="text-muted-foreground">{i18n.t('triangles')}</dt>
+      <dd className="text-right tabular-nums">{i18n.number(payload.triangles)}</dd>
+      <dt className="text-muted-foreground">{i18n.t('genus')}</dt>
+      <dd className="text-right tabular-nums">{i18n.number(payload.genus)}</dd>
     </dl>
   );
 }
 
 function ThemeToggle() {
+  const i18n = useViewerI18n();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -247,22 +263,81 @@ function ThemeToggle() {
           <Button
             variant="ghost"
             size="icon"
-            className="viewer-top-button rounded-full"
-            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            className="viewer-top-button rounded-xl"
+            aria-label={i18n.t(isDark ? 'switchLightTheme' : 'switchDarkTheme')}
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
           />
         }
       >
         {isDark ? <Moon className="size-4" aria-hidden="true" /> : <Sun className="size-4" aria-hidden="true" />}
       </TooltipTrigger>
-      <TooltipContent side="bottom">{isDark ? 'Light theme' : 'Dark theme'}</TooltipContent>
+      <TooltipContent side="bottom">{i18n.t(isDark ? 'lightTheme' : 'darkTheme')}</TooltipContent>
     </Tooltip>
   );
 }
 
-function fmt(n: number): string {
-  if (!Number.isFinite(n)) {
-    return '-';
-  }
-  return Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(1);
+function LanguageMenu() {
+  const i18n = useViewerI18n();
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  useViewerPopupEscape(open, () => setOpen(false), trigger, popup);
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              ref={trigger}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="viewer-top-button rounded-xl"
+                  aria-label={i18n.t('language')}
+                />
+              }
+            />
+          }
+        >
+          <Languages className="size-4" aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{i18n.t('language')}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent
+        ref={popup}
+        data-viewer-popup
+        data-viewer-obstacle
+        container={trigger.current?.closest('[data-viewer-root]')}
+        align="end"
+        className={cn(glassPopup, 'viewer-popup')}
+      >
+        <DropdownMenuRadioGroup
+          value={i18n.getLocale()}
+          onValueChange={value => {
+            if (value === 'en' || value === 'zh-CN') {
+              i18n.setPreference(value);
+            }
+          }}
+        >
+          <DropdownMenuRadioItem
+            value="en"
+            lang="en"
+            className="min-h-10 rounded-xl"
+            onClick={() => i18n.setPreference('en')}
+          >
+            English
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem
+            value="zh-CN"
+            lang="zh-CN"
+            className="min-h-10 rounded-xl"
+            onClick={() => i18n.setPreference('zh-CN')}
+          >
+            简体中文
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

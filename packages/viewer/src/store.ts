@@ -3,6 +3,7 @@ import {
   createElement,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useSyncExternalStore,
   type ReactNode,
@@ -14,6 +15,7 @@ import type { AnnotationStore } from './marks/annotation-store.js';
 import type { Annotation, MarkMode } from './marks/types.js';
 import type { RenderMode } from './scene/viewer.js';
 import type { ConnectionStatus } from './transport/ws-client.js';
+import { createViewerI18n } from './i18n/index.js';
 
 /**
  * Tiny instance-scoped external store. Imperative subsystems write to the
@@ -56,10 +58,15 @@ export interface ViewerState {
   markMode: MarkMode;
   /** Malformed or unsupported Viewer Host protocol error. */
   protocolError: string | null;
-  /** Recoverable annotation snapshot serialization/transport error. */
-  annotationSyncError: string | null;
+  /** Viewer-owned operation failure, kept structured for live localization. */
+  annotationSyncError: ViewerError | null;
   /** Room-scoped generic host action state/dispatch, owned by ViewerCanvas. */
   hostActionsClient: HostActionsClient | null;
+}
+
+export interface ViewerError {
+  readonly key: 'annotationSyncFailed' | 'locationAttachmentFailed' | 'viewerStartupFailed' | 'stlExportFailed';
+  readonly detail: string;
 }
 
 const INITIAL: ViewerState = {
@@ -88,6 +95,7 @@ export function createViewerStore() {
   };
 
   return {
+    i18n: createViewerI18n(),
     getState(): ViewerState {
       return state;
     },
@@ -151,7 +159,7 @@ export function createViewerStore() {
       state = { ...state, protocolError };
       emit();
     },
-    setAnnotationSyncError(annotationSyncError: string | null): void {
+    setAnnotationSyncError(annotationSyncError: ViewerError | null): void {
       if (state.annotationSyncError === annotationSyncError) {
         return;
       }
@@ -175,7 +183,20 @@ const ViewerStoreContext = createContext<ViewerStore | null>(null);
 export function ViewerStoreProvider({ children }: { children: ReactNode }) {
   const storeRef = useRef<ViewerStore | null>(null);
   storeRef.current ??= createViewerStore();
+  const store = storeRef.current;
+  useEffect(() => {
+    const refresh = () => store.i18n.refreshBrowserLanguages();
+    refresh();
+    window.addEventListener('languagechange', refresh);
+    return () => window.removeEventListener('languagechange', refresh);
+  }, [store]);
   return createElement(ViewerStoreContext.Provider, { value: storeRef.current }, children);
+}
+
+export function useViewerI18n() {
+  const { i18n } = useViewerStore();
+  useSyncExternalStore(i18n.subscribe, i18n.getSnapshot, i18n.getSnapshot);
+  return i18n;
 }
 
 export function useViewerStore(): ViewerStore {

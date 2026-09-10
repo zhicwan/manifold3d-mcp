@@ -55,6 +55,7 @@ vi.mock('react', async importOriginal => ({
 vi.mock('@/store', async () => ({
   ...(await import('../packages/viewer/src/store.js')),
   useViewerStore: () => harness.store,
+  useViewerI18n: () => harness.store!.i18n,
   useViewerState: <T>(selector: (state: ViewerState) => T) => selector(harness.store!.getState()),
   useAnnotations: () => undefined,
 }));
@@ -313,6 +314,35 @@ function model(description: string, width: number): ViewerModel {
 }
 
 describe('Viewer component ownership', () => {
+  it.each(['succeeded', 'failed'] as const)(
+    'preserves a pending batch through language changes and %s completion',
+    async outcome => {
+      await mount();
+      const marks = store.getState().marksRuntime!;
+      const api = store.getState().viewerApi;
+      const client = store.getState().hostActionsClient!;
+      const draft = addDraft();
+      const camera = harness.runtime!.scene.camera;
+      const cameraPosition = camera.position.clone();
+      button('Fix').onClick();
+      const request = client.getSnapshot().latestStatus!;
+      const pending = marks.store.get(draft.id);
+      const writes = harness.pendingWrites;
+      store.i18n.setPreference('zh-CN');
+      expect(store.getState().viewerApi).toBe(api);
+      expect(store.getState().marksRuntime).toBe(marks);
+      expect(client.getSnapshot().latestStatus).toBe(request);
+      expect(marks.store.get(draft.id)).toBe(pending);
+      expect(harness.pendingWrites).toBe(writes);
+      expect(camera.position.equals(cameraPosition)).toBe(true);
+      client.receiveStatus(createHostActionStatus({ ...request, state: outcome }));
+      await settle();
+      expect(marks.store.get(draft.id)?.state).toBe(outcome === 'succeeded' ? 'committed' : 'draft');
+      expect(marks.store.get(draft.id)?.note).toBe('Adjust this face');
+      expect(harness.pending).toBeNull();
+    },
+  );
+
   it('does not restore a disposed generation or change its replacement tool mode', async () => {
     await mount();
     const oldMarks = store.getState().marksRuntime!;

@@ -167,6 +167,7 @@ describe('Fix and Attach delivery (source composition)', () => {
     const batch = actionContext(ATTACH_ANNOTATION_BATCH_ACTION_ID);
     await expect(actionHandler(ATTACH_ANNOTATION_BATCH_ACTION_ID)(batch)).resolves.toMatchObject({
       status: 'succeeded',
+      resultDetails: { kind: 'annotations-attached', count: batch.annotations.length },
     });
     const location = actionContext(ATTACH_LOCATION_SELECTION_ACTION_ID, [{ ...batchAnnotations()[0]!, note: '' }]);
     await expect(actionHandler(ATTACH_LOCATION_SELECTION_ACTION_ID)(location)).resolves.toMatchObject({
