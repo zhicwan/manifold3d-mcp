@@ -122,7 +122,7 @@ delivery.
 
 ## Experimental Canvas embedding exception
 
-`Canvas` in `@github/copilot-sdk` 1.0.11 is experimental, and the SDK does not
+`Canvas` in the pinned `@github/copilot-sdk` version is experimental, and the SDK does not
 expose the parent frame origin. This Extension therefore opts into
 `ViewerHostOptions.allowAnyFrameAncestor`, which emits `frame-ancestors *`.
 This reviewed exception is limited to the Extension composition. Access still

@@ -9,6 +9,7 @@ import process from 'node:process';
 import ts from 'typescript';
 
 const appRoot = resolve(import.meta.dirname, '..');
+const appPackage = JSON.parse(await readFile(resolve(appRoot, 'package.json'), 'utf8'));
 const distDirectory = resolve(appRoot, 'dist');
 const artifact = resolve(distDirectory, 'extension.mjs');
 const isolatedDirectory = resolve(appRoot, '.verify-empty');
@@ -84,7 +85,7 @@ try {
           selfTestLocalCleanup: true,
         },
         host: {
-          sdkVersionTypechecked: '1.0.11',
+          sdkVersionTypechecked: appPackage.devDependencies['@github/copilot-sdk'],
           canvasRendererExercised: false,
           productionLifecycleClaimedBySelfTest: false,
           note: 'SIGTERM/session shutdown use integration coverage; Canvas rendering still requires a manual host open.',
