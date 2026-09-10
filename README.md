@@ -74,8 +74,6 @@ orbit while marking. Middle/right drag still pans and the wheel zooms.
 **?** opens the remaining gestures and shortcuts; typing in a note never changes
 the active tool.
 
-Use **Language** in the top toolbar to switch between **English** and **简体中文**.
-
 ## Development
 
 ```sh
