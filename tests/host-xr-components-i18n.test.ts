@@ -65,7 +65,7 @@ beforeEach(() => {
 
 describe('localized host and optional XR component presentation', () => {
   it('localizes structured Viewer errors and raw protocol diagnostics at render time', () => {
-    harness.store!.setAnnotationSyncError({ key: 'annotationSyncFailed', detail: 'raw sync detail' });
+    harness.store!.setViewerError({ key: 'annotationSyncFailed', detail: 'raw sync detail' });
     expect(text(HostActionStatusRegion())).toBe('Annotation sync failed: raw sync detail');
     harness.store!.i18n.setPreference('zh-CN');
     expect(text(HostActionStatusRegion())).toBe('批注同步失败：raw sync detail');
@@ -73,7 +73,7 @@ describe('localized host and optional XR component presentation', () => {
     expect(text(HostActionStatusRegion())).toBe('协议错误：raw protocol detail');
     harness.store!.i18n.setPreference('en');
     expect(text(HostActionStatusRegion())).toBe('Protocol error: raw protocol detail');
-    expect(harness.store!.getState().annotationSyncError).toEqual({
+    expect(harness.store!.getState().viewerError).toEqual({
       key: 'annotationSyncFailed',
       detail: 'raw sync detail',
     });

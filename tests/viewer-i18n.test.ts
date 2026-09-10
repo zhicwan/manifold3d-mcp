@@ -122,7 +122,7 @@ describe('Viewer localization', () => {
     first.setMarksRuntime(runtime);
     first.setModelVersion('unchanged-version');
     first.setMarkMode('annotate');
-    first.setAnnotationSyncError({ key: 'annotationSyncFailed', detail: 'raw diagnostic' });
+    first.setViewerError({ key: 'annotationSyncFailed', detail: 'raw diagnostic' });
     const before = first.getState();
     const stateListener = vi.fn();
     const otherLocaleListener = vi.fn();
@@ -133,7 +133,7 @@ describe('Viewer localization', () => {
     expect(first.getState().marksRuntime).toBe(runtime);
     expect(annotations.get(draft.id)).toBe(draft);
     expect(draft.note).toBe('Unsent 26mm 草稿');
-    expect(first.getState().annotationSyncError).toEqual({ key: 'annotationSyncFailed', detail: 'raw diagnostic' });
+    expect(first.getState().viewerError).toEqual({ key: 'annotationSyncFailed', detail: 'raw diagnostic' });
     expect(second.i18n.getLocale()).toBe('en');
     expect(stateListener).not.toHaveBeenCalled();
     expect(otherLocaleListener).not.toHaveBeenCalled();

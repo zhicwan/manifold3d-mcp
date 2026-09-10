@@ -142,13 +142,13 @@ export function ExportMenuHostActions() {
 export function HostActionStatusRegion() {
   const { snapshot, i18n } = useHostActionsView();
   const protocolError = useViewerState(state => state.protocolError);
-  const annotationSyncError = useViewerState(state => state.annotationSyncError);
+  const viewerError = useViewerState(state => state.viewerError);
   const [dismissed, setDismissed] = useState<object | null>(null);
   const status = snapshot.latestStatus;
   const error = protocolError
     ? i18n.t('actionProtocolError', protocolError)
-    : annotationSyncError
-      ? i18n.t(annotationSyncError.key, annotationSyncError.detail)
+    : viewerError
+      ? i18n.t(viewerError.key, viewerError.detail)
       : null;
   if (!error && (!status || dismissed === status)) {
     return null;

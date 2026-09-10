@@ -52,7 +52,7 @@ export function ViewerCanvas({ resumeIdentity }: { resumeIdentity: string }) {
         ownership = null;
         console.error('Failed to start the 3D viewer generation.', error);
         if (!cancelled) {
-          viewerStore.setAnnotationSyncError({ key: 'viewerStartupFailed', detail: errorMessage(error) });
+          viewerStore.setViewerError({ key: 'viewerStartupFailed', detail: errorMessage(error) });
         }
       });
     let cleanupPromise: Promise<void> | null = null;
@@ -146,10 +146,12 @@ async function startViewerGeneration(
       },
       {
         onError(error) {
-          viewerStore.setAnnotationSyncError({ key: 'annotationSyncFailed', detail: error.message });
+          viewerStore.setViewerError({ key: 'annotationSyncFailed', detail: error.message });
         },
         onSuccess() {
-          viewerStore.setAnnotationSyncError(null);
+          if (viewerStore.getState().viewerError?.key === 'annotationSyncFailed') {
+            viewerStore.setViewerError(null);
+          }
         },
       },
     );
@@ -194,7 +196,7 @@ async function startViewerGeneration(
           }
           marks.store.removeSelection(id);
           uplink.flushNow();
-          viewerStore.setAnnotationSyncError({ key: 'locationAttachmentFailed', detail: errorMessage(error) });
+          viewerStore.setViewerError({ key: 'locationAttachmentFailed', detail: errorMessage(error) });
         });
     };
     partialCleanup.push(() => hostActions.dispose());
@@ -205,7 +207,7 @@ async function startViewerGeneration(
       resumeIdentity: stableResumeIdentity,
       onMesh: payload => {
         viewerStore.setProtocolError(null);
-        viewerStore.setAnnotationSyncError(null);
+        viewerStore.setViewerError(null);
         viewerStore.setStatus('connected');
         viewerStore.setPayload(payload);
         viewer.setMesh(payload);
@@ -315,12 +317,12 @@ async function startViewerGeneration(
             return;
           }
           download(exportStl(payload), name);
-          if (viewerStore.getState().annotationSyncError?.key === 'stlExportFailed') {
-            viewerStore.setAnnotationSyncError(null);
+          if (viewerStore.getState().viewerError?.key === 'stlExportFailed') {
+            viewerStore.setViewerError(null);
           }
         } catch (error) {
           if (mounted) {
-            viewerStore.setAnnotationSyncError({ key: 'stlExportFailed', detail: errorMessage(error) });
+            viewerStore.setViewerError({ key: 'stlExportFailed', detail: errorMessage(error) });
           }
         }
       },
@@ -349,7 +351,7 @@ async function startViewerGeneration(
         () => viewerStore.setModelVersion('unknown'),
         () => viewerStore.setStatus('disconnected'),
         () => viewerStore.setProtocolError(null),
-        () => viewerStore.setAnnotationSyncError(null),
+        () => viewerStore.setViewerError(null),
       ],
       disposeContributions: () => runtimeHost.clearRuntime(publishedRuntime),
       afterContributions: [removeMarksFrameHook, () => marks.dispose(), () => viewer.dispose()],

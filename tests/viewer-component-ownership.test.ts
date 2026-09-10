@@ -314,6 +314,34 @@ function model(description: string, width: number): ViewerModel {
 }
 
 describe('Viewer component ownership', () => {
+  it.each(['viewerStartupFailed', 'stlExportFailed', 'locationAttachmentFailed'] as const)(
+    'preserves %s when annotation synchronization succeeds',
+    async key => {
+      await mount();
+      const error = { key, detail: 'Operation diagnostic' };
+      store.setViewerError(error);
+
+      expect(store.getState().marksRuntime!.flushAnnotations()).toBe(true);
+      expect(store.getState().viewerError).toBe(error);
+    },
+  );
+
+  it('clears an annotation synchronization error after a successful retry', async () => {
+    await mount();
+    const marks = store.getState().marksRuntime!;
+    vi.spyOn(harness.sentMessages, 'push').mockImplementationOnce(() => {
+      throw new Error('Annotation transport failed');
+    });
+    expect(marks.flushAnnotations()).toBe(false);
+    expect(store.getState().viewerError).toEqual({
+      key: 'annotationSyncFailed',
+      detail: 'Annotation transport failed',
+    });
+
+    expect(marks.flushAnnotations()).toBe(true);
+    expect(store.getState().viewerError).toBeNull();
+  });
+
   it.each(['succeeded', 'failed'] as const)(
     'preserves a pending batch through language changes and %s completion',
     async outcome => {
@@ -556,6 +584,6 @@ describe('Viewer component ownership', () => {
     await settle();
     expect(marks.store.get(replacement.id)?.state).toBe('pending');
     expect(store.getState().markMode).toBe('annotate');
-    expect(store.getState().annotationSyncError).toBeNull();
+    expect(store.getState().viewerError).toBeNull();
   });
 });

@@ -59,7 +59,7 @@ export interface ViewerState {
   /** Malformed or unsupported Viewer Host protocol error. */
   protocolError: string | null;
   /** Viewer-owned operation failure, kept structured for live localization. */
-  annotationSyncError: ViewerError | null;
+  viewerError: ViewerError | null;
   /** Room-scoped generic host action state/dispatch, owned by ViewerCanvas. */
   hostActionsClient: HostActionsClient | null;
 }
@@ -78,7 +78,7 @@ const INITIAL: ViewerState = {
   viewerApi: null,
   markMode: 'orbit',
   protocolError: null,
-  annotationSyncError: null,
+  viewerError: null,
   hostActionsClient: null,
 };
 
@@ -159,11 +159,11 @@ export function createViewerStore() {
       state = { ...state, protocolError };
       emit();
     },
-    setAnnotationSyncError(annotationSyncError: ViewerError | null): void {
-      if (state.annotationSyncError === annotationSyncError) {
+    setViewerError(viewerError: ViewerError | null): void {
+      if (state.viewerError === viewerError) {
         return;
       }
-      state = { ...state, annotationSyncError };
+      state = { ...state, viewerError };
       emit();
     },
     setHostActionsClient(hostActionsClient: HostActionsClient | null): void {
