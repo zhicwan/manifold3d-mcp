@@ -16,6 +16,10 @@ export type HostActionTone = 'default' | 'primary' | 'danger';
 export type HostActionRequirement = 'model' | 'annotations';
 export type HostActionState = 'accepted' | 'running' | 'succeeded' | 'failed';
 
+/** Canonical result data used by the Viewer to present localized completion feedback. */
+export type HostActionResultDetails =
+  { kind: 'annotations-attached'; count: number } | { kind: 'stl-saved'; path: string };
+
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export interface HostActionDescriptor {
@@ -53,6 +57,7 @@ export interface HostActionStatusMessage {
   state: HostActionState;
   operationId?: string;
   message?: string;
+  resultDetails?: HostActionResultDetails;
 }
 
 interface HostActionRequestIdentity {
@@ -247,7 +252,7 @@ export function parseHostActionStatus(value: unknown): HostActionStatusMessage {
   const record = requireRecord(value, label);
   requireOnlyKeys(
     record,
-    ['kind', 'protocolVersion', 'requestId', 'actionId', 'state', 'operationId', 'message'],
+    ['kind', 'protocolVersion', 'requestId', 'actionId', 'state', 'operationId', 'message', 'resultDetails'],
     label,
   );
   if (record.kind !== 'host_action_status') {
@@ -265,6 +270,10 @@ export function parseHostActionStatus(value: unknown): HostActionStatusMessage {
     record.message === undefined
       ? undefined
       : parseBoundedText(record.message, `${label} message`, MAX_HOST_ACTION_MESSAGE_LENGTH, true);
+  const resultDetails = record.resultDetails === undefined ? undefined : parseResultDetails(record.resultDetails);
+  if (resultDetails && record.state !== 'succeeded') {
+    throw new HostActionProtocolError(`${label} resultDetails requires a succeeded state.`);
+  }
   return {
     kind: 'host_action_status',
     protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
@@ -273,7 +282,33 @@ export function parseHostActionStatus(value: unknown): HostActionStatusMessage {
     state: record.state,
     ...(operationId !== undefined ? { operationId } : {}),
     ...(message !== undefined ? { message } : {}),
+    ...(resultDetails !== undefined ? { resultDetails } : {}),
   };
+}
+
+function parseResultDetails(value: unknown): HostActionResultDetails {
+  const label = 'Host action result details';
+  const record = requireRecord(value, label);
+  if (record.kind === 'annotations-attached') {
+    requireOnlyKeys(record, ['kind', 'count'], label);
+    if (
+      typeof record.count !== 'number' ||
+      !Number.isSafeInteger(record.count) ||
+      record.count < 0 ||
+      record.count > MAX_HOST_ACTION_ANNOTATION_IDS
+    ) {
+      throw new HostActionProtocolError(`${label} count must be a bounded annotation count.`);
+    }
+    return { kind: record.kind, count: record.count };
+  }
+  if (record.kind === 'stl-saved') {
+    requireOnlyKeys(record, ['kind', 'path'], label);
+    return {
+      kind: record.kind,
+      path: parseBoundedText(record.path, `${label} path`, MAX_HOST_ACTION_MESSAGE_LENGTH, false),
+    };
+  }
+  throw new HostActionProtocolError(`${label} kind is not supported.`);
 }
 
 export function isHostActionStatus(value: unknown): value is HostActionStatusMessage {

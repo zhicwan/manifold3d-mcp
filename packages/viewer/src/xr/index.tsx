@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useViewerRuntime } from '@/viewer-runtime';
+import { useViewerI18n } from '@/store';
 
 import { createXrExperienceScope, useXrExperienceState, type XrExperience } from './experience.js';
 import { acquireXrRendererOwnership } from './renderer-ownership.js';
@@ -76,13 +77,13 @@ function XrSceneLayer() {
           },
           onSupportError: error => {
             if (!cancelled) {
-              state.setSupportError(xrErrorMessage(error));
+              state.setSupportError(error);
             }
           },
           onRuntimeError: error => {
             console.error('XR runtime lifecycle error.', error);
             if (!cancelled) {
-              state.setSupportError(xrErrorMessage(error));
+              state.setSupportError(error);
             }
           },
           onSessionStateChange: active => {
@@ -102,7 +103,7 @@ function XrSceneLayer() {
             await nextRuntime.enter();
           } catch (error) {
             viewerRuntime.setMarksImmersivePresenting(false);
-            throw new Error(xrErrorMessage(error), { cause: error });
+            throw error;
           }
         });
       } catch (error) {
@@ -121,7 +122,7 @@ function XrSceneLayer() {
           failures.length === 1 ? failures[0] : new AggregateError(failures, 'XR startup and cleanup both failed.');
         console.error('Failed to initialize the XR Viewer contribution.', failure);
         if (!cancelled) {
-          state.setSupportError(xrErrorMessage(failure));
+          state.setSupportError(failure);
         }
       }
     });
@@ -137,6 +138,7 @@ function XrSceneLayer() {
 }
 
 function XrToolbar() {
+  const i18n = useViewerI18n();
   const state = useXrExperienceState();
   const snapshot = useSyncExternalStore(state.subscribe, state.getSnapshot, state.getSnapshot);
   if (snapshot.support !== 'supported') {
@@ -152,13 +154,13 @@ function XrToolbar() {
             <Button
               variant="ghost"
               size="icon"
-              className={cn('size-8 rounded-full', snapshot.sessionState === 'active' && 'bg-muted text-foreground')}
+              className={cn('size-8 rounded-xl', snapshot.sessionState === 'active' && 'bg-muted text-foreground')}
               aria-label={
                 snapshot.sessionState === 'active'
-                  ? 'VR session active'
+                  ? i18n.t('xrActive')
                   : snapshot.sessionState === 'starting'
-                    ? 'Starting VR'
-                    : 'Enter VR preview'
+                    ? i18n.t('xrStarting')
+                    : i18n.t('xrEnter')
               }
               aria-busy={snapshot.sessionState === 'starting'}
               disabled={!snapshot.runtimeReady || !snapshot.hasModel || snapshot.sessionState !== 'idle'}
@@ -171,7 +173,13 @@ function XrToolbar() {
           <Glasses className="size-4" aria-hidden="true" />
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {snapshot.sessionState === 'active' ? 'VR session active' : 'Enter VR preview'}
+          {i18n.t(
+            snapshot.sessionState === 'active'
+              ? 'xrActive'
+              : snapshot.sessionState === 'starting'
+                ? 'xrStarting'
+                : 'xrEnter',
+          )}
         </TooltipContent>
       </Tooltip>
     </>
@@ -179,6 +187,7 @@ function XrToolbar() {
 }
 
 function XrOverlay() {
+  const i18n = useViewerI18n();
   const state = useXrExperienceState();
   const error = useSyncExternalStore(
     state.subscribe,
@@ -193,7 +202,7 @@ function XrOverlay() {
       role="alert"
       className={cn(glass, 'pointer-events-auto fixed right-4 top-20 z-40 w-72 px-3 py-2 text-xs text-destructive')}
     >
-      {error}
+      {xrErrorMessage(error, i18n)}
     </p>
   );
 }

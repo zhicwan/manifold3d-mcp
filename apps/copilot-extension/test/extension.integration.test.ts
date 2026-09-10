@@ -120,6 +120,14 @@ describe('production Copilot Extension composition', () => {
           annotationRevision: 0,
         });
         const exportedFile = resolve(testWorkspace, 'exports/first-r1.stl');
+        expect(
+          await clientA.messages.waitFor(
+            message =>
+              message.kind === 'host_action_status' &&
+              message.requestId === 'export-model' &&
+              message.state === 'succeeded',
+          ),
+        ).toMatchObject({ resultDetails: { kind: 'stl-saved', path: exportedFile } });
         expect((await readFile(exportedFile)).byteLength).toBeGreaterThan(84);
         expect(harness.log).toHaveBeenCalledWith(`Saved STL to ${exportedFile}`, { level: 'info' });
 
@@ -149,6 +157,14 @@ describe('production Copilot Extension composition', () => {
           input: { batchId: 'batch-a' },
         });
         expect(harness.sendAttachments).toHaveBeenCalledTimes(1);
+        expect(
+          await clientA.messages.waitFor(
+            message =>
+              message.kind === 'host_action_status' &&
+              message.requestId === 'attach-batch-a' &&
+              message.state === 'succeeded',
+          ),
+        ).toMatchObject({ resultDetails: { kind: 'annotations-attached', count: 2 } });
         expect(harness.sendAttachments).toHaveBeenLastCalledWith({
           instanceId: 'canvas-a',
           attachments: [

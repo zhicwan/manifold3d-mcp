@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FlyoutView, type FlyoutViewModel } from '../../packages/viewer/src/marks/flyout/flyout-view.js';
+import { createViewerI18n } from '../../packages/viewer/src/i18n/index.js';
 
 class Element {
   innerHTML = '';
@@ -9,6 +10,7 @@ class Element {
   readOnly = false;
   textContent = '';
   title = '';
+  placeholder = '';
   maxLength = 0;
   scrollHeight = 24;
   offsetWidth = 300;
@@ -71,7 +73,7 @@ describe('Compact annotation editor', () => {
     vi.unstubAllGlobals();
   });
 
-  function setup(model = draft) {
+  function setup(model = draft, i18n = createViewerI18n('en')) {
     const callbacks = {
       onPillClick: vi.fn(),
       onInput: vi.fn(),
@@ -79,7 +81,7 @@ describe('Compact annotation editor', () => {
       onCancel: vi.fn(),
       onLayout: vi.fn(),
     };
-    const view = new FlyoutView('id-1', model, callbacks);
+    const view = new FlyoutView('id-1', model, callbacks, i18n);
     const root = view.element as unknown as Element;
     return {
       view,
@@ -93,8 +95,8 @@ describe('Compact annotation editor', () => {
   it('starts with one line and accessible icon controls, with no permanent keyboard prose', () => {
     const { view, root, textarea } = setup();
     expect(root.innerHTML).toContain('rows="1"');
-    expect(root.innerHTML).toContain('aria-label="Save note"');
-    expect(root.innerHTML).toContain('aria-label="Cancel edit"');
+    expect(root.querySelector('.marks-flyout-save').attributes.get('aria-label')).toBe('Save note');
+    expect(root.querySelector('.marks-flyout-cancel').attributes.get('aria-label')).toBe('Cancel edit');
     expect(root.innerHTML).not.toContain('Enter to save');
     expect(root.innerHTML).not.toContain('Shift+Enter');
     expect(root.innerHTML).not.toContain('microphone');
@@ -155,5 +157,72 @@ describe('Compact annotation editor', () => {
     view.focusTextarea();
     expect(document.activeElement).toBe(root.querySelector('.marks-flyout-cancel'));
     view.dispose();
+  });
+
+  it('updates live editor labels without replacing the textarea or changing unsaved edits and focus', () => {
+    const i18n = createViewerI18n('en');
+    const { view, root, textarea, body, callbacks } = setup(draft, i18n);
+    view.focusTextarea();
+    textarea.value = '未保存的更改 🌏';
+    textarea.setSelectionRange(2, 4);
+    const selectionCalls = textarea.setSelectionRange.mock.calls.length;
+    i18n.setPreference('zh-CN');
+    expect(root.querySelector('textarea')).toBe(textarea);
+    expect(textarea.value).toBe('未保存的更改 🌏');
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.setSelectionRange).toHaveBeenCalledTimes(selectionCalls);
+    expect(textarea.placeholder).toBe('添加批注…');
+    expect(textarea.attributes.get('aria-label')).toBe('批注内容');
+    expect(body.attributes.get('aria-label')).toBe('位置说明');
+    expect(root.querySelector('.marks-flyout-save').attributes.get('aria-label')).toBe('保存批注');
+    expect(root.querySelector('.marks-flyout-save').title).toBe('保存 (Enter)');
+    expect(root.querySelector('.marks-flyout-cancel').title).toBe('取消 (Esc)');
+    expect(root.querySelector('.marks-flyout-pill').attributes.get('aria-label')).toBe('批注 1：front face');
+    expect(callbacks.onCommit).not.toHaveBeenCalled();
+    expect(callbacks.onInput).not.toHaveBeenCalled();
+    expect(callbacks.onLayout).toHaveBeenCalledOnce();
+    // A language selection normally moves focus out of the editor first.
+    Object.assign(document, { activeElement: null });
+    i18n.setPreference('en');
+    expect(textarea.value).toBe('未保存的更改 🌏');
+    expect(textarea.placeholder).toBe('Add a note...');
+    view.dispose();
+  });
+
+  it('localizes pending and committed note controls without translating content or canonical labels', () => {
+    const i18n = createViewerI18n('zh-CN');
+    const { view, root, textarea } = setup(
+      { ...draft, readOnly: true, state: 'pending', note: 'Keep 中文 <b>raw</b>', partLabel: 'point#12' },
+      i18n,
+    );
+    expect(textarea.hidden).toBe(true);
+    expect(root.querySelector('.marks-readonly-note').textContent).toBe('Keep 中文 <b>raw</b>');
+    expect(root.querySelector('.marks-flyout-preview').textContent).toBe('Keep 中文 <b>raw</b>');
+    expect(root.querySelector('.marks-flyout-pill').attributes.get('aria-label')).toBe('批注 1：point#12');
+    expect(root.querySelector('.marks-flyout-cancel').attributes.get('aria-label')).toBe('关闭批注');
+    expect(root.querySelector('.marks-flyout-cancel').title).toBe('关闭 (Esc)');
+    view.setView({ ...draft, readOnly: true, state: 'committed', intent: 'selection', partLabel: 'Front plate' });
+    expect(root.querySelector('.marks-flyout-pill').attributes.get('aria-label')).toBe('位置 1：Front plate');
+    expect(root.querySelector('.marks-readonly-note').textContent).toBe('Front plate');
+    i18n.setPreference('en');
+    expect(root.querySelector('.marks-flyout-cancel').attributes.get('aria-label')).toBe('Close note');
+    expect(root.querySelector('.marks-flyout-pill').attributes.get('aria-label')).toBe('Location 1: Front plate');
+    view.dispose();
+  });
+
+  it('isolates viewers and unsubscribes the disposed view', () => {
+    const firstLocale = createViewerI18n('en');
+    const secondLocale = createViewerI18n('en');
+    const first = setup(draft, firstLocale);
+    const second = setup(draft, secondLocale);
+    firstLocale.setPreference('zh-CN');
+    expect(first.textarea.placeholder).toBe('添加批注…');
+    expect(second.textarea.placeholder).toBe('Add a note...');
+    first.view.dispose();
+    first.callbacks.onLayout.mockClear();
+    firstLocale.setPreference('en');
+    expect(first.textarea.placeholder).toBe('添加批注…');
+    expect(first.callbacks.onLayout).not.toHaveBeenCalled();
+    second.view.dispose();
   });
 });

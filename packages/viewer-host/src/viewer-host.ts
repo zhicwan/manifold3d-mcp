@@ -140,6 +140,7 @@ export type HostActionHandlerResult =
   | {
       status: 'succeeded';
       message?: string;
+      resultDetails?: HostActionStatusMessage['resultDetails'];
     };
 
 export type HostActionHandler = (
@@ -848,7 +849,7 @@ class ViewerRoomImpl implements ViewerRoom {
           this.sendClientStatus(client, next);
           return;
         }
-        this.publishStatus(client, record, 'succeeded', result?.message);
+        this.publishStatus(client, record, 'succeeded', result?.message, result?.resultDetails);
       })
       .catch((error: unknown) => {
         if (!isTerminal(record.status.state)) {
@@ -862,6 +863,7 @@ class ViewerRoomImpl implements ViewerRoom {
     record: ActionRequestRecord,
     state: 'running' | 'succeeded' | 'failed',
     message?: string,
+    resultDetails?: HostActionStatusMessage['resultDetails'],
   ): void {
     if (isTerminal(record.status.state)) {
       return;
@@ -873,6 +875,7 @@ class ViewerRoomImpl implements ViewerRoom {
         state,
         ...(record.status.operationId !== undefined ? { operationId: record.status.operationId } : {}),
         ...(message !== undefined ? { message } : {}),
+        ...(resultDetails !== undefined ? { resultDetails } : {}),
       });
       record.status = status;
       this.sendClientStatus(client, status);

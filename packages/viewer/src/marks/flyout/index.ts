@@ -5,6 +5,7 @@ import type { Annotation } from '../types.js';
 import { FlyoutController } from './flyout-controller.js';
 import { updatePositions as projectFlyouts, type ScreenRect } from './flyout-projection.js';
 import { FlyoutView, type FlyoutViewModel } from './flyout-view.js';
+import { createViewerI18n, type ViewerI18n } from '../../i18n/index.js';
 
 /**
  * Top-level flyout subsystem -- the facade that wires together the
@@ -66,6 +67,7 @@ export class FlyoutLayer {
     private readonly requestRender: () => void,
     onCommit?: () => void,
     private readonly getMesh: () => THREE.Mesh | null = () => null,
+    private readonly i18n: ViewerI18n = createViewerI18n('en'),
   ) {
     this.host = document.createElement('div');
     this.host.className = 'marks-flyout-layer';
@@ -122,10 +124,7 @@ export class FlyoutLayer {
     if (this.layoutDirty) {
       const canvasRect = this.canvas.getBoundingClientRect();
       const root = this.canvas.closest('[data-viewer-root]') ?? this.canvas.parentElement;
-      const obstacles =
-        root?.querySelectorAll<HTMLElement>(
-          '[data-viewer-obstacle], header, nav, [aria-label="Annotation batch actions"]',
-        ) ?? [];
+      const obstacles = root?.querySelectorAll<HTMLElement>('[data-viewer-obstacle], header, nav') ?? [];
       this.obstacles = [...obstacles]
         .filter(element => !this.host.contains(element))
         .map(element => {
@@ -195,32 +194,37 @@ export class FlyoutLayer {
       if (existing) {
         existing.setView(this.toViewModel(ann));
       } else {
-        const view = new FlyoutView(ann.id, this.toViewModel(ann), {
-          onPillClick: () => {
-            if (this.controller.getExpandedId() === ann.id) {
+        const view = new FlyoutView(
+          ann.id,
+          this.toViewModel(ann),
+          {
+            onPillClick: () => {
+              if (this.controller.getExpandedId() === ann.id) {
+                this.controller.commit(ann.id);
+              } else {
+                this.controller.open(ann.id);
+              }
+            },
+            onInput: value => {
+              this.controller.setDraft(ann.id, value);
+              const cur = this.store.get(ann.id);
+              if (cur) {
+                const v = this.views.get(ann.id);
+                v?.setView(this.toViewModelWithNote(cur, value));
+              }
+            },
+            onCommit: () => {
               this.controller.commit(ann.id);
-            } else {
-              this.controller.open(ann.id);
-            }
+              this.canvas.focus({ preventScroll: true });
+            },
+            onCancel: () => {
+              this.controller.cancel(ann.id);
+              this.canvas.focus({ preventScroll: true });
+            },
+            onLayout: () => this.invalidateLayout(),
           },
-          onInput: value => {
-            this.controller.setDraft(ann.id, value);
-            const cur = this.store.get(ann.id);
-            if (cur) {
-              const v = this.views.get(ann.id);
-              v?.setView(this.toViewModelWithNote(cur, value));
-            }
-          },
-          onCommit: () => {
-            this.controller.commit(ann.id);
-            this.canvas.focus({ preventScroll: true });
-          },
-          onCancel: () => {
-            this.controller.cancel(ann.id);
-            this.canvas.focus({ preventScroll: true });
-          },
-          onLayout: () => this.invalidateLayout(),
-        });
+          this.i18n,
+        );
         this.views.set(ann.id, view);
         this.elements.set(ann.id, view.element);
         this.host.appendChild(view.element);

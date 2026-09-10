@@ -22,23 +22,24 @@ import { supportsLocationSelection } from '@/host-actions/client';
 import { isViewerShortcutEvent } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { RenderMode } from '@/scene/viewer';
-import { useViewerState } from '@/store';
+import { useViewerI18n, useViewerState } from '@/store';
 
-const RENDER_OPTIONS: Array<{ value: RenderMode; label: string; icon: typeof Box }> = [
-  { value: 'solid', label: 'Solid', icon: Box },
-  { value: 'wireframe', label: 'Wireframe', icon: Grid3X3 },
-  { value: 'edges', label: 'Edges', icon: PenLine },
-  { value: 'xray', label: 'X-Ray', icon: Scan },
+const RENDER_OPTIONS: Array<{ value: RenderMode; icon: typeof Box }> = [
+  { value: 'solid', icon: Box },
+  { value: 'wireframe', icon: Grid3X3 },
+  { value: 'edges', icon: PenLine },
+  { value: 'xray', icon: Scan },
 ];
 
 export function RightRail() {
+  const i18n = useViewerI18n();
   const markMode = useViewerState(s => s.markMode);
   const renderMode = useViewerState(s => s.renderMode);
   const api = useViewerState(s => s.viewerApi);
   const payload = useViewerState(s => s.payload);
   const hostActions = useHostActionsSnapshot();
   const supportsSelect = supportsLocationSelection(hostActions.actions);
-  const selectReason = selectionDisabledReason(hostActions, payload !== null);
+  const selectReason = selectionDisabledReason(hostActions, payload !== null, i18n);
   const enabled = api !== null && payload !== null;
   const [renderOpen, setRenderOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -86,7 +87,12 @@ export function RightRail() {
   const ActiveRenderIcon = RENDER_OPTIONS.find(option => option.value === renderMode)!.icon;
 
   return (
-    <nav data-viewer-obstacle ref={rootRef} aria-label="Viewer tools" className={cn(glass, 'viewer-right-rail')}>
+    <nav
+      data-viewer-obstacle
+      ref={rootRef}
+      aria-label={i18n.t('viewerTools')}
+      className={cn(glass, 'viewer-right-rail')}
+    >
       <div className="flex flex-col gap-1">
         {viewerTools(supportsSelect).map(tool => {
           const Icon = tool.icon;
@@ -98,7 +104,7 @@ export function RightRail() {
                 render={
                   <button
                     type="button"
-                    aria-label={`${tool.label} (${tool.shortcut})`}
+                    aria-label={i18n.t('shortcutLabel', i18n.t(tool.mode), tool.shortcut)}
                     aria-pressed={markMode === tool.mode}
                     data-primary={primary || undefined}
                     disabled={disabled}
@@ -120,7 +126,7 @@ export function RightRail() {
                 <Icon className="size-4 shrink-0" aria-hidden="true" />
               </TooltipTrigger>
               <TooltipContent side="left">
-                {tool.label} <kbd>{tool.shortcut}</kbd>
+                {i18n.t(tool.mode)} <kbd>{tool.shortcut}</kbd>
               </TooltipContent>
             </Tooltip>
           );
@@ -128,9 +134,15 @@ export function RightRail() {
       </div>
       <div className="viewer-rail-divider" aria-hidden="true" />
       <div className="viewer-view-controls">
-        <RailAction label="Zoom in" icon={ZoomIn} disabled={!enabled} onClick={() => api?.zoomIn()} />
-        <RailAction label="Zoom out" icon={ZoomOut} disabled={!enabled} onClick={() => api?.zoomOut()} />
-        <RailAction label="Fit model" shortcut="F" icon={Focus} disabled={!enabled} onClick={() => api?.fitToModel()} />
+        <RailAction label={i18n.t('zoomIn')} icon={ZoomIn} disabled={!enabled} onClick={() => api?.zoomIn()} />
+        <RailAction label={i18n.t('zoomOut')} icon={ZoomOut} disabled={!enabled} onClick={() => api?.zoomOut()} />
+        <RailAction
+          label={i18n.t('fitModel')}
+          shortcut="F"
+          icon={Focus}
+          disabled={!enabled}
+          onClick={() => api?.fitToModel()}
+        />
         <DropdownMenu open={renderOpen} onOpenChange={setRenderOpen} modal={false}>
           <Tooltip>
             <TooltipTrigger
@@ -138,14 +150,14 @@ export function RightRail() {
                 <DropdownMenuTrigger
                   ref={renderTrigger}
                   className="viewer-rail-button viewer-rail-secondary"
-                  aria-label="Render mode"
+                  aria-label={i18n.t('renderMode')}
                   disabled={!enabled}
                 />
               }
             >
               <ActiveRenderIcon className="size-4" aria-hidden="true" />
             </TooltipTrigger>
-            <TooltipContent side="left">Render mode</TooltipContent>
+            <TooltipContent side="left">{i18n.t('renderMode')}</TooltipContent>
           </Tooltip>
           <DropdownMenuContent
             data-viewer-popup
@@ -155,13 +167,13 @@ export function RightRail() {
             side="left"
             align="center"
             sideOffset={8}
-            className={cn(glassPopup, 'viewer-popup w-40')}
+            className={cn(glassPopup, 'viewer-popup')}
           >
             <DropdownMenuRadioGroup value={renderMode} onValueChange={value => api?.setRenderMode(value as RenderMode)}>
               {RENDER_OPTIONS.map(option => (
-                <DropdownMenuRadioItem key={option.value} value={option.value} className="min-h-9 gap-2 rounded-xl">
+                <DropdownMenuRadioItem key={option.value} value={option.value} className="min-h-10 gap-2 rounded-xl">
                   <option.icon className="size-4" aria-hidden="true" />
-                  {option.label}
+                  {i18n.t(option.value)}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -187,13 +199,14 @@ function RailAction({
   disabled: boolean;
   onClick(): void;
 }) {
+  const i18n = useViewerI18n();
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <button
             type="button"
-            aria-label={shortcut ? `${label} (${shortcut})` : label}
+            aria-label={shortcut ? i18n.t('shortcutLabel', label, shortcut) : label}
             disabled={disabled}
             className="viewer-rail-button viewer-rail-secondary"
             onClick={onClick}

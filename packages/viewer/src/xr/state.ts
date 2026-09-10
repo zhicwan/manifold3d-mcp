@@ -1,10 +1,12 @@
+import { describeXrError, type XrPresentationError } from './support.js';
+
 export type XrSupport = 'checking' | 'supported' | 'unsupported';
 export type XrSessionState = 'idle' | 'starting' | 'active';
 
 export interface XrExperienceSnapshot {
   readonly support: XrSupport;
   readonly sessionState: XrSessionState;
-  readonly error: string | null;
+  readonly error: XrPresentationError | null;
   readonly runtimeReady: boolean;
   readonly hasModel: boolean;
 }
@@ -37,7 +39,7 @@ export interface XrExperienceState {
   bindEnterHandler(handler: EnterHandler): XrEnterBinding;
   enter(): Promise<void>;
   setSupport(supported: boolean): void;
-  setSupportError(error: string): void;
+  setSupportError(error: unknown): void;
   setHasModel(hasModel: boolean): void;
 }
 
@@ -107,7 +109,7 @@ export function createXrExperienceState(): XrExperienceState {
         if (binding === attempt) {
           update({
             sessionState: 'idle',
-            error: error instanceof Error ? error.message : 'Unable to enter VR.',
+            error: describeXrError(error),
           });
         }
         throw error;
@@ -116,8 +118,8 @@ export function createXrExperienceState(): XrExperienceState {
     setSupport(supported: boolean): void {
       update({ support: supported ? 'supported' : 'unsupported', error: null });
     },
-    setSupportError(error: string): void {
-      update({ support: 'unsupported', error });
+    setSupportError(error: unknown): void {
+      update({ support: 'unsupported', error: describeXrError(error) });
     },
     setHasModel(hasModel: boolean): void {
       update({ hasModel });

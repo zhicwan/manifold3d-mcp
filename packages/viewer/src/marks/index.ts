@@ -9,8 +9,10 @@ import { MarkerRenderer } from './marker-renderer.js';
 import { MarkTool } from './mark-tool.js';
 import type { MarkMode } from './types.js';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
+import type { ViewerI18n } from '../i18n/index.js';
 
 export interface MarksDeps {
+  i18n?: ViewerI18n;
   scene: THREE.Scene;
   camera: THREE.Camera;
   controls: OrbitControls;
@@ -46,6 +48,7 @@ export function installMarks(deps: MarksDeps): MarksHandle {
     deps.requestRender,
     deps.onAnnotationCommit,
     deps.getMesh,
+    deps.i18n,
   );
   const markers = new MarkerRenderer(deps.scene, store, deps.getMesh, deps.requestRender);
   let resolver: FeatureResolver | null = null;

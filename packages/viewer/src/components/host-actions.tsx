@@ -21,10 +21,12 @@ import {
   getLatestHostActionStatus,
   hasPendingHostActionRequest,
   hostActionDisabledReason,
+  hostActionLabel,
+  hostActionStatusMessage,
   type HostActionsSnapshot,
 } from '@/host-actions/client';
 import { cn } from '@/lib/utils';
-import { useAnnotations, useViewerState } from '@/store';
+import { useAnnotations, useViewerI18n, useViewerState } from '@/store';
 import type { HostActionDescriptor, HostActionIcon, HostActionTone } from '@manifold3d/protocol/wire/host-actions.js';
 
 const EMPTY_HOST_ACTIONS: HostActionsSnapshot = {
@@ -67,9 +69,9 @@ export function ToolbarHostActions() {
                 <Button
                   variant={buttonVariant(action.tone)}
                   size="sm"
-                  className="viewer-host-action viewer-top-button rounded-full px-3"
+                  className="viewer-host-action viewer-top-button rounded-xl px-3"
                   disabled={disabledReason !== undefined}
-                  aria-label={action.label}
+                  aria-label={hostActionLabel(action, view.i18n)}
                   aria-busy={pending}
                   onClick={() => view.invoke(action)}
                 />
@@ -80,9 +82,12 @@ export function ToolbarHostActions() {
               ) : (
                 <Icon className={cn('size-4', status?.state === 'failed' && 'text-destructive')} aria-hidden="true" />
               )}
-              <span className="viewer-host-action-label">{action.label}</span>
+              <span className="viewer-host-action-label">{hostActionLabel(action, view.i18n)}</span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{disabledReason ?? status?.message ?? action.label}</TooltipContent>
+            <TooltipContent side="bottom">
+              {disabledReason ??
+                (status ? hostActionStatusMessage(status, view.i18n) : hostActionLabel(action, view.i18n))}
+            </TooltipContent>
           </Tooltip>
         );
       })}
@@ -100,7 +105,7 @@ export function ExportMenuHostActions() {
   return (
     <>
       <DropdownMenuSeparator />
-      <DropdownMenuLabel>Viewer Host</DropdownMenuLabel>
+      <DropdownMenuLabel>{view.i18n.t('actionHost')}</DropdownMenuLabel>
       {actions.map(action => {
         const status = getLatestHostActionStatus(view.snapshot, action.id);
         const pending = view.pending(action);
@@ -115,15 +120,15 @@ export function ExportMenuHostActions() {
           >
             <Icon className={cn(pending && 'animate-spin')} aria-hidden="true" />
             <span className="flex min-w-0 flex-col">
-              <span className="truncate font-medium">{action.label}</span>
-              {(disabledReason || status?.message) && (
+              <span className="truncate font-medium">{hostActionLabel(action, view.i18n)}</span>
+              {(disabledReason || status) && (
                 <span
                   className={cn(
                     'break-words text-xs text-muted-foreground',
                     status?.state === 'failed' && 'text-destructive',
                   )}
                 >
-                  {disabledReason ?? status?.message}
+                  {disabledReason ?? (status ? hostActionStatusMessage(status, view.i18n) : undefined)}
                 </span>
               )}
             </span>
@@ -135,26 +140,22 @@ export function ExportMenuHostActions() {
 }
 
 export function HostActionStatusRegion() {
-  const { snapshot } = useHostActionsView();
+  const { snapshot, i18n } = useHostActionsView();
   const protocolError = useViewerState(state => state.protocolError);
-  const annotationSyncError = useViewerState(state => state.annotationSyncError);
+  const viewerError = useViewerState(state => state.viewerError);
   const [dismissed, setDismissed] = useState<object | null>(null);
   const status = snapshot.latestStatus;
-  const error = protocolError ?? annotationSyncError;
+  const error = protocolError
+    ? i18n.t('actionProtocolError', protocolError)
+    : viewerError
+      ? i18n.t(viewerError.key, viewerError.detail)
+      : null;
   if (!error && (!status || dismissed === status)) {
     return null;
   }
   const action = snapshot.actions.find(item => item.id === status?.actionId);
-  const label = action?.label ?? 'Viewer Host action';
-  const message =
-    status?.message ??
-    (status?.state === 'accepted'
-      ? 'Sending…'
-      : status?.state === 'running'
-        ? 'Working…'
-        : status?.state === 'succeeded'
-          ? 'Done'
-          : 'Failed');
+  const label = action ? hostActionLabel(action, i18n) : i18n.t('actionFallback');
+  const message = status ? hostActionStatusMessage(status, i18n) : '';
   const failed = Boolean(error) || status?.state === 'failed';
   return (
     <div
@@ -179,8 +180,8 @@ export function HostActionStatusRegion() {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 shrink-0 rounded-full"
-          aria-label="Dismiss status"
+          className="size-7 shrink-0 rounded-xl"
+          aria-label={i18n.t('actionDismiss')}
           onClick={() => setDismissed(status)}
         >
           <X className="size-3.5" aria-hidden="true" />
@@ -200,6 +201,7 @@ export function useHostActionsSnapshot(): HostActionsSnapshot {
 }
 
 function useHostActionsView() {
+  const i18n = useViewerI18n();
   const client = useViewerState(state => state.hostActionsClient);
   const payload = useViewerState(state => state.payload);
   const marksRuntime = useViewerState(state => state.marksRuntime);
@@ -208,6 +210,7 @@ function useHostActionsView() {
 
   return {
     snapshot,
+    i18n,
     invoke(action: HostActionDescriptor): void {
       client?.invoke(action.id);
     },
@@ -215,13 +218,17 @@ function useHostActionsView() {
       return hasPendingHostActionRequest(snapshot, action.id);
     },
     disabledReason(action: HostActionDescriptor): string | undefined {
-      return hostActionDisabledReason(action, {
-        connected: snapshot.connected,
-        protocolReady: snapshot.protocolState === 'ready',
-        hasModel: payload !== null,
-        annotationCount: annotations.length,
-        pending: hasPendingHostActionRequest(snapshot, action.id),
-      });
+      return hostActionDisabledReason(
+        action,
+        {
+          connected: snapshot.connected,
+          protocolReady: snapshot.protocolState === 'ready',
+          hasModel: payload !== null,
+          annotationCount: annotations.length,
+          pending: hasPendingHostActionRequest(snapshot, action.id),
+        },
+        i18n,
+      );
     },
   };
 }

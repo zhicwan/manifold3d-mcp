@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
+import type { ViewerI18n } from '../i18n/index.js';
 
 import { payloadToGeometry } from './mesh-bridge.js';
 import { prepareMeshPicking } from './mesh-picking.js';
@@ -72,7 +73,10 @@ export class Viewer {
   private modelCenter = new THREE.Vector3();
   private modelFraming: ViewerModelFraming | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    i18n?: ViewerI18n,
+  ) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -130,7 +134,7 @@ export class Viewer {
     window.addEventListener('resize', this.requestRender);
 
     // The ViewCube depends on the renderer/camera/controls being fully constructed.
-    this.viewCube = new ViewCube(this.camera, this.renderer, this.controls, this.requestRender, this.theme);
+    this.viewCube = new ViewCube(this.camera, this.renderer, this.controls, this.requestRender, this.theme, i18n);
     const runtime: ViewerSceneRuntime = {
       renderer: this.renderer,
       scene: this.scene,

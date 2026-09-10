@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useTheme } from 'next-themes';
 
-import { useViewerState, ViewerStoreProvider } from '@/store';
+import { useViewerI18n, useViewerState, ViewerStoreProvider } from '@/store';
 import { ViewerCanvas } from './viewer-canvas';
 import { TopBar } from './top-bar';
 import { RightRail } from './right-rail';
@@ -40,6 +40,7 @@ export function ViewerApp({ slots = {}, resumeIdentity = 'default' }: ViewerAppP
 }
 
 function ViewerShell({ slots, resumeIdentity }: { slots: ViewerSlots; resumeIdentity: string }) {
+  const i18n = useViewerI18n();
   const { resolvedTheme } = useTheme();
   const viewerApi = useViewerState(s => s.viewerApi);
 
@@ -51,7 +52,12 @@ function ViewerShell({ slots, resumeIdentity }: { slots: ViewerSlots; resumeIden
   }, [viewerApi, resolvedTheme]);
 
   return (
-    <main data-viewer-root tabIndex={-1} className="viewer-shell relative h-dvh w-full overflow-hidden bg-background">
+    <main
+      lang={i18n.getLocale()}
+      data-viewer-root
+      tabIndex={-1}
+      className="viewer-shell relative h-dvh w-full overflow-hidden bg-background"
+    >
       <ViewerCanvas resumeIdentity={resumeIdentity} />
       {slots.sceneLayers}
       <EmptyState />

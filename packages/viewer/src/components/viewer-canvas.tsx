@@ -7,7 +7,7 @@ import type { MarkMode } from '@/marks/types';
 import { installAnnotationsUplink } from '@/marks/ws-uplink';
 import { acquireViewerCanvasOwnership, type ViewerCanvasOwnership } from '@/scene/viewer-canvas-ownership';
 import { Viewer, type RenderMode, type ViewerTheme } from '@/scene/viewer';
-import { useViewerStore, type ViewerStore } from '@/store';
+import { useViewerI18n, useViewerStore, type ViewerStore } from '@/store';
 import { connectMeshFeed, validateResumeIdentity, type MeshFeedHandle } from '@/transport/ws-client';
 import { createViewerGenerationDisposer } from '@/viewer-runtime-lifecycle';
 import { useViewerRuntimeHost, type ViewerRuntimeHost } from '@/viewer-runtime';
@@ -18,6 +18,7 @@ interface ViewerGeneration {
 }
 
 export function ViewerCanvas({ resumeIdentity }: { resumeIdentity: string }) {
+  const i18n = useViewerI18n();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const runtimeHost = useViewerRuntimeHost();
@@ -50,6 +51,9 @@ export function ViewerCanvas({ resumeIdentity }: { resumeIdentity: string }) {
         ownership?.release();
         ownership = null;
         console.error('Failed to start the 3D viewer generation.', error);
+        if (!cancelled) {
+          viewerStore.setViewerError({ key: 'viewerStartupFailed', detail: errorMessage(error) });
+        }
       });
     let cleanupPromise: Promise<void> | null = null;
 
@@ -80,7 +84,7 @@ export function ViewerCanvas({ resumeIdentity }: { resumeIdentity: string }) {
         pixels. role="img" plus a descriptive label gives screen readers
         something to announce.
       */}
-      <canvas id="view" ref={canvasRef} role="img" aria-label="3D model preview" />
+      <canvas id="view" ref={canvasRef} role="img" aria-label={i18n.t('preview')} />
       <div id="marks-overlay" ref={overlayRef} />
     </>
   );
@@ -95,7 +99,7 @@ async function startViewerGeneration(
 ): Promise<ViewerGeneration> {
   const stableResumeIdentity = validateResumeIdentity(resumeIdentity);
   let mounted = true;
-  const viewer = new Viewer(canvas);
+  const viewer = new Viewer(canvas, viewerStore.i18n);
   viewer.setRenderMode(viewerStore.getState().renderMode);
   const partialCleanup: Array<() => void | Promise<void>> = [() => viewer.dispose()];
   try {
@@ -104,6 +108,7 @@ async function startViewerGeneration(
     let attachSelection = (_id: string): void => undefined;
 
     const marks = installMarks({
+      i18n: viewerStore.i18n,
       scene: sceneRuntime.scene,
       camera: sceneRuntime.camera,
       controls: sceneRuntime.controls,
@@ -141,10 +146,12 @@ async function startViewerGeneration(
       },
       {
         onError(error) {
-          viewerStore.setAnnotationSyncError(`Annotation sync failed: ${error.message}`);
+          viewerStore.setViewerError({ key: 'annotationSyncFailed', detail: error.message });
         },
         onSuccess() {
-          viewerStore.setAnnotationSyncError(null);
+          if (viewerStore.getState().viewerError?.key === 'annotationSyncFailed') {
+            viewerStore.setViewerError(null);
+          }
         },
       },
     );
@@ -189,7 +196,7 @@ async function startViewerGeneration(
           }
           marks.store.removeSelection(id);
           uplink.flushNow();
-          viewerStore.setAnnotationSyncError(`Location attachment failed: ${errorMessage(error)}`);
+          viewerStore.setViewerError({ key: 'locationAttachmentFailed', detail: errorMessage(error) });
         });
     };
     partialCleanup.push(() => hostActions.dispose());
@@ -200,7 +207,7 @@ async function startViewerGeneration(
       resumeIdentity: stableResumeIdentity,
       onMesh: payload => {
         viewerStore.setProtocolError(null);
-        viewerStore.setAnnotationSyncError(null);
+        viewerStore.setViewerError(null);
         viewerStore.setStatus('connected');
         viewerStore.setPayload(payload);
         viewer.setMesh(payload);
@@ -303,9 +310,21 @@ async function startViewerGeneration(
         if (requestHostStlExport(hostActions)) {
           return;
         }
-        const name = stlFilename(payload);
-        const { exportStl } = await import('@/exporters/stl');
-        download(exportStl(payload), name);
+        try {
+          const name = stlFilename(payload);
+          const { exportStl } = await import('@/exporters/stl');
+          if (!mounted) {
+            return;
+          }
+          download(exportStl(payload), name);
+          if (viewerStore.getState().viewerError?.key === 'stlExportFailed') {
+            viewerStore.setViewerError(null);
+          }
+        } catch (error) {
+          if (mounted) {
+            viewerStore.setViewerError({ key: 'stlExportFailed', detail: errorMessage(error) });
+          }
+        }
       },
     });
     partialCleanup.push(() => viewerStore.setViewerApi(null));
@@ -332,7 +351,7 @@ async function startViewerGeneration(
         () => viewerStore.setModelVersion('unknown'),
         () => viewerStore.setStatus('disconnected'),
         () => viewerStore.setProtocolError(null),
-        () => viewerStore.setAnnotationSyncError(null),
+        () => viewerStore.setViewerError(null),
       ],
       disposeContributions: () => runtimeHost.clearRuntime(publishedRuntime),
       afterContributions: [removeMarksFrameHook, () => marks.dispose(), () => viewer.dispose()],

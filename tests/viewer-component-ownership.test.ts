@@ -55,6 +55,7 @@ vi.mock('react', async importOriginal => ({
 vi.mock('@/store', async () => ({
   ...(await import('../packages/viewer/src/store.js')),
   useViewerStore: () => harness.store,
+  useViewerI18n: () => harness.store!.i18n,
   useViewerState: <T>(selector: (state: ViewerState) => T) => selector(harness.store!.getState()),
   useAnnotations: () => undefined,
 }));
@@ -313,6 +314,63 @@ function model(description: string, width: number): ViewerModel {
 }
 
 describe('Viewer component ownership', () => {
+  it.each(['viewerStartupFailed', 'stlExportFailed', 'locationAttachmentFailed'] as const)(
+    'preserves %s when annotation synchronization succeeds',
+    async key => {
+      await mount();
+      const error = { key, detail: 'Operation diagnostic' };
+      store.setViewerError(error);
+
+      expect(store.getState().marksRuntime!.flushAnnotations()).toBe(true);
+      expect(store.getState().viewerError).toBe(error);
+    },
+  );
+
+  it('clears an annotation synchronization error after a successful retry', async () => {
+    await mount();
+    const marks = store.getState().marksRuntime!;
+    vi.spyOn(harness.sentMessages, 'push').mockImplementationOnce(() => {
+      throw new Error('Annotation transport failed');
+    });
+    expect(marks.flushAnnotations()).toBe(false);
+    expect(store.getState().viewerError).toEqual({
+      key: 'annotationSyncFailed',
+      detail: 'Annotation transport failed',
+    });
+
+    expect(marks.flushAnnotations()).toBe(true);
+    expect(store.getState().viewerError).toBeNull();
+  });
+
+  it.each(['succeeded', 'failed'] as const)(
+    'preserves a pending batch through language changes and %s completion',
+    async outcome => {
+      await mount();
+      const marks = store.getState().marksRuntime!;
+      const api = store.getState().viewerApi;
+      const client = store.getState().hostActionsClient!;
+      const draft = addDraft();
+      const camera = harness.runtime!.scene.camera;
+      const cameraPosition = camera.position.clone();
+      button('Fix').onClick();
+      const request = client.getSnapshot().latestStatus!;
+      const pending = marks.store.get(draft.id);
+      const writes = harness.pendingWrites;
+      store.i18n.setPreference('zh-CN');
+      expect(store.getState().viewerApi).toBe(api);
+      expect(store.getState().marksRuntime).toBe(marks);
+      expect(client.getSnapshot().latestStatus).toBe(request);
+      expect(marks.store.get(draft.id)).toBe(pending);
+      expect(harness.pendingWrites).toBe(writes);
+      expect(camera.position.equals(cameraPosition)).toBe(true);
+      client.receiveStatus(createHostActionStatus({ ...request, state: outcome }));
+      await settle();
+      expect(marks.store.get(draft.id)?.state).toBe(outcome === 'succeeded' ? 'committed' : 'draft');
+      expect(marks.store.get(draft.id)?.note).toBe('Adjust this face');
+      expect(harness.pending).toBeNull();
+    },
+  );
+
   it('does not restore a disposed generation or change its replacement tool mode', async () => {
     await mount();
     const oldMarks = store.getState().marksRuntime!;
@@ -526,6 +584,6 @@ describe('Viewer component ownership', () => {
     await settle();
     expect(marks.store.get(replacement.id)?.state).toBe('pending');
     expect(store.getState().markMode).toBe('annotate');
-    expect(store.getState().annotationSyncError).toBeNull();
+    expect(store.getState().viewerError).toBeNull();
   });
 });

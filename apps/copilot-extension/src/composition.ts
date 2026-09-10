@@ -380,6 +380,7 @@ class ExtensionController {
     return {
       status: 'succeeded',
       message: `Attached ${context.annotations.length} annotation${context.annotations.length === 1 ? '' : 's'}.`,
+      resultDetails: { kind: 'annotations-attached', count: context.annotations.length },
     };
   }
 
@@ -457,7 +458,7 @@ class ExtensionController {
     await writeFile(filePath, bytes);
     const message = `Saved STL to ${filePath}`;
     await this.logBestEffort(message, { level: 'info' });
-    return { status: 'succeeded', message };
+    return { status: 'succeeded', message, resultDetails: { kind: 'stl-saved', path: filePath } };
   }
 
   private buildBatchAttachment(context: HostActionHandlerContext) {

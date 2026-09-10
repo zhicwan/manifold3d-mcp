@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createViewerI18n, type ViewerI18n } from '../i18n/index.js';
 
 export type ViewCubeTheme = 'light' | 'dark';
 
@@ -25,16 +26,16 @@ export type ViewCubeTheme = 'light' | 'dark';
 interface FaceDef {
   /** Outward face normal in world space. */
   normal: THREE.Vector3;
-  label: string;
+  label: 'cubeRight' | 'cubeLeft' | 'cubeBack' | 'cubeFront' | 'cubeTop' | 'cubeBottom';
 }
 
 const FACES: readonly FaceDef[] = [
-  { normal: new THREE.Vector3(1, 0, 0), label: 'RIGHT' },
-  { normal: new THREE.Vector3(-1, 0, 0), label: 'LEFT' },
-  { normal: new THREE.Vector3(0, 1, 0), label: 'BACK' },
-  { normal: new THREE.Vector3(0, -1, 0), label: 'FRONT' },
-  { normal: new THREE.Vector3(0, 0, 1), label: 'TOP' },
-  { normal: new THREE.Vector3(0, 0, -1), label: 'BOT' },
+  { normal: new THREE.Vector3(1, 0, 0), label: 'cubeRight' },
+  { normal: new THREE.Vector3(-1, 0, 0), label: 'cubeLeft' },
+  { normal: new THREE.Vector3(0, 1, 0), label: 'cubeBack' },
+  { normal: new THREE.Vector3(0, -1, 0), label: 'cubeFront' },
+  { normal: new THREE.Vector3(0, 0, 1), label: 'cubeTop' },
+  { normal: new THREE.Vector3(0, 0, -1), label: 'cubeBottom' },
 ];
 
 /**
@@ -86,6 +87,7 @@ export class ViewCube {
   private labelTextures: THREE.CanvasTexture[];
 
   private readonly el: HTMLDivElement;
+  private readonly unsubscribeLocale: () => void;
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
   private readonly tmpSize = new THREE.Vector2();
@@ -109,6 +111,7 @@ export class ViewCube {
     controls: OrbitControls,
     requestRender: () => void,
     theme: ViewCubeTheme = 'light',
+    private readonly i18n: ViewerI18n = createViewerI18n('en'),
   ) {
     this.camera = camera;
     this.renderer = renderer;
@@ -166,7 +169,7 @@ export class ViewCube {
     });
 
     // Reusable label sprite, shown on the hovered face only.
-    this.labelTextures = FACES.map(face => makeLabelTexture(face.label, palette.label));
+    this.labelTextures = FACES.map(face => makeLabelTexture(i18n.t(face.label), palette.label));
     this.labelMat = new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false });
     this.labelSprite = new THREE.Sprite(this.labelMat);
     this.labelSprite.scale.set(CUBE * 0.85, CUBE * 0.45, 1);
@@ -186,6 +189,8 @@ export class ViewCube {
     // Transparent pointer-capture overlay in the same corner.
     this.el = document.createElement('div');
     this.el.className = 'nav-cube';
+    this.el.setAttribute('role', 'group');
+    this.updateAccessibleLabel();
     Object.assign(this.el.style, {
       position: 'fixed',
       left: `${OFFSET}px`,
@@ -200,6 +205,11 @@ export class ViewCube {
     this.el.addEventListener('pointermove', this.onPointerMove);
     this.el.addEventListener('pointerleave', this.onPointerLeave);
     this.el.addEventListener('click', this.onClick);
+    this.unsubscribeLocale = i18n.subscribe(() => {
+      this.regenerateLabels();
+      this.updateAccessibleLabel();
+      this.requestRender();
+    });
   }
 
   /** True while a click-snap tween is in flight (viewer keeps rendering). */
@@ -237,6 +247,7 @@ export class ViewCube {
       this.animating = false;
       this.hovered = -1;
       this.labelSprite.visible = false;
+      this.updateAccessibleLabel();
     }
     this.requestRender();
   }
@@ -258,6 +269,7 @@ export class ViewCube {
 
   dispose(): void {
     this.disposed = true;
+    this.unsubscribeLocale();
     this.el.removeEventListener('pointermove', this.onPointerMove);
     this.el.removeEventListener('pointerleave', this.onPointerLeave);
     this.el.removeEventListener('click', this.onClick);
@@ -345,6 +357,7 @@ export class ViewCube {
       this.labelSprite.visible = false;
       this.el.style.cursor = 'default';
     }
+    this.updateAccessibleLabel();
     this.requestRender();
   }
 
@@ -399,7 +412,7 @@ export class ViewCube {
 
   private regenerateLabels(): void {
     const color = PALETTE[this.theme].label;
-    const next = FACES.map(face => makeLabelTexture(face.label, color));
+    const next = FACES.map(face => makeLabelTexture(this.i18n.t(face.label), color));
     for (const tex of this.labelTextures) {
       tex.dispose();
     }
@@ -411,6 +424,15 @@ export class ViewCube {
         this.labelMat.needsUpdate = true;
       }
     }
+  }
+
+  private updateAccessibleLabel(): void {
+    const face = FACES[this.hovered];
+    this.el.setAttribute('lang', this.i18n.getLocale());
+    this.el.setAttribute(
+      'aria-label',
+      face ? this.i18n.t('cubeFace', this.i18n.t(face.label)) : this.i18n.t('cubeNavigation'),
+    );
   }
 }
 

@@ -1,3 +1,5 @@
+import type { ViewerI18n } from '../i18n/index.js';
+
 export interface XrSystemProbe {
   isSessionSupported(mode: XRSessionMode): Promise<boolean>;
   addEventListener?(type: 'devicechange', listener: EventListener): void;
@@ -53,20 +55,37 @@ export function watchImmersiveVrSupport(
   };
 }
 
-export function xrErrorMessage(error: unknown): string {
+export interface XrPresentationError {
+  code: 'not-allowed' | 'not-supported' | 'invalid-state' | 'unknown';
+  detail?: string;
+}
+
+export function describeXrError(error: unknown): XrPresentationError {
+  const detail = error instanceof Error ? error.message : typeof error === 'string' ? error : undefined;
   if (error instanceof DOMException) {
     if (error.name === 'NotAllowedError') {
-      return 'VR access was not allowed. Check the browser and headset permission prompt.';
+      return { code: 'not-allowed', ...(detail ? { detail } : {}) };
     }
     if (error.name === 'NotSupportedError') {
-      return 'This browser or connected headset cannot start an immersive VR session.';
+      return { code: 'not-supported', ...(detail ? { detail } : {}) };
     }
     if (error.name === 'InvalidStateError') {
-      return 'A VR session is already active or still shutting down.';
+      return { code: 'invalid-state', ...(detail ? { detail } : {}) };
     }
   }
-  if (error instanceof Error && error.message) {
-    return `Unable to enter VR: ${error.message}`;
+  return { code: 'unknown', ...(detail ? { detail } : {}) };
+}
+
+export function xrErrorMessage(error: XrPresentationError, i18n: ViewerI18n): string {
+  if (error.code === 'unknown') {
+    return error.detail ? i18n.t('xrErrorDetail', error.detail) : i18n.t('xrUnableToEnter');
   }
-  return 'Unable to enter VR.';
+  const guidance = i18n.t(
+    error.code === 'not-allowed'
+      ? 'xrNotAllowed'
+      : error.code === 'not-supported'
+        ? 'xrNotSupported'
+        : 'xrInvalidState',
+  );
+  return error.detail ? `${guidance} ${error.detail}` : guidance;
 }
