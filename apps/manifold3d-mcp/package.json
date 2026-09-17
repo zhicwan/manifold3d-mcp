@@ -11,7 +11,7 @@
     "@manifold3d/protocol": "0.0.0-private",
     "@manifold3d/viewer-host": "0.0.0-private",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "engines": {
     "node": ">=24"
