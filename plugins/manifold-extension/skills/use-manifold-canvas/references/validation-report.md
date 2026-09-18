@@ -1,7 +1,8 @@
 # Validation Report Schema
 
-Both `validate_script` and `execute_script` return a single text content item
-containing a YAML document with this shape:
+MCP's `validate_script` / `execute_script` and Canvas's
+`manifold_validate_script` / `manifold_execute_script` use this YAML report.
+The example's `previewUrl` is MCP-only; Canvas publication uses the host panel.
 
 ```yaml
 ok: true # false if any errors[] entry exists
@@ -26,6 +27,11 @@ stats: # populated when finite geometry stats are available
 
 previewUrl: http://127.0.0.1:3737/ # only on successful execute_script
 ```
+
+`ok: true` means the pipeline reported no blocking errors, not that manufacturing
+or use requirements passed. Outer dimensions do not establish internal fit;
+`genus` needs interpretation against intended components, handles and cavities.
+See [verification and handoff](verification-and-handoff.md).
 
 Every entry in `errors[]` and `warnings[]` looks like:
 
@@ -56,16 +62,16 @@ whenever the typecheck stage reports an error.
 
 ### Stage `static`
 
-| Code                               | Meaning                                                                                                                      | Typical fix                                                                                                                                                                   |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `INVALID_ARGUMENT`                 | Tool arguments are malformed, such as passing both `code` and `filePath`, passing neither, or passing a relative `filePath`. | Pass exactly one script source: inline `code` or an absolute local `filePath`.                                                                                                |
-| `CODE_TOO_LARGE`                   | Source > 64 KB.                                                                                                              | Refactor — extract repeated geometry into a loop.                                                                                                                             |
-| `FILE_READ_ERROR`                  | The MCP server could not read `filePath`, or the path is not a file.                                                         | Check that the absolute path exists on the MCP server host.                                                                                                                   |
-| `FORBIDDEN_GLOBAL`                 | You referenced `require` / `import` / `export` / `process` / `fs` / etc.                                                     | Stay inside the pre-bound globals (`Manifold`, `CrossSection`, `Mesh`, `console`, `Math`, …).                                                                                 |
-| `RESULT_NOT_ASSIGNED`              | The snippet never assigns to `result`.                                                                                       | Add `result = …` somewhere at the top level.                                                                                                                                  |
-| `UNKNOWN_API` _(warning)_          | `Manifold.foo` / `CrossSection.foo` is not in the static whitelist.                                                          | Check spelling — the message includes suggestions or an idiom for common wrong guesses such as `Manifold.box`, `CrossSection.ofPolygon`, and `CrossSection.roundedRectangle`. |
-| `INVALID_CONSTRUCTION` _(warning)_ | Static lint spotted a call pattern likely to create invalid geometry, such as object-style `Manifold.cylinder({ ... })`.     | Use positional API signatures from `manifold-api.md`. Runtime may still continue and fail later.                                                                              |
-| `RADIANS_DETECTED` _(warning)_     | A `rotate(...)` call appears to use `Math.PI` or a small non-integer radian value.                                           | Manifold rotations are degrees; use `90`, `45`, `-30`, etc.                                                                                                                   |
+| Code                               | Meaning                                                                                                                  | Typical fix                                                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_ARGUMENT`                 | Tool arguments are malformed. MCP examples include both source fields, neither source, or a relative `filePath`.         | Use inline `code` for either host. Only MCP also accepts an authorized absolute `filePath` instead of `code`.                                                                 |
+| `CODE_TOO_LARGE`                   | Source > 64 KB.                                                                                                          | Refactor — extract repeated geometry into a loop.                                                                                                                             |
+| `FILE_READ_ERROR`                  | The MCP server could not read `filePath`, or the path is not a file.                                                     | Check that the absolute path exists on the MCP server host.                                                                                                                   |
+| `FORBIDDEN_GLOBAL`                 | You referenced `require` / `import` / `export` / `process` / `fs` / etc.                                                 | Stay inside the pre-bound globals (`Manifold`, `CrossSection`, `Mesh`, `console`, `Math`, …).                                                                                 |
+| `RESULT_NOT_ASSIGNED`              | The snippet never assigns to `result`.                                                                                   | Add `result = …` somewhere at the top level.                                                                                                                                  |
+| `UNKNOWN_API` _(warning)_          | `Manifold.foo` / `CrossSection.foo` is not in the static whitelist.                                                      | Check spelling — the message includes suggestions or an idiom for common wrong guesses such as `Manifold.box`, `CrossSection.ofPolygon`, and `CrossSection.roundedRectangle`. |
+| `INVALID_CONSTRUCTION` _(warning)_ | Static lint spotted a call pattern likely to create invalid geometry, such as object-style `Manifold.cylinder({ ... })`. | Use positional API signatures from `manifold-api.md`. Runtime may still continue and fail later.                                                                              |
+| `RADIANS_DETECTED` _(warning)_     | A `rotate(...)` call appears to use `Math.PI` or a small non-integer radian value.                                       | Manifold rotations are degrees; use `90`, `45`, `-30`, etc.                                                                                                                   |
 
 ### Stage `typecheck`
 
@@ -115,14 +121,25 @@ checks.
 | `CANCELLED`                                                                                                                                                                                                                  | Computation was cancelled by an `ExecutionContext`.             | Almost never happens here; treat as a transient error.                                                                                               |
 | `ZERO_VOLUME` _(warning)_                                                                                                                                                                                                    | `volume() <= 0`.                                                | Likely a planar or self-cancelling shape.                                                                                                            |
 | `TRIANGLE_BUDGET` _(warning)_                                                                                                                                                                                                | `> 500 000` triangles.                                          | Drop circular segments.                                                                                                                              |
-| `BBOX_TOO_SMALL` _(warning)_                                                                                                                                                                                                 | Smallest dimension < 0.1 mm.                                    | Scale up or change units.                                                                                                                            |
-| `BBOX_TOO_LARGE` _(warning)_                                                                                                                                                                                                 | Largest dimension > 500 mm.                                     | Scale down or split the model.                                                                                                                       |
+| `BBOX_TOO_SMALL` _(warning)_                                                                                                                                                                                                 | Smallest bbox dimension < 0.1 mm.                               | Check intended dimensions and process capability; do not automatically rescale.                                                                      |
+| `BBOX_TOO_LARGE` _(warning)_                                                                                                                                                                                                 | Largest bbox dimension > 500 mm.                                | Check units and actual machine envelope; discuss splitting if necessary.                                                                             |
 
-### Stage `print`
+### Print-related hint
 
-| Code                        | Meaning                                         | Typical fix                                                        |
-| --------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
-| `FEATURE_TOO_FINE` _(hint)_ | Estimated feature size < typical 0.4 mm nozzle. | Thicken thin walls or print at higher resolution / smaller nozzle. |
+The current report may include an `Estimated minimum feature size ...` string
+in `hints` (associated with the documented `FEATURE_TOO_FINE` concept, not a
+structured finding with that code). It is computed as the cube root of volume
+divided by triangle count and compared with 0.4 mm.
+
+Despite the wording, this is **not a measured minimum feature size**. Mesh
+refinement can change the estimate without changing the shape, and a small local
+wall can be missed. Treat it only as a prompt for feature-specific investigation,
+not a reason to thicken everything or a guarantee when absent.
+
+The current checks do not analyze local walls, overhangs, support removal,
+material behavior, fitted dimensions or sliced paths. Bbox thresholds likewise
+do not describe the chosen printer's build volume. Use the selected printing
+reference and external slicing/trial evidence for those questions.
 
 ## Troubleshooting generic geometry failures
 

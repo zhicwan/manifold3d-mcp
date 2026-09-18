@@ -106,9 +106,16 @@ edit to see whether the user has left feedback. The call is cheap
    `worldCoord` and `partLabel` to localise) and what is the user
    asking for?
 3. Edit the script to address the feedback. Keep the rest of the model
-   stable unless the user said otherwise.
-4. Call `execute_script` with the new code. The viewer will display
-   the new mesh and clear the old annotations automatically.
-5. Briefly summarise to the user which annotations you addressed and
+   stable unless the user said otherwise. Use the
+   [design workflow](design-workflow.md) to resolve conflicts with confirmed
+   dimensions or process requirements before changing them.
+4. Call `validate_script` and recheck the affected dimensions, interfaces and
+   printing assumptions, even for a one-number edit. Keep temporary candidates
+   and subassembly diagnostics validation-only.
+5. When the revised version is ready for user review, call `execute_script`.
+   The viewer will display the new mesh and clear the old annotations automatically.
+6. Call `capture_view`, inspect useful views and follow
+   [verification and handoff](verification-and-handoff.md).
+7. Briefly summarise to the user which annotations you addressed and
    how. If you decided not to act on one (e.g. the change would break
    another constraint), say so explicitly.

@@ -89,14 +89,9 @@ const b = profile.extrude(4);
 
 ## Idioms
 
-```ts
-// Rounded rectangle plate.
-const plate = CrossSection.square([60, 30], true).offset(4, 'Round', 2, 32);
-result = Manifold.extrude(plate, 4);
-```
-
 There is no `CrossSection.roundedRectangle(...)` helper. Build rounded
-rectangles by offsetting a smaller square:
+rectangles by offsetting a smaller square. This preserves the specified outer
+width and height rather than expanding each by twice the radius:
 
 ```ts
 const w = 60;
@@ -112,17 +107,6 @@ const ring = CrossSection.circle(10, 64).subtract(CrossSection.circle(8, 64));
 result = Manifold.extrude(ring, 50);
 ```
 
-```ts
-// Vase = revolved profile.
-const profile = new CrossSection([
-  [
-    [0, 0],
-    [25, 0],
-    [22, 30],
-    [12, 60],
-    [16, 90],
-    [0, 90],
-  ],
-]);
-result = Manifold.revolve(profile, 96);
-```
+For a hollow revolved container, the section must include the inner wall and
+floor, not just the outer silhouette closed to the axis. See the
+[open-vase example](examples.md#5-open-vase-revolve-a-wall-profile).

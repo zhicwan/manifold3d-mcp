@@ -6,12 +6,14 @@ The single most useful habit when driving manifold3d-mcp is:
 
 Why: `execute_script` repaints the user's preview every time. Validating in a
 loop without re-rendering keeps the user's screen calm and gives you tighter
-feedback (no human-in-the-loop, no perceived latency).
+feedback while keeping design decisions with the user.
 
 ## Canonical loop
 
-1. Read the user's request. Sketch the model in plain English ("a 60 × 30
-   plate, 4 mm thick, with four 4 mm holes inset 8 mm from each corner").
+1. Use the [shared design workflow](../references/design-workflow.md).
+   Proceed directly for a clear simple request; clarify consequential unknowns
+   for functional parts. Record confirmed dimensions, assumptions and constraints
+   to preserve. Read the selected process reference only when relevant.
 2. Write a TypeScript snippet. Use
    [`../references/examples.md`](../references/examples.md)
    as a starting template. Do not import or export anything; use the ambient
@@ -24,26 +26,33 @@ feedback (no human-in-the-loop, no perceived latency).
      - `FORBIDDEN_GLOBAL` — stay inside the sandbox globals.
      - `TS_DIAGNOSTIC` / `TS_EMIT_ERROR` — fix TypeScript API, tuple, or
        argument-shape issues before runtime will run.
-     - `EMPTY_RESULT` — your boolean produced no overlap; print a debug
-       `console.log` of the bounding boxes and re-validate.
+     - `EMPTY_RESULT` — inspect the operand dimensions and boolean order.
+       Assign subassemblies to `result` in validation-only runs when necessary;
+       script console output is not returned as report evidence.
      - `RESULT_TOO_LARGE` / `TIMEOUT` — drop circular segment counts.
-   - `warnings:` `BBOX_TOO_SMALL` / `BBOX_TOO_LARGE` — likely a units
-     mistake. Tell the user; ask whether they meant millimetres.
-   - `stats:` sanity-check `triangles`, `volume`, `bbox.size` against the
-     user's intent before spending preview time.
-5. Once the report is clean, call `execute_script` with a meaningful
-   `description`. The user sees the model in their browser.
-6. Wait for the user to react. When they ask for changes, edit the script and
-   start again at step 3.
+   - `warnings:` `BBOX_TOO_SMALL` / `BBOX_TOO_LARGE` — check the intended units,
+     scale and actual printer envelope. The thresholds are general reminders,
+     not proof of a mistake; do not rescale a confirmed dimension automatically.
+   - `stats:` sanity-check volume and outer dimensions, then check the important
+     openings, fit dimensions and hidden features separately.
+5. Follow [verification and handoff](../references/verification-and-handoff.md).
+   For candidates or diagnostics, repeat steps 2–4 as needed; a numerical comparison
+   can end there. When a version is intended for user review, resolve errors and
+   review relevant warnings/dimensions, then call `execute_script` with a meaningful
+   `description`.
+6. Call `capture_view` from useful angles, inspect the PNG and compare with the
+   brief. State actual checks, remaining slicing/trial work and source availability.
+7. For changes, read referenced marks with `get_annotations` before replacing
+   the model. Preserve unaffected constraints, recheck affected fit/process
+   conditions and restart validation.
 
-## When to skip validate_script
+## Revalidation
 
-- Trivial one-liner (`result = Manifold.cube([10,10,10]);`) where you have
-  high confidence and the user is waiting for visual feedback.
-- A _minor_ tweak (e.g. changing one number) on a script that already
-  validated successfully in the same conversation.
-
-In every other case, validate first.
+Validate every new or changed geometry, including a one-number edit. A change
+in wall thickness or clearance can invalidate a previously good design. Validation
+does not require publication: keep temporary exploration validation-only, then
+execute and capture the version to be shown. Pure camera or description changes
+do not require a geometry rebuild.
 
 ## Reading stats during iteration
 
@@ -56,8 +65,8 @@ without wasting an `execute_script` round-trip:
   you used `subtract` (not `intersect`) where intended.
 - **`bbox.size[2] == 1.0` when you expected 100** — a missing `*100`
   somewhere in your loop; coordinates are millimetres.
-- **`bbox.size` exceeds `BBOX_TOO_LARGE` (~500 mm)** — your model is
-  off by a factor of 10 or 100; check unit assumptions.
+- **`bbox.size` exceeds `BBOX_TOO_LARGE` (~500 mm)** — check unit assumptions and
+  manufacturing envelope; a deliberately large object is not necessarily mis-scaled.
 - **`triangles` close to 1e6** — refine() / warp() / smooth() can multiply
   triangle counts; cap with explicit subdivision parameters.
 
@@ -73,9 +82,9 @@ flags first.
 
 ## Telling the user what is going on
 
-When you do call `execute_script`, mention:
+Keep the handoff useful for the requested part:
 
-- The triangle count and bounding box (from `stats`).
-- That they can rotate the view, toggle wireframe, and export as STL.
-- Any non-blocking warnings the report surfaced (e.g. `FEATURE_TOO_FINE`
-  hint).
+- Key dimensions and actual visual/functional checks, not just triangle count.
+- How to recover the source and export STL when relevant.
+- Unresolved warnings, process assumptions and the next useful slicer or trial check.
+- Do not treat the mesh-dependent feature-size hint as a wall-thickness measurement.
