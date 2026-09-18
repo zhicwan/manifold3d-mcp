@@ -5,7 +5,8 @@ import type { CanvasOptions, JoinSessionConfig } from '@github/copilot-sdk/exten
 import { ModelingEngine, ModelingSession, type CommittedModel } from '@manifold3d/modeling/modeling.js';
 import { toViewerModelFrame } from '@manifold3d/modeling/runner/model-artifact.js';
 import { Runner } from '@manifold3d/modeling/runner/host.js';
-import { serializeStl, stlFilename } from '@manifold3d/viewer/exporters';
+import { parseModelExportFormat } from '@manifold3d/protocol/wire/host-actions.js';
+import { serializeModel } from '@manifold3d/viewer/exporters';
 import {
   createInMemoryViewerAssetProvider,
   startViewerHost,
@@ -25,7 +26,7 @@ const MANIFOLD_CANVAS_DISPLAY_NAME = 'Manifold 3D Viewer';
 export const ATTACH_ANNOTATION_BATCH_ACTION_ID = 'attach-annotation-batch';
 export const FIX_ANNOTATION_BATCH_ACTION_ID = 'fix-annotation-batch';
 export const ATTACH_LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
-export const STL_EXPORT_ACTION_ID = 'export-stl-file';
+export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
 export const FIX_ANNOTATION_BATCH_PROMPT =
   'Revise the current manifold-3d model using the following static annotation batch snapshot.';
 const DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS = 500;
@@ -95,7 +96,7 @@ export async function startCopilotExtension(
     await modelingSession.dispose();
     throw error;
   }
-  const controller = new ExtensionController(host, modelingSession, {
+  const controller = new ExtensionController(host, modelingSession, options.manifoldWasmBytes, {
     disconnectTimeoutMs: options.shutdownTimings?.disconnectTimeoutMs ?? DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS,
     fixSendDrainTimeoutMs: options.shutdownTimings?.fixSendDrainTimeoutMs ?? DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS,
   });
@@ -131,7 +132,6 @@ export async function startCopilotExtension(
     }
     throw new Error('Copilot session shut down while the Extension was joining.');
   }
-
   return {
     shutdown: shutdownOptions => controller.shutdown(shutdownOptions),
   };
@@ -147,6 +147,7 @@ class ExtensionController {
   constructor(
     private readonly host: ViewerHost,
     private readonly modelingSession: ModelingSession,
+    private readonly manifoldWasmBytes: Uint8Array | undefined,
     private readonly shutdownTimings: {
       disconnectTimeoutMs: number;
       fixSendDrainTimeoutMs: number;
@@ -332,14 +333,14 @@ class ExtensionController {
         ),
         room.registerAction(
           {
-            id: STL_EXPORT_ACTION_ID,
-            label: 'Export STL',
+            id: MODEL_EXPORT_ACTION_ID,
+            label: 'Export model',
             icon: 'download',
             slot: 'export-handler',
             tone: 'default',
             requires: ['model'],
           },
-          () => this.exportStl(),
+          context => this.exportModel(context),
         ),
       );
       const current = this.modelingSession.getCurrentModel();
@@ -376,7 +377,7 @@ class ExtensionController {
     context: HostActionHandlerContext,
   ): Promise<HostActionHandlerResult> {
     const attachment = this.buildBatchAttachment(context);
-    await this.pushAttachment(binding, annotationBatchTitle(attachment.batchId), attachment);
+    await this.pushAttachment(binding, annotationBatchTitle(attachment.annotations), attachment);
     return {
       status: 'succeeded',
       message: `Attached ${context.annotations.length} annotation${context.annotations.length === 1 ? '' : 's'}.`,
@@ -424,17 +425,19 @@ class ExtensionController {
     context: HostActionHandlerContext,
   ): Promise<HostActionHandlerResult> {
     requireExplicitAnnotationCount(context, 1, 'Location selection');
+    const markerNumbers = parseMarkerNumbers(context.input, 1, 'Location selection');
     const attachment = buildAnnotationAttachment({
       mode: 'location-selection',
       modelVersion: context.modelVersion,
       annotationRevision: context.annotationRevision,
       annotations: context.annotations,
+      markerNumbers,
     });
-    await this.pushAttachment(binding, locationSelectionTitle(attachment.annotations[0].partLabel), attachment);
+    await this.pushAttachment(binding, locationSelectionTitle(attachment.annotations[0].displayNumber), attachment);
     return { status: 'succeeded', message: 'Attached selected location.' };
   }
 
-  private async exportStl(): Promise<HostActionHandlerResult> {
+  private async exportModel(context: HostActionHandlerContext): Promise<HostActionHandlerResult> {
     const current = this.modelingSession.getCurrentModel();
     if (!current) {
       throw new Error('No current model is available to export.');
@@ -448,28 +451,37 @@ class ExtensionController {
       ...frame,
       vertProperties: new Float32Array(frame.vertProperties),
       triVerts: new Uint32Array(frame.triVerts),
+      mergeFromVert: new Uint32Array(frame.mergeFromVert),
+      mergeToVert: new Uint32Array(frame.mergeToVert),
       triFeatureIds: new Uint32Array(frame.triFeatureIds),
     };
-    const bytes = serializeStl(payload);
-    const filename = stlFilename(payload, current.revision);
+    const format = parseExportInput(context.input);
+    const exported = await serializeModel(payload, format, {
+      revision: current.revision,
+      ...(this.manifoldWasmBytes ? { wasmBinary: this.manifoldWasmBytes } : {}),
+    });
     const exportDirectory = resolvePath(session.workspacePath, 'exports');
-    const filePath = resolvePath(exportDirectory, filename);
+    const filePath = resolvePath(exportDirectory, exported.filename);
     await mkdir(exportDirectory, { recursive: true });
-    await writeFile(filePath, bytes);
-    const message = `Saved STL to ${filePath}`;
-    await this.logBestEffort(message, { level: 'info' });
-    return { status: 'succeeded', message, resultDetails: { kind: 'stl-saved', path: filePath } };
+    await writeFile(filePath, exported.bytes);
+    const message = `Saved ${format.toUpperCase()} to ${filePath}`;
+    return {
+      status: 'succeeded',
+      message,
+      resultDetails: { kind: 'model-saved', format, path: filePath },
+    };
   }
 
   private buildBatchAttachment(context: HostActionHandlerContext) {
     requireExplicitAnnotationCount(context, undefined, 'Annotation batch');
-    const batchId = parseBatchId(context.input);
+    const { batchId, markerNumbers } = parseBatchInput(context.input, context.annotations.length);
     return buildAnnotationAttachment({
       mode: 'annotation-batch',
       batchId,
       modelVersion: context.modelVersion,
       annotationRevision: context.annotationRevision,
       annotations: context.annotations,
+      markerNumbers,
     });
   }
 
@@ -545,6 +557,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function parseExportInput(input: HostActionHandlerContext['input']) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Model export input must specify a format.');
+  }
+  const keys = Object.keys(input);
+  if (keys.length !== 1 || keys[0] !== 'format') {
+    throw new Error('Model export input contains unsupported or missing fields.');
+  }
+  return parseModelExportFormat(input.format);
+}
+
 function requireExplicitAnnotationCount(
   context: HostActionHandlerContext,
   expected: number | undefined,
@@ -564,13 +587,16 @@ function requireExplicitAnnotationCount(
   }
 }
 
-function parseBatchId(input: HostActionHandlerContext['input']): string {
+function parseBatchInput(
+  input: HostActionHandlerContext['input'],
+  annotationCount: number,
+): { batchId: string; markerNumbers: number[] } {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('Annotation batch input must contain batchId.');
+    throw new Error('Annotation batch input must contain batchId and markerNumbers.');
   }
   const keys = Object.keys(input);
-  if (keys.length !== 1 || keys[0] !== 'batchId') {
-    throw new Error('Annotation batch input must contain only batchId.');
+  if (keys.length !== 2 || !keys.includes('batchId') || !keys.includes('markerNumbers')) {
+    throw new Error('Annotation batch input contains unsupported or missing fields.');
   }
   const batchId = input.batchId;
   if (
@@ -581,15 +607,39 @@ function parseBatchId(input: HostActionHandlerContext['input']): string {
   ) {
     throw new Error('Annotation batch batchId must be a safe identifier no longer than 64 characters.');
   }
-  return batchId;
+  return {
+    batchId,
+    markerNumbers: parseMarkerNumbers(input, annotationCount, 'Annotation batch'),
+  };
 }
 
-function annotationBatchTitle(batchId: string): string {
-  return `Manifold annotation batch · ${batchId}`.slice(0, 80);
+function parseMarkerNumbers(
+  input: HostActionHandlerContext['input'],
+  annotationCount: number,
+  label: string,
+): number[] {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !Array.isArray(input.markerNumbers)) {
+    throw new Error(`${label} input must contain markerNumbers.`);
+  }
+  const markerNumbers = input.markerNumbers.map((value, index) => {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+      throw new Error(`${label} markerNumbers[${index}] must be a positive safe integer.`);
+    }
+    return value;
+  });
+  if (markerNumbers.length !== annotationCount) {
+    throw new Error(`${label} markerNumbers must match the annotation count.`);
+  }
+  return markerNumbers;
 }
 
-function locationSelectionTitle(partLabel: string): string {
-  return `Manifold location · ${partLabel}`.slice(0, 80);
+function annotationBatchTitle(annotations: readonly { displayNumber: number }[]): string {
+  const markers = annotations.map(annotation => `#${annotation.displayNumber}`).join(' ');
+  return `Annotations · ${markers}`.slice(0, 80);
+}
+
+function locationSelectionTitle(displayNumber: number): string {
+  return `Location · #${displayNumber}`;
 }
 
 function truncateStatusMessage(message: string): string {

@@ -23,6 +23,8 @@ function modelFrame(): ViewerModelFrame {
     vertices: 3,
     vertProperties: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer,
     triVerts: new Uint32Array([0, 1, 2]).buffer,
+    mergeFromVert: new Uint32Array().buffer,
+    mergeToVert: new Uint32Array().buffer,
     triFeatureIds: new Uint32Array([0]).buffer,
     features: [
       {
@@ -49,9 +51,25 @@ describe('viewer model protocol', () => {
     expect(header.protocolVersion).toBe(VIEWER_PROTOCOL_VERSION);
     expect(model.vertProperties.buffer).toBe(frame.vertProperties);
     expect(model.triVerts.buffer).toBe(frame.triVerts);
+    expect(model.mergeFromVert.buffer).toBe(frame.mergeFromVert);
+    expect(model.mergeToVert.buffer).toBe(frame.mergeToVert);
     expect(model.triFeatureIds.buffer).toBe(frame.triFeatureIds);
     expect([...model.triVerts]).toEqual([0, 1, 2]);
     expect(model.features).toEqual(frame.features);
+  });
+
+  it('round-trips optional property-vertex weld frames', () => {
+    const frame = {
+      ...modelFrame(),
+      mergeFromVert: new Uint32Array([2]).buffer,
+      mergeToVert: new Uint32Array([0]).buffer,
+    };
+    const header = parseModelHeader(createModelHeader(frame));
+    const model = decodeViewerModel(header, frame);
+
+    expect(header.mergePairs).toBe(1);
+    expect([...model.mergeFromVert]).toEqual([2]);
+    expect([...model.mergeToVert]).toEqual([0]);
   });
 
   it('requires the current protocol version and complete metadata', () => {
@@ -66,8 +84,8 @@ describe('viewer model protocol', () => {
   it('rejects unsupported, incomplete, and malformed metadata', () => {
     const header = createModelHeader(modelFrame());
 
-    expect(isModelHeader({ ...header, protocolVersion: 2 })).toBe(false);
-    expect(() => parseModelHeader({ ...header, protocolVersion: 2 })).toThrow(/Unsupported viewer protocolVersion/);
+    expect(isModelHeader({ ...header, protocolVersion: 99 })).toBe(false);
+    expect(() => parseModelHeader({ ...header, protocolVersion: 99 })).toThrow(/Unsupported viewer protocolVersion/);
     expect(isModelHeader({ kind: 'mesh' })).toBe(false);
     expect(isModelHeader({ ...header, volume: Number.NaN })).toBe(false);
     expect(isModelHeader({ ...header, bboxMax: [1, 1] })).toBe(false);
@@ -94,6 +112,20 @@ describe('viewer model protocol', () => {
     expect(() => decodeViewerModel(header, { ...frame, triFeatureIds: new ArrayBuffer(0) })).toThrow(
       /does not match the declared/,
     );
+    const welded = parseModelHeader(
+      createModelHeader({
+        ...frame,
+        mergeFromVert: new Uint32Array([2]).buffer,
+        mergeToVert: new Uint32Array([0]).buffer,
+      }),
+    );
+    expect(() =>
+      decodeViewerModel(welded, {
+        ...frame,
+        mergeFromVert: new Uint32Array([2]).buffer,
+        mergeToVert: new ArrayBuffer(0),
+      }),
+    ).toThrow(/does not match the declared/);
   });
 
   it('guards hello and model-version messages including protocol versions', () => {

@@ -58,6 +58,6 @@ without wasting a `manifold_execute_script` round-trip.
 Keep the handoff useful for the requested part:
 
 - Key dimensions and actual visual/functional checks, not just triangle count.
-- How to recover the source and export STL when relevant.
+- How to recover the source and export 3MF for printing or GLB for viewing and exchange.
 - Unresolved warnings, process assumptions and the next useful slicer or trial check.
 - Do not treat the mesh-dependent feature-size hint as a wall-thickness measurement.

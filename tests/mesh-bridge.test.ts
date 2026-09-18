@@ -10,6 +10,8 @@ function payload(numProp: number, vertProperties: number[]): ViewerModel {
     vertices: numProp > 0 ? vertProperties.length / numProp : 0,
     vertProperties: new Float32Array(vertProperties),
     triVerts: new Uint32Array(),
+    mergeFromVert: new Uint32Array(),
+    mergeToVert: new Uint32Array(),
     features: [],
     triFeatureIds: new Uint32Array(),
     volume: 0,

@@ -6,7 +6,7 @@
 ![Node.js >= 24](https://img.shields.io/badge/Node.js-%E2%89%A5%2024-green)
 [![向 DeepWiki 提问](https://deepwiki.com/badge.svg)](https://deepwiki.com/zhicwan/manifold3d-mcp)
 
-**描述零件，在 3D 预览中调整，再导出 STL 交给切片软件。**
+**描述零件，在 3D 预览中调整，再导出 3MF 打印或用 GLB 分享。**
 
 Manifold 3D 让你在 GitHub Copilot 和 Claude Code 中进行 AI 3D 建模。助手编写
 参数化 TypeScript 代码、校验几何模型，并打开交互式预览。它适合代码驱动的参数化
@@ -23,7 +23,7 @@ _Copilot Canvas 中的手机支架，走线槽已加宽至 22 mm。
 
 先让助手生成一个带走线槽的手机支架。在 Copilot 原生 Canvas 中选中走线槽，
 要求加宽，同时保持支架底部尺寸不变。检查修改后的模型，再选择
-**Export → Export STL**。
+**Export → 3MF（用于打印）**。
 
 MCP 插件使用同一建模引擎，在浏览器 Viewer 中预览，并通过标注反馈修改意见。
 [查看完整使用流程](docs/usage.zh-CN.md)。
@@ -82,7 +82,7 @@ skill 会直接推进；对于配合件或功能件，会先澄清影响方案�
 - [浏览示例](samples/README.zh-CN.md)：立方体、旋转花瓶、gyroid 曲面、
   键帽套装、磁吸相框等。
 - [阅读使用指南](docs/usage.zh-CN.md)：安装、本地脚本、标注、Viewer 快捷键
-  与 STL 导出。
+  与模型导出。
 
 **这是 Manifold 库本身吗？**
 
@@ -96,8 +96,10 @@ skill 会直接推进；对于配合件或功能件，会先澄清影响方案�
 
 **支持哪些导出格式？能直接打印吗？**
 
-Viewer 导出 **STL**，不支持 STEP 或 3MF。校验针对脚本与几何模型，并不保证
-制造或使用安全。打印前仍需检查尺寸、间隙、壁厚、材料和切片设置。
+Viewer 导出供切片软件使用的 **3MF**，以及供查看器和模型交换使用的 **GLB**。
+3MF 包含明确单位的模型，但不是带打印板、耗材配置或刀路的 Bambu Studio 项目。
+校验针对脚本与几何模型，并不保证制造或使用安全。打印前仍需检查尺寸、间隙、
+壁厚、材料和切片设置。
 
 ## 参与贡献
 

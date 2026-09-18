@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
+import type { ModelExportFormat } from '@manifold3d/protocol/wire/host-actions.js';
 import type { HostActionsClient } from './host-actions/client.js';
 import type { AnnotationStore } from './marks/annotation-store.js';
 import type { Annotation, MarkMode } from './marks/types.js';
@@ -39,7 +40,7 @@ export interface ViewerApi {
   /** Fit the current model in the desktop viewport without changing its orientation. */
   fitToModel(): void;
   /** Dynamically import an exporter, generate the file, and start its download. */
-  exportStl(): Promise<void>;
+  exportModel(format: ModelExportFormat): Promise<void>;
 }
 
 export interface ViewerState {
@@ -65,7 +66,7 @@ export interface ViewerState {
 }
 
 export interface ViewerError {
-  readonly key: 'annotationSyncFailed' | 'locationAttachmentFailed' | 'viewerStartupFailed' | 'stlExportFailed';
+  readonly key: 'annotationSyncFailed' | 'locationAttachmentFailed' | 'viewerStartupFailed' | 'modelExportFailed';
   readonly detail: string;
 }
 

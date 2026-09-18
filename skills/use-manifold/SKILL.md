@@ -1,6 +1,6 @@
 ---
 name: use-manifold
-description: Guide 3D-printing ideas through design, parametric modeling, inspection and trial feedback with the manifold-3d MCP server. Use to design, modify or export STL geometry. Validate scripts before showing output; geometry validation is not manufacturing certification.
+description: Guide 3D-printing ideas through design, parametric modeling, inspection and trial feedback with the manifold-3d MCP server. Use to design, modify or export 3MF/GLB geometry. Validate scripts before showing output; geometry validation is not manufacturing certification.
 ---
 
 # use-manifold — Skill Guide
@@ -10,8 +10,8 @@ description: Guide 3D-printing ideas through design, parametric modeling, inspec
 You have access to the Model Context Protocol server (`manifold3d-mcp`) that
 runs TypeScript snippets against the [manifold-3d](https://github.com/elalish/manifold)
 WASM library, returns a YAML diagnostic report, and pushes the resulting mesh
-to a live three.js preview page in the user's browser. The user can export STL
-directly from that page for 3D printing.
+to a live three.js preview page in the user's browser. The user can export 3MF
+for 3D printing or GLB for viewing and interchange.
 
 ## Tools
 

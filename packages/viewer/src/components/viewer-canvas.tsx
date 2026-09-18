@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 
-import { HostActionsClient, LOCATION_SELECTION_ACTION_ID, STL_EXPORT_ACTION_ID } from '@/host-actions/client';
-import { stlFilename } from '@/exporters/filename';
+import { HostActionsClient, LOCATION_SELECTION_ACTION_ID, MODEL_EXPORT_ACTION_ID } from '@/host-actions/client';
 import { installMarks } from '@/marks';
 import type { MarkMode } from '@/marks/types';
 import { installAnnotationsUplink } from '@/marks/ws-uplink';
+import type { ModelExportFormat } from '@manifold3d/protocol/wire/host-actions.js';
 import { acquireViewerCanvasOwnership, type ViewerCanvasOwnership } from '@/scene/viewer-canvas-ownership';
 import { Viewer, type RenderMode, type ViewerTheme } from '@/scene/viewer';
 import { useViewerI18n, useViewerStore, type ViewerStore } from '@/store';
@@ -178,7 +178,10 @@ async function startViewerGeneration(
         return;
       }
       void hostActions
-        .invokeAndWait(LOCATION_SELECTION_ACTION_ID, { annotationIds: [id] })
+        .invokeAndWait(LOCATION_SELECTION_ACTION_ID, {
+          annotationIds: [id],
+          input: { markerNumbers: [selection.displayNumber] },
+        })
         .then(status => {
           if (!mounted || marks.store.get(id) !== selection) {
             return;
@@ -302,27 +305,42 @@ async function startViewerGeneration(
         viewer.fitToModel();
       },
       // The browser exporter is dynamically imported on first use.
-      async exportStl(): Promise<void> {
+      async exportModel(format: ModelExportFormat): Promise<void> {
         const payload = viewerStore.getState().payload;
         if (!payload) {
           return;
         }
-        if (requestHostStlExport(hostActions)) {
+        if (requestHostModelExport(hostActions, format)) {
           return;
         }
         try {
-          const name = stlFilename(payload);
-          const { exportStl } = await import('@/exporters/stl');
+          const exportPayload = { ...payload };
+          const { serializeModel } = await import('@/exporters/model');
+          const exported = await serializeModel(exportPayload, format);
           if (!mounted) {
             return;
           }
-          download(exportStl(payload), name);
-          if (viewerStore.getState().viewerError?.key === 'stlExportFailed') {
+          download(
+            new Blob(
+              [
+                exported.bytes.buffer.slice(
+                  exported.bytes.byteOffset,
+                  exported.bytes.byteOffset + exported.bytes.byteLength,
+                ) as ArrayBuffer,
+              ],
+              { type: exported.mimeType },
+            ),
+            exported.filename,
+          );
+          if (viewerStore.getState().viewerError?.key === 'modelExportFailed') {
             viewerStore.setViewerError(null);
           }
         } catch (error) {
           if (mounted) {
-            viewerStore.setViewerError({ key: 'stlExportFailed', detail: errorMessage(error) });
+            viewerStore.setViewerError({
+              key: 'modelExportFailed',
+              detail: `${format.toUpperCase()}: ${errorMessage(error)}`,
+            });
           }
         }
       },
@@ -375,14 +393,16 @@ async function startViewerGeneration(
   }
 }
 
-function requestHostStlExport(hostActions: HostActionsClient): boolean {
-  if (!hostActions.getSnapshot().actions.some(action => action.id === STL_EXPORT_ACTION_ID)) {
+function requestHostModelExport(hostActions: HostActionsClient, format: ModelExportFormat): boolean {
+  if (!hostActions.getSnapshot().actions.some(action => action.id === MODEL_EXPORT_ACTION_ID)) {
     return false;
   }
-  hostActions.invoke(STL_EXPORT_ACTION_ID, {
-    synchronizeAnnotations: false,
-  });
-  return true;
+  return (
+    hostActions.invoke(MODEL_EXPORT_ACTION_ID, {
+      input: { format },
+      synchronizeAnnotations: false,
+    }) !== undefined
+  );
 }
 
 function download(blob: Blob, name: string): void {

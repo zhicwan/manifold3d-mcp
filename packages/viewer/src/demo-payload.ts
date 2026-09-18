@@ -120,6 +120,8 @@ export function buildDemoPayload(): ViewerModel {
     vertices: vertexCount,
     vertProperties: positions,
     triVerts,
+    mergeFromVert: new Uint32Array(),
+    mergeToVert: new Uint32Array(),
     features,
     triFeatureIds,
     volume: Math.abs(signedVolume),

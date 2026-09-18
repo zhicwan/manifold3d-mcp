@@ -1,6 +1,6 @@
 import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
 
-export const ANNOTATION_ATTACHMENT_VERSION = 2 as const;
+export const ANNOTATION_ATTACHMENT_VERSION = 3 as const;
 export const MAX_ATTACHMENT_ANNOTATIONS = 128;
 const MAX_ATTACHMENT_NOTE_LENGTH = 4_096;
 export const MAX_ATTACHMENT_SKETCH_POINTS = 8_192;
@@ -35,6 +35,7 @@ type AnnotationAttachmentItem = AnnotationBatchAttachmentItem | LocationSelectio
 
 type AnnotationAttachmentItemBase = {
   id: string;
+  displayNumber: number;
   partLabel: string;
 };
 
@@ -72,6 +73,7 @@ interface AnnotationAttachmentBuildBase {
   modelVersion: string;
   annotationRevision: number;
   annotations: readonly WireAnnotation[];
+  markerNumbers: readonly number[];
 }
 
 type AnnotationAttachmentBuildInput =
@@ -90,10 +92,17 @@ export function buildAnnotationAttachment(
   input: Extract<AnnotationAttachmentBuildInput, { mode: 'location-selection' }>,
 ): LocationSelectionAttachmentPayload;
 export function buildAnnotationAttachment(input: AnnotationAttachmentBuildInput): AnnotationAttachmentPayload {
+  if (input.markerNumbers.length !== input.annotations.length) {
+    throw new Error('Annotation marker number count must match the annotation count.');
+  }
   const annotations =
     input.mode === 'annotation-batch'
-      ? input.annotations.map((annotation, index) => sanitizeBatchAnnotation(annotation, index))
-      : input.annotations.map((annotation, index) => sanitizeLocationAnnotation(annotation, index));
+      ? input.annotations.map((annotation, index) =>
+          sanitizeBatchAnnotation(annotation, index, input.markerNumbers[index]),
+        )
+      : input.annotations.map((annotation, index) =>
+          sanitizeLocationAnnotation(annotation, index, input.markerNumbers[index]),
+        );
   return parseAnnotationAttachment({
     version: ANNOTATION_ATTACHMENT_VERSION,
     source: 'manifold3d-viewer',
@@ -180,15 +189,23 @@ export function isAnnotationAttachment(value: unknown): value is AnnotationAttac
   }
 }
 
-function sanitizeBatchAnnotation(annotation: WireAnnotation, index: number): AnnotationBatchAttachmentItem {
+function sanitizeBatchAnnotation(
+  annotation: WireAnnotation,
+  index: number,
+  markerNumber: number | undefined,
+): AnnotationBatchAttachmentItem {
   return {
-    ...sanitizeAnnotationBase(annotation, index),
+    ...sanitizeAnnotationBase(annotation, index, markerNumber),
     note: boundedText(annotation.note, `Annotation ${index} note`, MAX_ATTACHMENT_NOTE_LENGTH, false),
     selection: sanitizeSelection(annotation, index),
   };
 }
 
-function sanitizeLocationAnnotation(annotation: WireAnnotation, index: number): LocationSelectionAttachmentItem {
+function sanitizeLocationAnnotation(
+  annotation: WireAnnotation,
+  index: number,
+  markerNumber: number | undefined,
+): LocationSelectionAttachmentItem {
   const note = boundedText(annotation.note, `Annotation ${index} note`, MAX_ATTACHMENT_NOTE_LENGTH, true);
   if (note.trim().length > 0) {
     throw new Error('Location selection annotation note must be empty.');
@@ -198,7 +215,7 @@ function sanitizeLocationAnnotation(annotation: WireAnnotation, index: number): 
     throw new Error('Location selection annotation must be a point or region.');
   }
   return {
-    ...sanitizeAnnotationBase(annotation, index),
+    ...sanitizeAnnotationBase(annotation, index, markerNumber),
     selection,
   };
 }
@@ -206,9 +223,11 @@ function sanitizeLocationAnnotation(annotation: WireAnnotation, index: number): 
 function sanitizeAnnotationBase(
   annotation: WireAnnotation,
   index: number,
-): Pick<AnnotationAttachmentItemBase, 'id' | 'partLabel'> {
+  markerNumber: number | undefined,
+): Pick<AnnotationAttachmentItemBase, 'id' | 'displayNumber' | 'partLabel'> {
   return {
     id: boundedIdentifier(annotation.id, `Annotation ${index} id`, 64),
+    displayNumber: positiveInteger(markerNumber, `Annotation ${index} markerNumber`),
     partLabel: boundedText(annotation.partLabel, `Annotation ${index} partLabel`, 160, false),
   };
 }
@@ -250,9 +269,10 @@ function parseBatchAnnotation(
 ): AnnotationBatchAttachmentItem {
   const label = `Annotation ${index}`;
   const record = requireRecord(value, label);
-  requireOnlyKeys(record, ['id', 'partLabel', 'note', 'selection'], label);
+  requireOnlyKeys(record, ['id', 'displayNumber', 'partLabel', 'note', 'selection'], label);
   return {
     id: boundedIdentifier(record.id, `${label} id`, 64),
+    displayNumber: positiveInteger(record.displayNumber, `${label} displayNumber`),
     partLabel: boundedText(record.partLabel, `${label} partLabel`, 160, false),
     note: boundedText(record.note, `${label} note`, MAX_ATTACHMENT_NOTE_LENGTH, false),
     selection: parseSelection(record.selection, label, true, pointCounter),
@@ -262,13 +282,14 @@ function parseBatchAnnotation(
 function parseLocationAnnotation(value: unknown, index: number): LocationSelectionAttachmentItem {
   const label = `Annotation ${index}`;
   const record = requireRecord(value, label);
-  requireOnlyKeys(record, ['id', 'partLabel', 'selection'], label);
+  requireOnlyKeys(record, ['id', 'displayNumber', 'partLabel', 'selection'], label);
   const selection = parseSelection(record.selection, label, false, { value: 0 });
   if (selection.kind === 'sketch') {
     throw new Error(`${label} location selection must be a point or region.`);
   }
   return {
     id: boundedIdentifier(record.id, `${label} id`, 64),
+    displayNumber: positiveInteger(record.displayNumber, `${label} displayNumber`),
     partLabel: boundedText(record.partLabel, `${label} partLabel`, 160, false),
     selection,
   };
@@ -438,5 +459,13 @@ function finiteTuple3(value: unknown, label: string): [number, number, number] {
   ) {
     throw new Error(`${label} must contain three finite numbers.`);
   }
+
   return [value[0]!, value[1]!, value[2]!];
+}
+
+function positiveInteger(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${label} must be a positive safe integer.`);
+  }
+  return value;
 }

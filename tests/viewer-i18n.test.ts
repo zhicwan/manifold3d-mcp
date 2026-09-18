@@ -91,7 +91,7 @@ describe('Viewer localization', () => {
     expect(i18n.number(Infinity)).toBe('-');
     i18n.setPreference('zh-CN');
     expect(i18n.t('shortcutLabel', '旋转视图', 'V')).toBe('旋转视图（V）');
-    expect(i18n.t('stlExportFailed', 'EIO: /用户/model.stl')).toBe('STL 导出失败：EIO: /用户/model.stl');
+    expect(i18n.t('modelExportFailed', '3MF: EIO: /用户/model.3mf')).toBe('模型导出失败：3MF: EIO: /用户/model.3mf');
     expect(i18n.number(12345)).toBe(new Intl.NumberFormat('zh-CN').format(12345));
   });
 
@@ -148,8 +148,8 @@ function translationTypeContract() {
   // @ts-expect-error static messages take no interpolation arguments
   i18n.t('export', 1);
   // @ts-expect-error the complete sentence requires a string diagnostic
-  i18n.t('stlExportFailed', 7);
+  i18n.t('modelExportFailed', 7);
   // @ts-expect-error missing interpolation argument
-  i18n.t('stlExportFailed');
+  i18n.t('modelExportFailed');
 }
 void translationTypeContract;

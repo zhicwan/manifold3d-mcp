@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   MessageSquare,
   Play,
+  Copy,
   Sparkles,
   WandSparkles,
   X,
@@ -144,6 +145,8 @@ export function HostActionStatusRegion() {
   const protocolError = useViewerState(state => state.protocolError);
   const viewerError = useViewerState(state => state.viewerError);
   const [dismissed, setDismissed] = useState<object | null>(null);
+  const [copiedStatus, setCopiedStatus] = useState<object | null>(null);
+  const [copyFailedStatus, setCopyFailedStatus] = useState<object | null>(null);
   const status = snapshot.latestStatus;
   const error = protocolError
     ? i18n.t('actionProtocolError', protocolError)
@@ -157,6 +160,8 @@ export function HostActionStatusRegion() {
   const label = action ? hostActionLabel(action, i18n) : i18n.t('actionFallback');
   const message = status ? hostActionStatusMessage(status, i18n) : '';
   const failed = Boolean(error) || status?.state === 'failed';
+  const savedExport =
+    status?.state === 'succeeded' && status.resultDetails?.kind === 'model-saved' ? status.resultDetails : null;
   return (
     <div
       data-viewer-obstacle
@@ -164,18 +169,67 @@ export function HostActionStatusRegion() {
       aria-live={failed ? 'assertive' : 'polite'}
       className={cn(
         glass,
-        'viewer-action-status flex items-start gap-2 px-3 py-2 text-xs',
+        'viewer-action-status flex items-center gap-2 px-3 py-2 text-xs',
         failed && 'text-destructive',
       )}
     >
       <div className="min-w-0 flex-1 select-text break-words leading-relaxed">
         {error && <p>{error}</p>}
-        {status && dismissed !== status && (
-          <p>
-            <span className="font-medium">{label}:</span> {message}
+        {savedExport ? (
+          <p className="min-w-0">
+            <span>{i18n.t('actionModelSavedTo', savedExport.format)} </span>
+            <a
+              className="break-all underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground"
+              href={localFileUrl(savedExport.path)}
+              rel="noreferrer"
+              target="_blank"
+              title={savedExport.path}
+            >
+              {savedExport.path}
+            </a>
           </p>
+        ) : (
+          status &&
+          dismissed !== status && (
+            <p>
+              <span className="font-medium">{label}:</span> {message}
+            </p>
+          )
         )}
+        {savedExport && copyFailedStatus === status && <p>{i18n.t('actionCopyPathFailed')}</p>}
       </div>
+      {savedExport && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 rounded-lg"
+                aria-label={i18n.t(copiedStatus === status ? 'actionPathCopied' : 'actionCopyPath')}
+                onClick={() => {
+                  void navigator.clipboard.writeText(savedExport.path).then(
+                    () => {
+                      setCopiedStatus(status);
+                      setCopyFailedStatus(null);
+                    },
+                    () => setCopyFailedStatus(status),
+                  );
+                }}
+              />
+            }
+          >
+            {copiedStatus === status ? (
+              <Check className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Copy className="size-3.5" aria-hidden="true" />
+            )}
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {i18n.t(copiedStatus === status ? 'actionPathCopied' : 'actionCopyPath')}
+          </TooltipContent>
+        </Tooltip>
+      )}
       {!error && status?.state === 'succeeded' && (
         <Button
           variant="ghost"
@@ -189,6 +243,18 @@ export function HostActionStatusRegion() {
       )}
     </div>
   );
+}
+
+function localFileUrl(path: string): string {
+  const normalized = path.replaceAll('\\', '/');
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    const [drive, ...segments] = normalized.split('/');
+    return `file:///${drive}/${segments.map(encodeURIComponent).join('/')}`;
+  }
+  return `file://${normalized
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/')}`;
 }
 
 export function useHostActionsSnapshot(): HostActionsSnapshot {

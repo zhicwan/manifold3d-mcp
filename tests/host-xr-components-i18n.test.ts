@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ViewerStore } from '../packages/viewer/src/store.js';
 import type { XrExperienceState } from '../packages/viewer/src/xr/state.js';
 import type * as XrExperienceModule from '../packages/viewer/src/xr/experience.js';
@@ -44,7 +44,7 @@ vi.mock('../packages/viewer/src/xr/experience.js', async importOriginal => ({
 import { createViewerStore } from '../packages/viewer/src/store.js';
 import { createXrExperienceState } from '../packages/viewer/src/xr/state.js';
 import { HostActionsClient } from '../packages/viewer/src/host-actions/client.js';
-import { createHostActionsManifest } from '../packages/protocol/src/wire/host-actions.js';
+import { HOST_ACTION_PROTOCOL_VERSION, createHostActionsManifest } from '../packages/protocol/src/wire/host-actions.js';
 
 // As in the ownership tests, Vitest transforms TSX while this project's test
 // typecheck covers the explicit callback surface without React path aliases.
@@ -61,6 +61,10 @@ beforeEach(() => {
   harness.store = createViewerStore();
   harness.store.i18n.setPreference('en');
   harness.xr = createXrExperienceState();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('localized host and optional XR component presentation', () => {
@@ -102,7 +106,7 @@ describe('localized host and optional XR component presentation', () => {
     harness.store!.setHostActionsClient(client);
     client.receiveStatus({
       kind: 'host_action_status',
-      protocolVersion: 1,
+      protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
       requestId: 'r1',
       actionId: 'fix-annotation-batch',
       state: 'succeeded',
@@ -115,6 +119,51 @@ describe('localized host and optional XR component presentation', () => {
     expect(text(HostActionStatusRegion())).toContain('Copilot 已接受批注修复请求并将其加入队列。');
     expect(text(ToolbarHostActions())).toContain('修复');
     expect(client.getSnapshot().latestStatus).toBe(status);
+  });
+
+  it('shows concise model export feedback and copies the saved path', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const client = new HostActionsClient({
+      send: () => undefined,
+      isOpen: () => true,
+      flushAnnotations: () => true,
+      getInvocationContext: () => ({ modelVersion: 'v1', annotationRevision: 0 }),
+    });
+    client.receiveManifest(
+      createHostActionsManifest([
+        {
+          id: 'export-model-file',
+          label: 'Export model',
+          slot: 'export-handler',
+          icon: 'download',
+          tone: 'default',
+          requires: ['model'],
+        },
+      ]),
+    );
+    harness.store!.setHostActionsClient(client);
+    client.receiveStatus({
+      kind: 'host_action_status',
+      protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
+      requestId: 'export-1',
+      actionId: 'export-model-file',
+      state: 'succeeded',
+      resultDetails: { kind: 'model-saved', format: '3mf', path: '/exports/model.3mf' },
+    });
+
+    const region = HostActionStatusRegion();
+    expect(text(region)).toContain('3MF saved to');
+    expect(text(region)).toContain('/exports/model.3mf');
+    expect(text(region)).toContain('Copy path');
+    const copyButton = findElement(
+      region,
+      element => element.type === 'button' && element.props['aria-label'] === 'Copy path',
+    );
+    expect(copyButton).not.toBeNull();
+    copyButton?.props.onClick?.();
+    await Promise.resolve();
+    expect(writeText).toHaveBeenCalledWith('/exports/model.3mf');
   });
 
   it('rerenders XR controls and retained errors without changing session ownership', async () => {
@@ -156,4 +205,45 @@ function text(node: React.ReactNode): string {
     return text(node.props.children);
   }
   return '';
+}
+
+function findElement(
+  node: React.ReactNode,
+  predicate: (
+    element: React.ReactElement<{
+      'aria-label'?: string;
+      children?: React.ReactNode;
+      onClick?: () => void;
+      render?: React.ReactNode;
+    }>,
+  ) => boolean,
+): React.ReactElement<{
+  'aria-label'?: string;
+  children?: React.ReactNode;
+  onClick?: () => void;
+  render?: React.ReactNode;
+}> | null {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElement(child, predicate);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+  if (
+    !React.isValidElement<{
+      'aria-label'?: string;
+      children?: React.ReactNode;
+      onClick?: () => void;
+      render?: React.ReactNode;
+    }>(node)
+  ) {
+    return null;
+  }
+  if (predicate(node)) {
+    return node;
+  }
+  return findElement(node.props.render, predicate) ?? findElement(node.props.children, predicate);
 }

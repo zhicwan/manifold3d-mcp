@@ -6,7 +6,7 @@
 ![Node.js >= 24](https://img.shields.io/badge/Node.js-%E2%89%A5%2024-green)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zhicwan/manifold3d-mcp)
 
-**Describe a part. Refine it in 3D. Export STL for your slicer.**
+**Describe a part. Refine it in 3D. Export 3MF for printing or GLB for sharing.**
 
 Manifold 3D brings AI 3D modeling to GitHub Copilot and Claude Code. Your assistant
 writes parametric TypeScript, validates the geometry, and opens an interactive
@@ -24,7 +24,7 @@ _Phone stand in Copilot Canvas, with the cable slot widened to 22 mm.
 
 Ask for a phone stand with a cable slot. In Copilot's native Canvas, select the
 slot and ask to make it wider without changing the stand's footprint. Review
-the updated model, then choose **Export → Export STL**.
+the updated model, then choose **Export → 3MF for printing**.
 
 The MCP plugin offers the same modeling engine in a browser Viewer, with
 annotations for feedback. [See the full workflow](docs/usage.md).
@@ -87,7 +87,7 @@ keep the source so trial measurements can guide later parameter changes.
 - [Browse the samples](samples/README.md): a cube, revolved vase, gyroid,
   keycap set, magnetic photo frame, and more.
 - [Read the usage guide](docs/usage.md): installation, local scripts,
-  annotations, Viewer shortcuts, and STL export.
+  annotations, Viewer shortcuts, and model export.
 
 **Is this the Manifold library?**
 
@@ -101,7 +101,9 @@ geometry and point out changes. It is not a sketch-and-constraint CAD editor.
 
 **What can I export, and is it ready to print?**
 
-The Viewer exports **STL**, not STEP or 3MF. Validation checks the script and
+The Viewer exports **3MF** for slicers and **GLB** for viewers and model
+interchange. The 3MF is a unit-aware model, not a Bambu Studio project with
+plates, filament profiles, or toolpaths. Validation checks the script and
 geometry, not manufacturing or use safety. Check dimensions, clearances, wall
 thickness, materials, and slicer settings before printing.
 

@@ -32,6 +32,6 @@ See [Architecture](../../docs/architecture.md) and
 [the change guide](../../docs/change-guide.md).
 Relevant cases include [component ownership](../../tests/viewer-component-ownership.test.ts),
 [canvas ownership](../../tests/viewer-canvas-ownership.test.ts),
-[STL export](../../tests/stl-export.test.ts) and
+[model export](../../tests/model-export.test.ts) and
 [XR composition](../../tests/viewer-xr-composition.test.ts).
 When the composition boundary changes, retain the existing flat-build proof.

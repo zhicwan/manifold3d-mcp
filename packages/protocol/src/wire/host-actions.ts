@@ -1,4 +1,4 @@
-export const HOST_ACTION_PROTOCOL_VERSION = 1 as const;
+export const HOST_ACTION_PROTOCOL_VERSION = 2 as const;
 
 export const MAX_HOST_ACTIONS = 32;
 const MAX_HOST_ACTION_ID_LENGTH = 64;
@@ -15,10 +15,11 @@ export type HostActionSlot =
 export type HostActionTone = 'default' | 'primary' | 'danger';
 export type HostActionRequirement = 'model' | 'annotations';
 export type HostActionState = 'accepted' | 'running' | 'succeeded' | 'failed';
+export type ModelExportFormat = '3mf' | 'glb';
 
 /** Canonical result data used by the Viewer to present localized completion feedback. */
 export type HostActionResultDetails =
-  { kind: 'annotations-attached'; count: number } | { kind: 'stl-saved'; path: string };
+  { kind: 'annotations-attached'; count: number } | { kind: 'model-saved'; format: ModelExportFormat; path: string };
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -301,14 +302,23 @@ function parseResultDetails(value: unknown): HostActionResultDetails {
     }
     return { kind: record.kind, count: record.count };
   }
-  if (record.kind === 'stl-saved') {
-    requireOnlyKeys(record, ['kind', 'path'], label);
+  if (record.kind === 'model-saved') {
+    requireOnlyKeys(record, ['kind', 'format', 'path'], label);
     return {
       kind: record.kind,
+      format: parseModelExportFormat(record.format, `${label} format`),
       path: parseBoundedText(record.path, `${label} path`, MAX_HOST_ACTION_MESSAGE_LENGTH, false),
     };
   }
+
   throw new HostActionProtocolError(`${label} kind is not supported.`);
+}
+
+export function parseModelExportFormat(value: unknown, label = 'Model export format'): ModelExportFormat {
+  if (value !== '3mf' && value !== 'glb') {
+    throw new HostActionProtocolError(`${label} must be "3mf" or "glb".`);
+  }
+  return value;
 }
 
 export function isHostActionStatus(value: unknown): value is HostActionStatusMessage {

@@ -34,6 +34,17 @@ async function fixture(run) {
 }
 
 describe('plugin assembly helpers', () => {
+  it('ships browser-only license overrides in both standalone bundles', async () => {
+    for (const path of [
+      'plugins/manifold/bin/manifold.mjs',
+      'plugins/manifold-extension/extensions/manifold/extension.mjs',
+    ]) {
+      const bundle = await readFile(path, 'utf8');
+      expect(bundle).toContain('Copyright (c) 2021 Davor Hrg');
+      expect(bundle).toContain('Copyright (c) 2026 Nodable');
+    }
+  });
+
   it('extracts tool names from markdown and TypeScript sources', async () => {
     const sync = await import('../scripts/check-sync.mjs');
     const markdown = `

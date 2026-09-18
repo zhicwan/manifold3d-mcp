@@ -106,10 +106,11 @@ support — describe what you actually want and let the user decide.
 
 ## Units
 
-The sandbox interprets all coordinates as **millimetres**. Manifold has no
-intrinsic unit system and STL does not encode a reliable unit declaration:
-the export preserves the numeric coordinates, so confirm millimetres and actual
-size when importing into a slicer. Reports surface the convention as a hint.
+The sandbox interprets all coordinates as **millimetres**. `Export 3MF`
+records that unit explicitly, while `Export GLB` converts the same physical
+dimensions to glTF metres. Manifold itself has no unit system, so the modeling
+unit is a convention surfaced as a report hint. Confirm the intended physical
+size when importing into a slicer or another viewer.
 
 ## Limits
 

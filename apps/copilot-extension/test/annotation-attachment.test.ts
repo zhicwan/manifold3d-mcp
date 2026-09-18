@@ -35,6 +35,7 @@ describe('AnnotationAttachment', () => {
           ],
         }),
       ],
+      markerNumbers: [1, 2, 3],
     });
 
     expect(attachment).toEqual({
@@ -47,18 +48,21 @@ describe('AnnotationAttachment', () => {
       annotations: [
         {
           id: 'point',
+          displayNumber: 1,
           partLabel: 'part#1',
           note: 'note',
           selection: { kind: 'point', worldCoord: [1, 2, 3] },
         },
         {
           id: 'region',
+          displayNumber: 2,
           partLabel: 'part#1',
           note: 'note',
           selection: { kind: 'region', worldCoord: [1, 2, 3], triangleCount: 12 },
         },
         {
           id: 'sketch',
+          displayNumber: 3,
           partLabel: 'part#1',
           note: 'round this edge',
           selection: {
@@ -87,9 +91,10 @@ describe('AnnotationAttachment', () => {
       modelVersion: 'model-v2',
       annotationRevision: 3,
       annotations: [annotation({ note: '' })],
+      markerNumbers: [1],
     });
     expect(point).toEqual({
-      version: 2,
+      version: ANNOTATION_ATTACHMENT_VERSION,
       source: 'manifold3d-viewer',
       mode: 'location-selection',
       modelVersion: 'model-v2',
@@ -97,6 +102,7 @@ describe('AnnotationAttachment', () => {
       annotations: [
         {
           id: 'point',
+          displayNumber: 1,
           partLabel: 'part#1',
           selection: { kind: 'point', worldCoord: [1, 2, 3] },
         },
@@ -112,6 +118,7 @@ describe('AnnotationAttachment', () => {
         modelVersion: 'model-v2',
         annotationRevision: 3,
         annotations: [annotation({ id: 'region', kind: 'region', triCount: 4, note: '' })],
+        markerNumbers: [1],
       }).annotations[0],
     ).toMatchObject({ selection: { kind: 'region', triangleCount: 4 } });
   });
@@ -123,9 +130,10 @@ describe('AnnotationAttachment', () => {
       modelVersion: 'model-v1',
       annotationRevision: 1,
       annotations: [annotation()],
+      markerNumbers: [1],
     });
     expect(isAnnotationAttachment(validBatch)).toBe(true);
-    expect(isAnnotationAttachment({ ...validBatch, version: 1 })).toBe(false);
+    expect(isAnnotationAttachment({ ...validBatch, version: 2 })).toBe(false);
     expect(isAnnotationAttachment({ ...validBatch, extra: true })).toBe(false);
     expect(isAnnotationAttachment({ ...validBatch, batchId: 'not safe!' })).toBe(false);
     expect(() =>
@@ -135,6 +143,7 @@ describe('AnnotationAttachment', () => {
         modelVersion: 'model-v1',
         annotationRevision: 1,
         annotations: [annotation({ note: '   ' })],
+        markerNumbers: [1],
       }),
     ).toThrow(/bounded plain text/);
 
@@ -144,6 +153,7 @@ describe('AnnotationAttachment', () => {
         modelVersion: 'model-v1',
         annotationRevision: 1,
         annotations: [annotation({ note: 'comment' })],
+        markerNumbers: [1],
       }),
     ).toThrow(/note must be empty/);
     expect(() =>
@@ -152,6 +162,7 @@ describe('AnnotationAttachment', () => {
         modelVersion: 'model-v1',
         annotationRevision: 1,
         annotations: [annotation({ note: '' }), annotation({ id: 'second', note: '' })],
+        markerNumbers: [1, 2],
       }),
     ).toThrow(/exactly one/);
     expect(() =>
@@ -173,6 +184,7 @@ describe('AnnotationAttachment', () => {
             ],
           }),
         ],
+        markerNumbers: [1],
       }),
     ).toThrow(/point or region/);
   });
@@ -187,6 +199,7 @@ describe('AnnotationAttachment', () => {
         annotations: Array.from({ length: MAX_ATTACHMENT_ANNOTATIONS + 1 }, (_, index) =>
           annotation({ id: `point-${index}` }),
         ),
+        markerNumbers: Array.from({ length: MAX_ATTACHMENT_ANNOTATIONS + 1 }, (_, index) => index + 1),
       }),
     ).toThrow(/between/);
 
@@ -200,6 +213,7 @@ describe('AnnotationAttachment', () => {
           sketchAnnotation('sketch-a', Math.floor(MAX_ATTACHMENT_SKETCH_POINTS / 2) + 1),
           sketchAnnotation('sketch-b', Math.floor(MAX_ATTACHMENT_SKETCH_POINTS / 2) + 1),
         ],
+        markerNumbers: [1, 2],
       }),
     ).toThrow(/sketches exceed/);
 
@@ -211,6 +225,7 @@ describe('AnnotationAttachment', () => {
           modelVersion: 'model-v1',
           annotationRevision: 1,
           annotations: [annotation()],
+          markerNumbers: [1],
         }),
         annotations: [
           {

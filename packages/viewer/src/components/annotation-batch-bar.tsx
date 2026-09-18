@@ -80,6 +80,10 @@ export function AnnotationBatchBar() {
     if (committedDraft.annotationIds.length === 0) {
       return;
     }
+    const markerNumbers = committedDraft.annotationIds.map(id => marks.store.get(id)?.displayNumber);
+    if (markerNumbers.some(number => number === undefined)) {
+      return;
+    }
     if (!marks.store.sealBatch(committedDraft.batchId)) {
       return;
     }
@@ -90,7 +94,10 @@ export function AnnotationBatchBar() {
     const operation = client
       .invokeAndWait(actionId, {
         annotationIds: committedDraft.annotationIds,
-        input: { batchId: committedDraft.batchId },
+        input: {
+          batchId: committedDraft.batchId,
+          markerNumbers: markerNumbers as number[],
+        },
       })
       .then(status => {
         if (!isCurrent()) {

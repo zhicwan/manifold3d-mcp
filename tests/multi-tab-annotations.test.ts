@@ -115,6 +115,8 @@ function syntheticModel(): ViewerModelFrame {
     ],
     vertProperties: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer,
     triVerts: new Uint32Array([0, 1, 2]).buffer,
+    mergeFromVert: new Uint32Array().buffer,
+    mergeToVert: new Uint32Array().buffer,
     triFeatureIds: new Uint32Array([0]).buffer,
     volume: 0,
     surfaceArea: 1,

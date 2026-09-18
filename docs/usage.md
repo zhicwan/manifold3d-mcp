@@ -3,7 +3,7 @@
 [English](usage.md) | [简体中文](usage.zh-CN.md) · [Back to README](../README.md)
 
 Describe your model to an assistant, validate the generated TypeScript, inspect
-the result, and export STL. The two plugins share a modeling engine but use
+the result, and export 3MF or GLB. The two plugins share a modeling engine but use
 different preview and feedback workflows.
 
 ## Installation
@@ -252,14 +252,20 @@ button or **Enter** saves; the cross or **Escape** cancels the current edit.
 
 ## Export and printing
 
-Choose **Export → Export STL** in the Viewer. Open the STL in your slicer,
+Choose **Export → 3MF for printing** in the Viewer. Open the 3MF in your slicer,
 check its dimensions in millimeters, and review orientation, supports, wall
 thickness, clearances, and material choice. For multipart designs, inspect and
 arrange the separate parts before printing.
 
-**STL is the supported model export format.** STEP and 3MF are not supported.
-Keep the TypeScript source if you want to change parameters later; STL is the
-mesh output, not a parametric project file or a reliable unit declaration.
+Choose **Export → GLB for viewing and exchange** when another 3D viewer or tool
+needs the model. GLB uses the glTF coordinate and metre conventions while
+preserving the model's physical size.
+
+The exported 3MF is a generic core model with explicit millimetre units. It is
+not a Bambu Studio project and does not contain plates, printer or filament
+profiles, slice settings, thumbnails, or toolpaths. Keep the TypeScript source
+if you want to change parameters later; 3MF and GLB are mesh outputs, not
+parametric project files.
 
 The handoff should distinguish a concept, geometry that has been checked but still
 needs slicing/trial, and actual trial evidence. It should identify key dimensions

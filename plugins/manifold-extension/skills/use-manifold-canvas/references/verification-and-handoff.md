@@ -76,14 +76,16 @@ Keep the handoff proportional to the part:
   path only if the file was actually created; otherwise supply the source and
   the available export steps.
 - State units, critical dimensions and the meaning of any fit allowance.
-  STL carries the faceted mesh, not the parametric design or a reliable unit
-  declaration; confirm millimeter interpretation and size in the slicer.
+  Export 3MF for slicing with explicit millimeter units, or GLB for viewing and
+  exchange using glTF's meter convention. Confirm physical size after import.
+  Both are mesh outputs, not the parametric design; the exported 3MF is not a
+  slicer project with printer profiles, plates or toolpaths.
 - Identify intended build orientation relative to model axes, material assumptions,
   relevant supports/cleanup and any compensation already applied.
 - State what was checked, what is unresolved, and the smallest useful next check.
   Triangle count is useful for complexity problems, not the main success summary.
 
-Do not promise STEP/3MF, slicing, G-code, automatic support generation or strength
+Do not promise STEP/STL export, slicing, G-code, automatic support generation or strength
 analysis through these tools. State manufacturing or use-safety limits when relevant,
 not only as a generic disclaimer after claiming success.
 

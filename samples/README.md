@@ -80,8 +80,9 @@ After authorization, an MCP tool call looks like:
 ```
 
 Execute only after validation succeeds, inspect the preview and a rendered
-capture, then use **Export → Export STL**. Review dimensions, printing setup,
-and intended-use safety yourself; geometry validation is not a safety certification.
+capture, then use **Export → 3MF for printing** or **GLB for viewing and
+exchange**. Review dimensions, printing setup, and intended-use safety
+yourself; geometry validation is not a safety certification.
 
 ## Adding a new sample
 

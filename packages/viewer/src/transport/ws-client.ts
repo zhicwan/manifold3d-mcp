@@ -2,11 +2,13 @@ import {
   assertModelBinaryFrame,
   createResumeTokenAckMessage,
   decodeViewerModel,
+  modelBinaryFrameKinds,
   parseHelloMessage,
   parseModelHeader,
   parseModelVersionMessage,
   ViewerProtocolError,
   type HelloMessage,
+  type ModelBinaryFrameKind,
   type ModelHeader,
   type ViewerModel,
 } from '@manifold3d/protocol/wire/model.js';
@@ -89,13 +91,13 @@ export function createModelFrameReceiver(
   >,
 ): ModelFrameReceiver {
   let pendingHeader: ModelHeader | null = null;
-  let pendingVerts: ArrayBuffer | null = null;
-  let pendingTris: ArrayBuffer | null = null;
+  let pendingFrames: Partial<Record<ModelBinaryFrameKind, ArrayBuffer>> = {};
+  let nextFrameIndex = 0;
 
   const reset = (): void => {
     pendingHeader = null;
-    pendingVerts = null;
-    pendingTris = null;
+    pendingFrames = {};
+    nextFrameIndex = 0;
   };
 
   const report = (error: unknown): void => {
@@ -110,16 +112,18 @@ export function createModelFrameReceiver(
     }
   };
 
-  const emit = (triFeatureIds?: ArrayBuffer): void => {
-    if (!pendingHeader || !pendingVerts || !pendingTris) {
+  const emit = (): void => {
+    if (!pendingHeader || !pendingFrames.vertProperties || !pendingFrames.triVerts) {
       return;
     }
     try {
       callbacks.onMesh(
         decodeViewerModel(pendingHeader, {
-          vertProperties: pendingVerts,
-          triVerts: pendingTris,
-          ...(triFeatureIds !== undefined ? { triFeatureIds } : {}),
+          vertProperties: pendingFrames.vertProperties,
+          triVerts: pendingFrames.triVerts,
+          ...(pendingFrames.mergeFromVert ? { mergeFromVert: pendingFrames.mergeFromVert } : {}),
+          ...(pendingFrames.mergeToVert ? { mergeToVert: pendingFrames.mergeToVert } : {}),
+          ...(pendingFrames.triFeatureIds ? { triFeatureIds: pendingFrames.triFeatureIds } : {}),
         }),
       );
     } catch (error) {
@@ -196,21 +200,17 @@ export function createModelFrameReceiver(
       }
 
       try {
-        if (!pendingVerts) {
-          assertModelBinaryFrame(pendingHeader, 'vertProperties', buffer);
-          pendingVerts = buffer;
-          return;
+        const expectedKinds = modelBinaryFrameKinds(pendingHeader);
+        const kind = expectedKinds[nextFrameIndex];
+        if (!kind) {
+          throw new ViewerProtocolError('Preview server sent too many binary model frames.');
         }
-        if (!pendingTris) {
-          assertModelBinaryFrame(pendingHeader, 'triVerts', buffer);
-          pendingTris = buffer;
-          if (!pendingHeader.hasTriFeatureIds) {
-            emit();
-          }
-          return;
+        assertModelBinaryFrame(pendingHeader, kind, buffer);
+        pendingFrames[kind] = buffer;
+        nextFrameIndex += 1;
+        if (nextFrameIndex === expectedKinds.length) {
+          emit();
         }
-        assertModelBinaryFrame(pendingHeader, 'triFeatureIds', buffer);
-        emit(buffer);
       } catch (error) {
         report(error);
         reset();
