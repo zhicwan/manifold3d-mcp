@@ -1,6 +1,6 @@
 ---
 name: use-manifold
-description: Build 3D-printable models with the manifold-3d MCP server. Use when the user wants to design, modify, or export 3MF/GLB geometry — anything from a parametric phone stand to a parametric gear. Always validate scripts before showing output.
+description: Guide 3D-printing ideas through design, parametric modeling, inspection and trial feedback with the manifold-3d MCP server. Use to design, modify or export 3MF/GLB geometry. Validate scripts before showing output; geometry validation is not manufacturing certification.
 ---
 
 # use-manifold — Skill Guide
@@ -16,7 +16,7 @@ for 3D printing or GLB for viewing and interchange.
 ## Tools
 
 - **`validate_script`** — fast pre-flight (~1–2 s). Use this **first** for
-  every non-trivial script. It runs the same pipeline as `execute_script` but
+  every new or changed model. It runs the same pipeline as `execute_script` but
   does not refresh the user's preview.
 - **`execute_script`** — full run; on success the mesh is pushed to the preview
   page and the YAML report includes a `previewUrl`.
@@ -30,7 +30,7 @@ for 3D printing or GLB for viewing and interchange.
   Optional params: `view` (default `iso`), `width`/`height` (128–2048, default
   1024), `includeAnnotations` (overlay user marks on the capture).
 
-Both tools take exactly one script source: `code` (an inline TypeScript snippet)
+The script tools take exactly one source: `code` (an inline TypeScript snippet)
 or `filePath` (an absolute path to a local `.ts`/`.js` snippet file read by the
 MCP server). Relative paths are not supported. Prefer inline `code` for
 installed plugins; `filePath` is only available for absolute paths inside the
@@ -39,25 +39,40 @@ optional `description` shown as the preview title.
 
 ## The recommended loop
 
-1. **Plan** a model in plain English with the user.
-2. **Write** a TypeScript snippet. See the shared references under
-   [`references/`](references/).
-3. **`validate_script`** — read the YAML report. If `ok: false`, fix the
-   issues (see [`references/validation-report.md`](references/validation-report.md))
-   and validate again. Iterate quickly here — no preview thrash for the user.
-4. **`execute_script`** with a meaningful `description`. The user sees the
-   model in their browser.
-5. **`capture_view`** — visually verify your result after `execute_script`.
-   Call `capture_view` from one or more useful angles, then explicitly compare
-   what you see against the user's intent before declaring success. In the
-   final response, include at least one concrete visual check, e.g. "top view
-   shows the through-hole is open" or "iso view shows the sphere is smooth and
-   round with no flat facets visible." Stats alone are not enough.
-6. **Iterate** based on what the user sees and asks for. Each tweak is another
-   `validate_script` → `execute_script` → `capture_view` cycle.
+1. **Scope** using [the design workflow](references/design-workflow.md).
+   Model clear, simple requests directly. For uncertain interfaces or functional
+   parts, resolve one consequential decision at a time and keep a small brief.
+   Do not turn every request into a questionnaire.
+2. **Choose structure and process.** Read only the applicable printing reference
+   below. Identify key dimensions, fit behavior, orientation and relevant cleanup
+   constraints before detailing. Unknown process or dimensions remain explicit
+   assumptions, not fabrication promises.
+3. **Write** a parameterized TypeScript snippet using the sandbox references.
+   For revisions, retrieve relevant annotations before replacing the model and
+   preserve constraints outside the requested change.
+4. **`validate_script`** — fix errors and review warnings, actual dimensions and
+   functional features using [verification and handoff](references/verification-and-handoff.md).
+   `ok: true` is necessary, not sufficient. Candidate comparisons and diagnostics
+   can stop here without replacing the current preview.
+5. **Show a review version:** call **`execute_script`** with a meaningful
+   `description`, then **`capture_view`**. Inspect the PNG from useful angles and
+   compare it to the brief. Include a concrete visual observation; captures do
+   not prove hidden geometry or fit.
+6. **Handoff and iterate.** State what was checked, what still needs slicing or
+   a physical trial, and how to recover the source. Use trial measurements to
+   revise the relevant parameters. Revalidate changed geometry; reserve
+   execute → capture for the next version being shown, not every internal candidate.
 
 ## Reference index
 
+- [Design workflow](references/design-workflow.md) — risk-based questions,
+  interfaces, structure, appearance and parameter intent. Read before modeling.
+- [Verification and handoff](references/verification-and-handoff.md) — evidence,
+  delivery state and trial feedback. Read before claiming a result is checked.
+- Process-specific, read only when relevant:
+  [FDM/FFF](references/printing-fdm.md),
+  [SLA/MSLA](references/printing-resin.md),
+  [polymer SLS](references/printing-sls.md).
 - [`references/getting-started.md`](references/getting-started.md) —
   what `Manifold` / `CrossSection` / `Mesh` are and how they are pre-bound in
   the sandbox.
@@ -78,32 +93,20 @@ optional `description` shown as the preview title.
   runnable TypeScript snippets you can adapt as a starting point.
 - [`references/annotations.md`](references/annotations.md) — how to read user
   annotations ("marks") with the `get_annotations` MCP tool.
+- [`prompts/iterate-with-validate.md`](prompts/iterate-with-validate.md) —
+  the host-specific execution and revision loop.
 - Sandbox declarations are generated separately at build time into
   `references/manifold-sandbox.d.ts` and mirrored into the assembled
   plugin from this shared reference tree.
 
 ## House rules for the LLM (you)
 
-- **`ok: true` is necessary, not sufficient.** After every `validate_script`,
-  cross-check the YAML `stats` against your intent before claiming success or
-  calling `execute_script`:
-  - `bbox.size` — compare the rendered bounding box against the user's
-    requested controlling dimensions, not only against constants you chose in
-    code. For fit requests phrased as "for a <object> W mm wide/thick" (phone
-    stands, cases, holders, cradles), treat the named object width/thickness as
-    the controlling fit envelope: the contact slot/opening/support span should
-    be within +0–10% of it including clearance, and no unrelated base/lip/
-    shoulder may become the model's dominant bbox dimension along that same axis
-    unless the user explicitly asks for extra stability or margins. If an
-    outside bbox dimension exceeds a named fit dimension by more than 10%,
-    revise the geometry so the excess is in a non-controlling axis, or ask
-    before proceeding; do not rely on a final-response explanation alone.
-  - `genus` — `0` for a single closed solid, `1` per through-hole, `-1` if
-    your union produced two disjoint components (typically because two parts
-    share only a face — see "Clean booleans" in
-    [`references/script-conventions.md`](references/script-conventions.md)).
-  - `volume` — sanity-check against a back-of-envelope estimate; off by 10× is
-    usually a unit mistake.
+- **Keep geometry, fit and manufacturing evidence distinct.** Check actual
+  interfaces separately from the outer bbox. No universal percentage defines
+  fit clearance. `genus` alone does not establish part count or correct openings.
+- **Do not invent manufacturing checks.** The print-related hint is not a local
+  wall-thickness measurement. These tools do not slice, generate supports or
+  certify strength; CNC is outside this workflow.
 - **`capture_view` is a verification step, not a bonus.** After `execute_script`,
   call `capture_view` from at least one relevant angle (e.g. `front` for a flat
   face, `iso` for overall shape) and inspect the PNG.

@@ -14,7 +14,7 @@ wasm.setup();
 const { Manifold, CrossSection } = wasm;
 ```
 
-Inside the manifold3d-mcp sandbox, snippets are **TypeScript-only** and `Manifold`,
+Inside either plugin's sandbox, snippets are **TypeScript-only** and `Manifold`,
 `CrossSection`, `Mesh`, `console`, and `result` are **already pre-bound as
 ambient globals**. Do **not** write `import` or `export` statements — module
 syntax is blocked by the static lint and will fail with `FORBIDDEN_GLOBAL`.
@@ -49,14 +49,26 @@ typecheck stage compiles this TypeScript before runtime, so API
 shape mistakes (for example object-style constructor arguments) are reported
 without running the snippet.
 
-## What you get back
+## Design before code
 
-- `validate_script` returns a YAML report only (the user does **not** see a
-  preview update).
-- `execute_script` returns the same YAML report **plus** a `previewUrl`. The
-  user's browser receives the mesh over WebSocket and renders it.
-- Both tools accept exactly one script source: inline `code` or a local
-  `filePath` read by the MCP server. `filePath` must be an absolute path;
-  relative paths are not supported.
+Use [the design workflow](design-workflow.md) to decide what needs clarification.
+A clear simple model does not need an interview; unresolved functional dimensions
+or printing constraints should not be silently invented.
+
+## Host tools and results
+
+| Host   | Validate without changing preview | Execute and publish                                             | Script source                                                  |
+| ------ | --------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------- |
+| MCP    | `validate_script`                 | `execute_script`, with a `previewUrl` on success                | Exactly one of inline `code` or authorized absolute `filePath` |
+| Canvas | `manifold_validate_script`        | `manifold_execute_script`, publishing to open Manifold Canvases | Inline `code` only                                             |
+
+Both use the shared YAML validation report. Read the selected skill entry for
+capture, opening the preview and feedback tools; those contracts are host-specific.
+For installed MCP plugins, prefer inline code. A file must already be inside an
+authorized script root; neither relative paths nor guessing parent roots is valid.
+For Canvas, read any workspace file with the host's file tools and pass its content
+as `code`.
 
 See [`validation-report.md`](validation-report.md) for the report schema.
+Geometry success is not manufacturing approval; use
+[verification and handoff](verification-and-handoff.md).

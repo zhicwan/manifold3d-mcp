@@ -17,6 +17,11 @@ async function fixture(run) {
       'skills/use-manifold/SKILL.md': 'name: use-manifold\n',
       'skills/use-manifold-canvas/SKILL.md': 'name: use-manifold-canvas\n',
       'skills/shared/references/api.md': 'shared reference\n',
+      'skills/shared/references/design-workflow.md': '[FDM](printing-fdm.md)\n',
+      'skills/shared/references/printing-fdm.md': 'filament design guidance\n',
+      'skills/shared/references/printing-resin.md': 'resin design guidance\n',
+      'skills/shared/references/printing-sls.md': 'SLS design guidance\n',
+      'skills/shared/references/verification-and-handoff.md': 'evidence and trial feedback\n',
     };
     for (const [path, contents] of Object.entries(files)) {
       await mkdir(dirname(join(root, path)), { recursive: true });
@@ -106,6 +111,17 @@ describe('plugin assembly helpers', () => {
         expect(await readFile(join(root, 'plugins', plugin, 'skills', skill, 'references/api.md'), 'utf8')).toBe(
           'shared reference\n',
         );
+        for (const name of [
+          'design-workflow.md',
+          'printing-fdm.md',
+          'printing-resin.md',
+          'printing-sls.md',
+          'verification-and-handoff.md',
+        ]) {
+          expect(await readFile(join(root, 'plugins', plugin, 'skills', skill, 'references', name), 'utf8')).toBe(
+            await readFile(join(root, 'skills/shared/references', name), 'utf8'),
+          );
+        }
       }
       const github = JSON.parse(await readFile(join(root, '.github/plugin/marketplace.json'), 'utf8'));
       const claude = JSON.parse(await readFile(join(root, '.claude-plugin/marketplace.json'), 'utf8'));

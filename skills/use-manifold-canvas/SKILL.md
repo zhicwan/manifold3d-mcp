@@ -1,6 +1,6 @@
 ---
 name: use-manifold-canvas
-description: Build 3D-printable models with the Copilot Extension canvas. Use when the user wants to validate, execute, or capture geometry inside the native Canvas workflow.
+description: Guide 3D-printing ideas through design, parametric modeling, inspection and trial feedback in Copilot's native Canvas. Use to design, revise, validate, execute or capture geometry. Geometry validation is not manufacturing certification.
 ---
 
 # use-manifold-canvas — Skill Guide
@@ -16,7 +16,7 @@ annotation round-trip.
 ## Tools
 
 - **`manifold_validate_script`** — fast pre-flight (~1–2 s). Use this **first**
-  for every non-trivial script. It validates a TypeScript snippet without
+  for every new or changed model. It validates a TypeScript snippet without
   changing the current Canvas model.
 - **`manifold_execute_script`** — full run; on success the mesh is published to
   the open Manifold Canvas and the optional `description` is shown by the
@@ -32,23 +32,40 @@ Canvas.
 
 ## The recommended loop
 
-1. **Plan** a model in plain English with the user.
-2. **Write** a TypeScript snippet. See the shared references under
-   [`references/`](references/).
-3. **`manifold_validate_script`** — read the YAML report. If `ok: false`, fix
-   the issues and validate again.
-4. Open the `manifold3d-viewer` Canvas with the host's Canvas tools, then call
-   **`manifold_execute_script`** with a meaningful `description`. The user
-   sees the model in the Canvas preview.
-5. **`manifold_capture_view`** — visually verify your result after execution.
-   Use one or more useful angles, then explicitly compare what you see against
-   the user's intent before declaring success. In the final response, include
-   at least one concrete visual check.
-6. **Iterate** based on what the user sees and asks for. Each tweak is another
-   validate → execute → capture cycle.
+1. **Scope** using [the design workflow](references/design-workflow.md).
+   Model clear, simple requests directly. For uncertain interfaces or functional
+   parts, resolve one consequential decision at a time and keep a small brief.
+   Do not turn every request into a questionnaire.
+2. **Choose structure and process.** Read only the applicable printing reference
+   below. Identify key dimensions, fit behavior, orientation and relevant cleanup
+   constraints before detailing. Unknown process or dimensions remain explicit
+   assumptions, not fabrication promises.
+3. **Write** a parameterized TypeScript snippet using the sandbox references.
+   For revisions, apply the supplied annotation/location context and preserve
+   constraints outside the requested change.
+4. **`manifold_validate_script`** — fix errors and review warnings, actual dimensions
+   and functional features using [verification and handoff](references/verification-and-handoff.md).
+   `ok: true` is necessary, not sufficient. Candidate comparisons and diagnostics
+   can stop here without replacing the current preview.
+5. **Show a review version:** open the `manifold3d-viewer` Canvas with the host's tools, then call
+   **`manifold_execute_script`** with a meaningful `description` and
+   **`manifold_capture_view`**. Inspect useful views and compare them to the brief.
+   Include a concrete visual observation; captures do not prove hidden geometry or fit.
+6. **Handoff and iterate.** State what was checked, what still needs slicing or
+   a physical trial, and how to recover the source. Use trial measurements to
+   revise the relevant parameters. Revalidate changed geometry; reserve
+   execute → capture for the next version being shown, not every internal candidate.
 
 ## Reference index
 
+- [Design workflow](references/design-workflow.md) — risk-based questions,
+  interfaces, structure, appearance and parameter intent. Read before modeling.
+- [Verification and handoff](references/verification-and-handoff.md) — evidence,
+  delivery state and trial feedback. Read before claiming a result is checked.
+- Process-specific, read only when relevant:
+  [FDM/FFF](references/printing-fdm.md),
+  [SLA/MSLA](references/printing-resin.md),
+  [polymer SLS](references/printing-sls.md).
 - [`references/getting-started.md`](references/getting-started.md) —
   sandbox globals, `result`, and the basic TypeScript-only workflow.
 - [`references/script-conventions.md`](references/script-conventions.md) —
@@ -75,12 +92,17 @@ Canvas.
 
 - **`ok: true` is necessary, not sufficient.** After every
   `manifold_validate_script`, cross-check the YAML `stats` against your intent
-  before claiming success or calling `manifold_execute_script`.
+  before claiming success or calling `manifold_execute_script`. Check interfaces
+  separately from the outer bbox; no universal percentage defines fit clearance,
+  and `genus` alone does not establish part count or correct openings.
+- **Do not invent manufacturing checks.** The print-related hint is not a local
+  wall-thickness measurement. These tools do not slice, generate supports or
+  certify strength; CNC is outside this workflow.
 - **No `filePath` guessing.** The Extension tools are inline-code only. If the
   user wants to work from a file, read the file in the workspace and pass its
   content as `code`.
 - **`manifold_capture_view` is a verification step, not a bonus.** After
   `manifold_execute_script`, capture at least one relevant angle and inspect the
-  PNG before declaring the model ready.
+  PNG before declaring the model visually checked.
 - **Canvas feedback uses explicit snapshots.** Apply the supplied batch or
   location context; do not call MCP `get_annotations` in this host.

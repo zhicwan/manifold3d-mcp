@@ -27,3 +27,18 @@ can be inspected but not changed. Marker display numbers are not annotation ids.
 5. Choose Fix or Attach for a batch. Fix does not consume other composer pills;
    to combine attached context with extra instructions, send the composer
    message manually.
+
+## When applying a delivered request
+
+Use the [design workflow](../references/design-workflow.md) to identify the
+requested change and the dimensions/function to preserve. Clarify a conflict
+with a confirmed interface or manufacturing constraint instead of silently
+overriding it. A location attachment alone is not an instruction to edit.
+
+Validate geometry edits with `manifold_validate_script`; temporary candidates
+and diagnostics can remain validation-only. Before showing a revised version,
+recheck affected fit, wall thickness and process assumptions, then call
+`manifold_execute_script` and `manifold_capture_view`. Follow
+[verification and handoff](../references/verification-and-handoff.md);
+successful delivery of Fix is not evidence that the new geometry or print has
+been verified.

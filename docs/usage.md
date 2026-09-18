@@ -96,16 +96,29 @@ parameters. Validate the script, preview the model, and inspect a rendered
 view before showing me the result.
 ```
 
-The useful loop is **describe → validate → execute → inspect → revise**:
+The useful loop is **describe → clarify as needed → model → validate → inspect → trial → revise**:
 
-1. Give dimensions, fit requirements, and the intended use.
-2. Have the assistant validate the script and compare reported dimensions with
-   your request. Validation alone does not update the preview.
-3. Execute the validated script. In Canvas, open the panel; for MCP, open the
-   returned `previewUrl` if the browser did not open.
-4. Inspect useful angles, including a rendered capture. Ask for a specific
+1. Give the intended use and any known dimensions or fit requirements. Clear simple
+   requests can proceed directly. For consequential unknowns, the assistant asks
+   one decision at a time and keeps confirmed facts separate from assumptions.
+2. Select the printing process when it affects the design: FDM/FFF is the main
+   guidance path, with resin and polymer SLS guidance loaded when relevant.
+   Discuss interfaces, orientation, supports and cleanup before detailed modeling.
+   With unknown requirements, the result can remain an explicitly provisional concept.
+3. Have the assistant validate the script and compare the controlling features,
+   not only the outer bounding box, with your request. Validation alone does not
+   update the preview.
+4. When a version is ready to show, execute the validated script. In Canvas, open
+   the panel; for MCP, open the returned `previewUrl` if the browser did not open.
+5. Inspect useful angles, including a rendered capture. Ask for a specific
    revision, such as “Widen the cable slot to 22 mm; keep everything else unchanged.”
-5. Repeat validation and inspection after changes, then export.
+6. Repeat validation and affected fit/process checks after every geometry change.
+   Export for slicer review and a representative trial when needed; return measured
+   results with the printer, material and settings to refine the appropriate parameters.
+
+Temporary candidates, numerical comparisons and subassembly diagnostics can use
+validation alone, leaving the current preview unchanged. Execute and capture the
+version intended for review, rather than every intermediate variant.
 
 The assistant writes the code, but you can keep and edit it. Scripts use
 millimeters by convention, use the provided `Manifold`, `CrossSection`, and
@@ -119,6 +132,9 @@ result = Manifold.cube(size);
 
 See [samples](../samples/README.md) for complete designs and the English
 [script reference](../skills/shared/references/script-conventions.md) for sandbox rules.
+The English [design workflow](../skills/shared/references/design-workflow.md) describes
+how the assistant balances clarification, structure, appearance and constraints
+without making every request a questionnaire.
 
 ## Example: widen a cable slot
 
@@ -250,6 +266,17 @@ not a Bambu Studio project and does not contain plates, printer or filament
 profiles, slice settings, thumbnails, or toolpaths. Keep the TypeScript source
 if you want to change parameters later; 3MF and GLB are mesh outputs, not
 parametric project files.
+
+The handoff should distinguish a concept, geometry that has been checked but still
+needs slicing/trial, and actual trial evidence. It should identify key dimensions
+and clearances, proposed build orientation, material assumptions and unresolved
+checks. A camera orientation is not a change to the exported geometry.
+
+For an uncertain fit, print a representative local sample before the full part.
+Record nominal and measured sizes, fit behavior, model revision and processing
+conditions. Check existing slicer compensation before adjusting the model;
+do not globally scale a part to fix one interface. See
+[verification and handoff](../skills/shared/references/verification-and-handoff.md).
 
 Validation checks scripts and geometry. It does not certify load capacity,
 manufacturing quality, food contact, animal safety, or suitability for any

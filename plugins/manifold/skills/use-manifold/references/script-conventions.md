@@ -1,7 +1,7 @@
 # Script Conventions
 
-Hard rules for any TypeScript snippet passed to `validate_script` or
-`execute_script` as inline `code` or loaded from an absolute `filePath`. The
+Hard rules for TypeScript snippets in either host's validation/execution tools.
+Both accept inline `code`; only MCP also accepts an authorized absolute `filePath`. The
 static lint (`stage: static`) enforces sandbox rules, the TypeScript
 typecheck/compile stage (`stage: typecheck`) catches API shape mistakes, and the
 runner enforces runtime limits.
@@ -109,7 +109,8 @@ support — describe what you actually want and let the user decide.
 The sandbox interprets all coordinates as **millimetres**. `Export 3MF`
 records that unit explicitly, while `Export GLB` converts the same physical
 dimensions to glTF metres. Manifold itself has no unit system, so the modeling
-unit is a convention surfaced as a hint in every report.
+unit is a convention surfaced as a report hint. Confirm the intended physical
+size when importing into a slicer or another viewer.
 
 ## Limits
 
@@ -122,19 +123,21 @@ unit is a convention surfaced as a hint in every report.
   `TRIANGLE_BUDGET` warning; the model still renders and exports, but the
   slicer experience will suffer.
 - **Bounding box sanity:** any dimension < 0.1 mm or > 500 mm earns a
-  `BBOX_TOO_SMALL` / `BBOX_TOO_LARGE` warning. Adjust your scale or units.
+  `BBOX_TOO_SMALL` / `BBOX_TOO_LARGE` warning. Check intended dimensions, units
+  and the selected machine's envelope; these are not that machine's limits and
+  are not a reason to resize a confirmed part automatically.
 
 ## Clean booleans (avoiding marginal geometry)
 
-Manifold uses symbolic perturbation, so two parts that meet on a shared face
-or share a coordinate plane can yield surprising topology — most often a
-`genus: -1` result, which means your `union` produced two disjoint
-components. The fix is to give booleans a small **volumetric** overlap rather
-than a face-only contact:
+Near-coincident boundaries can make a construction sensitive to rounding or
+placement errors. If an intended connection or cut is wrong, inspect operands
+and dimensions first. Shared faces do not by themselves prove a failed union.
+Where appropriate, use a small **volumetric** overlap or extend a cutter beyond
+the finished part, without changing its intended boundaries:
 
-- **Sink overlapping primitives by ~0.5 mm.** When unioning a riser onto a
-  base or a wall onto a floor, sink the riser ~0.5 mm into the base so the
-  intersection is a slab, not a face:
+- **Extend an attached primitive into existing material.** Here the extra
+  0.5 mm is a construction choice for this example, not a universal tolerance.
+  Increasing the wall's height by the amount sunk preserves its intended top:
 
   ```ts
   const overlap = 0.5;
@@ -142,9 +145,9 @@ than a face-only contact:
   result = base.add(wall);
   ```
 
-- **Overshoot through-cuts by ~1 mm at each end.** When subtracting a hole
-  through a plate, make the cutter taller than the plate so its top and
-  bottom faces don't coincide with the plate's:
+- **Extend through-cutters outside the part.** This example overshoots by 1 mm
+  at each end while preserving the hole radius. Do not use this technique to
+  increase the specified depth of a blind hole:
 
   ```ts
   const overshoot = 1;
@@ -152,9 +155,13 @@ than a face-only contact:
   result = plate.subtract(drill);
   ```
 
-If you see `genus: -1` after a union, the most likely cause is face-only
-contact — apply the sink trick. If a through-hole leaves a thin sliver on the
-top or bottom, you didn't overshoot enough.
+Interpret topology against the intended components and cavities; `genus: -1`
+alone does not diagnose a bad joint or exactly two separate manufactured parts.
+Check placement, connectivity and local sections rather than adding overlap
+blindly. Never fill an intentional assembly gap to make a statistic look better.
+
+Keep construction overlap separate from design clearance and process compensation.
+Choose it for the local geometry and recheck finished dimensions afterward.
 
 ## Tilted / leaning solids — `Manifold.hull` over rotated vertices
 

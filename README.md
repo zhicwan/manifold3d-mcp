@@ -76,9 +76,11 @@ view before showing me the result.
 
 Then try: “Widen the cable slot to 22 mm; keep everything else unchanged.”
 
-Start with dimensions, fit requirements, and one clear revision at a time.
-You do not need to write TypeScript yourself, but the model remains code you
-can inspect and edit.
+Give dimensions and fit requirements when known, or start with the idea and intended
+use. The skill proceeds directly for clear simple models and clarifies consequential
+unknowns for fitted or functional parts. Printing guidance follows the selected
+process: FDM/FFF, resin or polymer SLS. You do not need to write TypeScript yourself;
+keep the source so trial measurements can guide later parameter changes.
 
 ## Examples and questions
 

@@ -123,6 +123,7 @@ m.numVert(): number
 m.volume(): number
 m.surfaceArea(): number
 m.genus(): number               // topological genus (donut = 1)
+m.decompose(): Manifold[]       // connected components; interpret with intended shells/cavities
 m.boundingBox(): { min: Vec3, max: Vec3 }
 m.isEmpty(): boolean
 m.status(): ErrorStatus         // 'NoError' if valid; see validation-report.md
@@ -140,13 +141,9 @@ always position.
 result = Manifold.cube([20, 20, 20], true).subtract(Manifold.sphere(12, 64));
 ```
 
-```ts
-// Hollow shell (Minkowski-style: shell = outer − offsetInward).
-const wall = 1.5;
-const outer = Manifold.cube([40, 30, 20], true);
-const inner = Manifold.cube([40 - 2 * wall, 30 - 2 * wall, 20 - 2 * wall], true);
-result = outer.subtract(inner.translate([0, 0, wall]));
-```
+For an open container with explicit side-wall and floor thickness, use the
+[open-box example](examples.md#3-open-box-separate-wall-and-bottom-thickness).
+Subtracting a smaller centered box alone produces a sealed cavity, not an opening.
 
 ```ts
 // Extrude a 2D shape to 3D.
