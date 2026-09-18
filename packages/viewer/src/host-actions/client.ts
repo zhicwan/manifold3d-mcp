@@ -14,7 +14,7 @@ import type { ViewerI18n } from '../i18n/index.js';
 import { enActions } from '../i18n/actions.js';
 
 export const LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
-export const STL_EXPORT_ACTION_ID = 'export-stl-file';
+export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
 
 export type HostActionsProtocolState = 'awaiting-manifest' | 'ready' | 'error';
 
@@ -331,8 +331,8 @@ export function hostActionLabel(action: HostActionDescriptor, i18n: ViewerI18n):
       return i18n.t('actionFix');
     case LOCATION_SELECTION_ACTION_ID:
       return i18n.t('actionAttachLocation');
-    case STL_EXPORT_ACTION_ID:
-      return i18n.t('actionExportStl');
+    case MODEL_EXPORT_ACTION_ID:
+      return i18n.t('actionExportModel');
     default:
       return action.label;
   }
@@ -349,8 +349,8 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
     if (status.resultDetails?.kind === 'annotations-attached') {
       return i18n.t('actionAttachedCount', status.resultDetails.count);
     }
-    if (status.resultDetails?.kind === 'stl-saved') {
-      return i18n.t('actionStlSavedPath', status.resultDetails.path);
+    if (status.resultDetails?.kind === 'model-saved') {
+      return i18n.t('actionModelSaved', status.resultDetails.format);
     }
     switch (status.actionId) {
       case 'attach-annotation-batch':
@@ -359,9 +359,9 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
         return i18n.t('actionFixEnqueued');
       case LOCATION_SELECTION_ACTION_ID:
         return i18n.t('actionLocationAttached');
-      case STL_EXPORT_ACTION_ID:
+      case MODEL_EXPORT_ACTION_ID:
         // Older hosts may only provide the saved path in their diagnostic message.
-        return status.message ?? i18n.t('actionStlSaved');
+        return status.message ?? i18n.t('actionDone');
       default:
         return status.message ?? i18n.t('actionDone');
     }
@@ -373,8 +373,8 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
       return i18n.t('actionSendingFix');
     case LOCATION_SELECTION_ACTION_ID:
       return i18n.t('actionAttachingLocation');
-    case STL_EXPORT_ACTION_ID:
-      return i18n.t('actionSavingStl');
+    case MODEL_EXPORT_ACTION_ID:
+      return i18n.t('actionSavingModel');
     default:
       return status.message ?? i18n.t(status.state === 'accepted' ? 'actionSending' : 'actionWorking');
   }

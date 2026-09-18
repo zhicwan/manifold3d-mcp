@@ -26,7 +26,7 @@ import {
   FIX_ANNOTATION_BATCH_ACTION_ID,
   FIX_ANNOTATION_BATCH_PROMPT,
   MANIFOLD_CANVAS_ID,
-  STL_EXPORT_ACTION_ID,
+  MODEL_EXPORT_ACTION_ID,
   startCopilotExtension,
   type CopilotExtensionApplication,
 } from '../src/composition.js';
@@ -93,7 +93,7 @@ describe('production Copilot Extension composition', () => {
             slot: 'selection-gesture',
           }),
           expect.objectContaining({
-            id: STL_EXPORT_ACTION_ID,
+            id: MODEL_EXPORT_ACTION_ID,
             slot: 'export-handler',
           }),
         ]);
@@ -115,11 +115,12 @@ describe('production Copilot Extension composition', () => {
         expect(versionA).not.toBe(versionB);
         await invokeAction(clientA, {
           requestId: 'export-model',
-          actionId: STL_EXPORT_ACTION_ID,
+          actionId: MODEL_EXPORT_ACTION_ID,
           modelVersion: versionA,
           annotationRevision: 0,
+          input: { format: '3mf' },
         });
-        const exportedFile = resolve(testWorkspace, 'exports/first-r1.stl');
+        const exportedFile = resolve(testWorkspace, 'exports/first-r1.3mf');
         expect(
           await clientA.messages.waitFor(
             message =>
@@ -127,9 +128,36 @@ describe('production Copilot Extension composition', () => {
               message.requestId === 'export-model' &&
               message.state === 'succeeded',
           ),
-        ).toMatchObject({ resultDetails: { kind: 'stl-saved', path: exportedFile } });
-        expect((await readFile(exportedFile)).byteLength).toBeGreaterThan(84);
-        expect(harness.log).toHaveBeenCalledWith(`Saved STL to ${exportedFile}`, { level: 'info' });
+        ).toMatchObject({ resultDetails: { kind: 'model-saved', format: '3mf', path: exportedFile } });
+        expect((await readFile(exportedFile)).byteLength).toBeGreaterThan(100);
+
+        await invokeAction(clientA, {
+          requestId: 'export-model-glb',
+          actionId: MODEL_EXPORT_ACTION_ID,
+          modelVersion: versionA,
+          annotationRevision: 0,
+          input: { format: 'glb' },
+        });
+        const exportedGlb = resolve(testWorkspace, 'exports/first-r1.glb');
+        expect(
+          await clientA.messages.waitFor(
+            message =>
+              message.kind === 'host_action_status' &&
+              message.requestId === 'export-model-glb' &&
+              message.state === 'succeeded',
+          ),
+        ).toMatchObject({ resultDetails: { kind: 'model-saved', format: 'glb', path: exportedGlb } });
+        expect((await readFile(exportedGlb)).byteLength).toBeGreaterThan(100);
+
+        expect(
+          await expectFailedAction(clientA, {
+            requestId: 'export-model-invalid',
+            actionId: MODEL_EXPORT_ACTION_ID,
+            modelVersion: versionA,
+            annotationRevision: 0,
+            input: { format: 'stl' },
+          }),
+        ).toMatchObject({ message: expect.stringMatching(/3mf.*glb/i) });
 
         clientA.socket.send(
           JSON.stringify(
@@ -154,7 +182,7 @@ describe('production Copilot Extension composition', () => {
           modelVersion: versionA,
           annotationRevision: 4,
           annotationIds: ['annotation-a', 'annotation-region'],
-          input: { batchId: 'batch-a' },
+          input: { batchId: 'batch-a', markerNumbers: [1, 2] },
         });
         expect(harness.sendAttachments).toHaveBeenCalledTimes(1);
         expect(
@@ -170,9 +198,9 @@ describe('production Copilot Extension composition', () => {
           attachments: [
             {
               type: 'extension_context',
-              title: 'Manifold annotation batch · batch-a',
+              title: 'Annotations · #1 #2',
               payload: {
-                version: 2,
+                version: 3,
                 source: 'manifold3d-viewer',
                 mode: 'annotation-batch',
                 batchId: 'batch-a',
@@ -181,12 +209,14 @@ describe('production Copilot Extension composition', () => {
                 annotations: [
                   {
                     id: 'annotation-a',
+                    displayNumber: 1,
                     partLabel: 'point#1',
                     note: 'move this point',
                     selection: { kind: 'point', worldCoord: [1, 2, 3] },
                   },
                   {
                     id: 'annotation-region',
+                    displayNumber: 2,
                     partLabel: 'region#1',
                     note: 'round this region',
                     selection: { kind: 'region', worldCoord: [4, 5, 6], triangleCount: 12 },
@@ -203,6 +233,7 @@ describe('production Copilot Extension composition', () => {
           modelVersion: versionA,
           annotationRevision: 4,
           annotationIds: ['location-a'],
+          input: { markerNumbers: [3] },
         });
         expect(harness.sendAttachments).toHaveBeenCalledTimes(2);
         expect(harness.sendAttachments).toHaveBeenLastCalledWith({
@@ -210,9 +241,9 @@ describe('production Copilot Extension composition', () => {
           attachments: [
             {
               type: 'extension_context',
-              title: 'Manifold location · point#1',
+              title: 'Location · #3',
               payload: {
-                version: 2,
+                version: 3,
                 source: 'manifold3d-viewer',
                 mode: 'location-selection',
                 modelVersion: versionA,
@@ -220,6 +251,7 @@ describe('production Copilot Extension composition', () => {
                 annotations: [
                   {
                     id: 'location-a',
+                    displayNumber: 3,
                     partLabel: 'point#1',
                     selection: { kind: 'point', worldCoord: [1, 2, 3] },
                   },
@@ -235,7 +267,7 @@ describe('production Copilot Extension composition', () => {
           modelVersion: versionB,
           annotationRevision: 2,
           annotationIds: ['annotation-b'],
-          input: { batchId: 'batch-b' },
+          input: { batchId: 'batch-b', markerNumbers: [1] },
         });
         expect(harness.sendAttachments).toHaveBeenCalledTimes(3);
         expect(harness.sendAttachments.mock.calls[2]?.[0]).toMatchObject({
@@ -289,7 +321,7 @@ describe('production Copilot Extension composition', () => {
         modelVersion: version,
         annotationRevision: 1,
         annotationIds: ['fix-me'],
-        input: { batchId: 'fix-batch' },
+        input: { batchId: 'fix-batch', markerNumbers: [1] },
       });
       client.socket.send(JSON.stringify(request));
       await client.messages.waitFor(
@@ -309,6 +341,7 @@ describe('production Copilot Extension composition', () => {
             modelVersion: version,
             annotationRevision: 1,
             annotations: [pointAnnotation('fix-me', version, 'make it taller')],
+            markerNumbers: [1],
           }),
         )}`,
         displayPrompt: 'Fix 1 Manifold annotation · fix-batch',
@@ -419,7 +452,7 @@ describe('production Copilot Extension composition', () => {
         modelVersion: version,
         annotationRevision: 1,
         annotationIds: ['noted'],
-        input: { batchId: 'batch' },
+        input: { batchId: 'batch', markerNumbers: [1] },
       });
       await expectFailedAction(client, {
         requestId: 'attachment-failure',
@@ -427,7 +460,7 @@ describe('production Copilot Extension composition', () => {
         modelVersion: version,
         annotationRevision: 2,
         annotationIds: ['noted'],
-        input: { batchId: 'batch' },
+        input: { batchId: 'batch', markerNumbers: [1] },
       });
       await expectFailedAction(client, {
         requestId: 'send-failure',
@@ -435,7 +468,7 @@ describe('production Copilot Extension composition', () => {
         modelVersion: version,
         annotationRevision: 2,
         annotationIds: ['noted'],
-        input: { batchId: 'fix-batch' },
+        input: { batchId: 'fix-batch', markerNumbers: [1] },
       });
       expect(harness.sendAttachments).toHaveBeenCalledTimes(1);
       expect(harness.send).toHaveBeenCalledTimes(1);
@@ -446,7 +479,7 @@ describe('production Copilot Extension composition', () => {
         modelVersion: version,
         annotationRevision: 2,
         annotationIds: ['noted'],
-        input: { batchId: 'fix-batch' },
+        input: { batchId: 'fix-batch', markerNumbers: [1] },
       });
       await client.messages.waitForCount(
         message =>
@@ -460,7 +493,7 @@ describe('production Copilot Extension composition', () => {
         modelVersion: version,
         annotationRevision: 2,
         annotationIds: ['noted'],
-        input: { batchId: 'retry-batch' },
+        input: { batchId: 'retry-batch', markerNumbers: [1] },
       });
 
       await new Promise<void>(resolvePromise => setTimeout(resolvePromise, 25));
@@ -593,7 +626,7 @@ describe('production Copilot Extension composition', () => {
             modelVersion: version,
             annotationRevision: 1,
             annotationIds: ['pending'],
-            input: { batchId: 'pending-batch' },
+            input: { batchId: 'pending-batch', markerNumbers: [1] },
           }),
         ),
       );
@@ -674,7 +707,7 @@ describe('production Copilot Extension composition', () => {
             modelVersion: version,
             annotationRevision: 1,
             annotationIds: ['signal'],
-            input: { batchId: 'signal-batch' },
+            input: { batchId: 'signal-batch', markerNumbers: [1] },
           }),
         ),
       );
@@ -859,8 +892,8 @@ function artifact(description?: string): ModelArtifact {
   return {
     ...(description !== undefined ? { description } : {}),
     numProp: 3,
-    triangles: 1,
-    vertices: 3,
+    triangles: 4,
+    vertices: 4,
     features: [
       {
         label: 'unknown#1',
@@ -869,14 +902,16 @@ function artifact(description?: string): ModelArtifact {
         transform: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
       },
     ],
-    vertProperties: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer,
-    triVerts: new Uint32Array([0, 1, 2]).buffer,
-    triFeatureIds: new Uint32Array([0]).buffer,
-    volume: 0,
-    surfaceArea: 1,
+    vertProperties: new Float32Array([0, 0, 0, 10, 0, 0, 0, 20, 0, 0, 0, 30]).buffer,
+    triVerts: new Uint32Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]).buffer,
+    mergeFromVert: new Uint32Array().buffer,
+    mergeToVert: new Uint32Array().buffer,
+    triFeatureIds: new Uint32Array(4).buffer,
+    volume: 1000,
+    surfaceArea: 600,
     genus: 0,
     bboxMin: [0, 0, 0],
-    bboxMax: [1, 1, 0],
+    bboxMax: [10, 20, 30],
   };
 }
 
@@ -985,7 +1020,18 @@ class MessageCollector {
     return new Promise((resolvePromise, reject) => {
       const timeout = setTimeout(() => {
         this.listeners.delete(check);
-        reject(new Error('Timed out waiting for Viewer Host message.'));
+        reject(
+          new Error(
+            `Timed out waiting for Viewer Host message. Received: ${JSON.stringify(
+              this.items.map(message => ({
+                kind: message.kind,
+                requestId: message.requestId,
+                state: message.state,
+                message: message.message,
+              })),
+            )}`,
+          ),
+        );
       }, 10_000);
       const check = (): void => {
         const match = this.items.find(predicate);

@@ -7,6 +7,8 @@ describe('ModelArtifact viewer projection', () => {
   it('keeps geometry buffers by reference and sanitizes the viewer fields', () => {
     const vertProperties = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer;
     const triVerts = new Uint32Array([0, 1, 2]).buffer;
+    const mergeFromVert = new Uint32Array().buffer;
+    const mergeToVert = new Uint32Array().buffer;
     const triFeatureIds = new Uint32Array([0]).buffer;
     const artifact = {
       description: 'sanitized model',
@@ -15,6 +17,8 @@ describe('ModelArtifact viewer projection', () => {
       vertices: 3,
       vertProperties,
       triVerts,
+      mergeFromVert,
+      mergeToVert,
       triFeatureIds,
       features: [
         {
@@ -37,6 +41,8 @@ describe('ModelArtifact viewer projection', () => {
 
     expect(frame.vertProperties).toBe(vertProperties);
     expect(frame.triVerts).toBe(triVerts);
+    expect(frame.mergeFromVert).toBe(mergeFromVert);
+    expect(frame.mergeToVert).toBe(mergeToVert);
     expect(frame.triFeatureIds).toBe(triFeatureIds);
     expect(frame).not.toHaveProperty('compilerPrivate');
     expect(frame.features[0]).toEqual({

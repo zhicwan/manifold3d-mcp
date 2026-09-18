@@ -106,10 +106,10 @@ support — describe what you actually want and let the user decide.
 
 ## Units
 
-The sandbox interprets all coordinates as **millimetres** (this is what
-`Export STL` will write into the file). Manifold itself has no
-unit system, so this is purely a convention surfaced as a hint in every
-report.
+The sandbox interprets all coordinates as **millimetres**. `Export 3MF`
+records that unit explicitly, while `Export GLB` converts the same physical
+dimensions to glTF metres. Manifold itself has no unit system, so the modeling
+unit is a convention surfaced as a hint in every report.
 
 ## Limits
 

@@ -23,6 +23,8 @@ export function toViewerModelFrame(artifact: ModelArtifact): ViewerModelFrame {
     vertices: artifact.vertices,
     vertProperties: artifact.vertProperties,
     triVerts: artifact.triVerts,
+    mergeFromVert: artifact.mergeFromVert,
+    mergeToVert: artifact.mergeToVert,
     triFeatureIds: artifact.triFeatureIds,
     features: artifact.features.map(sanitizeFeature),
     volume: artifact.volume,

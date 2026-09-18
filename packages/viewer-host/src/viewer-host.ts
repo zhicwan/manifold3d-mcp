@@ -1060,6 +1060,10 @@ function sendModel(socket: WebSocket, model: ViewerModelFrame): void {
   socket.send(JSON.stringify(header));
   socket.send(Buffer.from(model.vertProperties), { binary: true });
   socket.send(Buffer.from(model.triVerts), { binary: true });
+  if (header.mergePairs > 0) {
+    socket.send(Buffer.from(model.mergeFromVert), { binary: true });
+    socket.send(Buffer.from(model.mergeToVert), { binary: true });
+  }
   if (header.hasTriFeatureIds) {
     socket.send(Buffer.from(model.triFeatureIds), { binary: true });
   }

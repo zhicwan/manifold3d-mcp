@@ -27,12 +27,15 @@ describe('host action wire protocol', () => {
   it('validates bounded typed completion details without interpreting diagnostic text', () => {
     const base = {
       requestId: 'request-1',
-      actionId: 'export-stl-file',
+      actionId: 'export-model-file',
       state: 'succeeded' as const,
       message: 'raw diagnostic',
     };
-    const saved = createHostActionStatus({ ...base, resultDetails: { kind: 'stl-saved', path: '/exports/模型.stl' } });
-    expect(saved.resultDetails).toEqual({ kind: 'stl-saved', path: '/exports/模型.stl' });
+    const saved = createHostActionStatus({
+      ...base,
+      resultDetails: { kind: 'model-saved', format: '3mf', path: '/exports/模型.3mf' },
+    });
+    expect(saved.resultDetails).toEqual({ kind: 'model-saved', format: '3mf', path: '/exports/模型.3mf' });
     expect(saved.message).toBe('raw diagnostic');
     expect(
       createHostActionStatus({
@@ -44,9 +47,10 @@ describe('host action wire protocol', () => {
       { kind: 'annotations-attached', count: -1 },
       { kind: 'annotations-attached', count: 129 },
       { kind: 'annotations-attached', count: 1.5 },
-      { kind: 'stl-saved', path: '' },
-      { kind: 'stl-saved', path: 'x'.repeat(513) },
-      { kind: 'stl-saved', path: '/model.stl', url: 'https://example.com' },
+      { kind: 'model-saved', format: '3mf', path: '' },
+      { kind: 'model-saved', format: 'glb', path: 'x'.repeat(513) },
+      { kind: 'model-saved', format: 'stl', path: '/model.stl' },
+      { kind: 'model-saved', format: '3mf', path: '/model.3mf', url: 'https://example.com' },
       { kind: 'unknown' },
     ]) {
       expect(isHostActionStatus({ ...saved, resultDetails })).toBe(false);

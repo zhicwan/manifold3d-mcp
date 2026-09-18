@@ -65,6 +65,7 @@
     "@types/ws": "^8.18.1",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
+    "fflate": "^0.8.2",
     "prettier": "^3.8.4",
     "rolldown": "1.2.8",
     "typescript": "^6.0.3",

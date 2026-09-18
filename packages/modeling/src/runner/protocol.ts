@@ -29,6 +29,9 @@ export interface ModelArtifact {
   vertices: number;
   vertProperties: ArrayBuffer; // Float32Array buffer (transferred)
   triVerts: ArrayBuffer; // Uint32Array buffer (transferred)
+  /** Property-vertex weld pairs required to reconstruct the indexed manifold. */
+  mergeFromVert: ArrayBuffer; // Uint32Array buffer (transferred)
+  mergeToVert: ArrayBuffer; // Uint32Array buffer (transferred)
   /**
    * One Uint32 per triangle: index into `features`. Empty buffer when
    * the geometry stage produced no recognizable features (e.g. raw

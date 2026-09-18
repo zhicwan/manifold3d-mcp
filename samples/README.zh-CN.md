@@ -72,8 +72,9 @@ MANIFOLD_MCP_SCRIPT_ROOTS="/absolute/path/to/manifold3d-mcp/samples" \
 }
 ```
 
-校验通过后再执行，检查预览与渲染截图，然后选择 **Export → Export STL**。
-请自行核对尺寸、打印设置和用途安全；几何校验不是安全认证。
+校验通过后再执行，检查预览与渲染截图，然后选择 **Export → 3MF（用于打印）**
+或 **GLB（用于查看与交换）**。请自行核对尺寸、打印设置和用途安全；几何校验
+不是安全认证。
 
 ## 添加新示例
 

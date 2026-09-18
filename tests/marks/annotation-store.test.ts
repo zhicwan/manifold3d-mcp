@@ -24,6 +24,22 @@ const region: SelectionAnnotationInput = {
 };
 
 describe('AnnotationStore transactions', () => {
+  it('assigns stable model-local display numbers across comments and selections', () => {
+    const store = new AnnotationStore();
+    const first = store.addComment({ ...point, note: 'first' });
+    const second = store.addSelection(region);
+    const third = store.addComment({ ...point, note: 'third' });
+
+    expect([first.displayNumber, second.displayNumber, third.displayNumber]).toEqual([1, 2, 3]);
+    store.remove(first.id);
+    expect(store.get(second.id)?.displayNumber).toBe(2);
+    expect(store.get(third.id)?.displayNumber).toBe(3);
+
+    store.removeSelection(second.id);
+    store.remove(third.id);
+    expect(store.addComment({ ...point, note: 'reset' }).displayNumber).toBe(1);
+  });
+
   it('isolates the current draft comment batch from selections and later batches', () => {
     const store = new AnnotationStore();
     const batchId = store.getDraftBatch().batchId;

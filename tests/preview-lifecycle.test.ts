@@ -3,6 +3,7 @@ import type { CallToolRequest, CallToolResult } from '@modelcontextprotocol/sdk/
 
 import { ModelingEngine, ModelingSession } from '@manifold3d/modeling/modeling.js';
 import { Runner } from '@manifold3d/modeling/runner/host.js';
+import { ANNOTATIONS_PROTOCOL_VERSION } from '@manifold3d/protocol/wire/annotations.js';
 import type { ModelArtifact } from '../packages/modeling/src/runner/protocol.js';
 import { emptyReport } from '../packages/modeling/src/validation/report.js';
 import type { PreviewServerHandle } from '../apps/manifold3d-mcp/src/server/preview/preview-server.js';
@@ -33,6 +34,8 @@ const artifact: ModelArtifact = {
   vertices: 0,
   vertProperties: new ArrayBuffer(0),
   triVerts: new ArrayBuffer(0),
+  mergeFromVert: new ArrayBuffer(0),
+  mergeToVert: new ArrayBuffer(0),
   triFeatureIds: new ArrayBuffer(0),
   features: [],
   volume: 0,
@@ -46,7 +49,12 @@ function handle(): PreviewServerHandle {
   return {
     url: 'http://127.0.0.1:3737/',
     pushModel: vi.fn(),
-    getAnnotations: () => ({ protocolVersion: 1, modelVersion: 'none', revision: 0, items: [] }),
+    getAnnotations: () => ({
+      protocolVersion: ANNOTATIONS_PROTOCOL_VERSION,
+      modelVersion: 'none',
+      revision: 0,
+      items: [],
+    }),
     close: vi.fn(() => Promise.resolve()),
   };
 }

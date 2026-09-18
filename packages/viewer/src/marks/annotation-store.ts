@@ -25,6 +25,7 @@ export class AnnotationStore {
   private readonly listeners = new Set<Listener>();
   private seqByKind: Record<AnnotationKind, number> = { point: 0, region: 0 };
   private idSequence = 0;
+  private displaySequence = 0;
   private batchSequence = 0;
   private currentCommentBatchId = this.createBatchId('comments');
   private modelVersion = 'unknown';
@@ -139,6 +140,7 @@ export class AnnotationStore {
     this.items.clear();
     this.seqByKind = { point: 0, region: 0 };
     this.idSequence = 0;
+    this.displaySequence = 0;
     this.rotateCommentBatch();
     this.commit();
   }
@@ -236,6 +238,9 @@ export class AnnotationStore {
     const snapshot = [...this.items.values()].sort((a, b) => a.createdAt - b.createdAt);
     Object.freeze(snapshot);
     this.snapshot = snapshot;
+    if (snapshot.length === 0) {
+      this.displaySequence = 0;
+    }
     const snap = this.snapshot;
     for (const fn of this.listeners) {
       fn(snap);
@@ -247,6 +252,7 @@ export class AnnotationStore {
     return {
       id: `ann_${Date.now().toString(36)}_${(++this.idSequence).toString(36)}`,
       createdAt: Date.now(),
+      displayNumber: ++this.displaySequence,
       modelVersion: this.modelVersion,
       kind: input.kind,
       anchorWorld: frozenTuple3(input.anchorWorld),

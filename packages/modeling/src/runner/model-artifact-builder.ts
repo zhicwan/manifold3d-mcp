@@ -38,6 +38,10 @@ export function buildModelArtifact(
   vpCopy.set(vp);
   const tvCopy = new Uint32Array(tv.length);
   tvCopy.set(tv);
+  const mergeFromCopy = new Uint32Array(mesh.mergeFromVert?.length ?? 0);
+  mergeFromCopy.set(mesh.mergeFromVert ?? []);
+  const mergeToCopy = new Uint32Array(mesh.mergeToVert?.length ?? 0);
+  mergeToCopy.set(mesh.mergeToVert ?? []);
   const { features, triFeatureIds } = extractFeaturePayload(mesh, store);
   return {
     ...(description !== undefined ? { description } : {}),
@@ -46,6 +50,8 @@ export function buildModelArtifact(
     vertices: vp.length / numProp,
     vertProperties: vpCopy.buffer,
     triVerts: tvCopy.buffer,
+    mergeFromVert: mergeFromCopy.buffer,
+    mergeToVert: mergeToCopy.buffer,
     triFeatureIds: triFeatureIds.buffer,
     features,
     volume: stats.volume,

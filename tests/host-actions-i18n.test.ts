@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHostActionsManifest, type HostActionDescriptor } from '../packages/protocol/src/wire/host-actions.js';
+import {
+  HOST_ACTION_PROTOCOL_VERSION,
+  createHostActionsManifest,
+  type HostActionDescriptor,
+} from '../packages/protocol/src/wire/host-actions.js';
 import { createViewerI18n } from '../packages/viewer/src/i18n/index.js';
 import {
   HostActionsClient,
@@ -58,7 +62,11 @@ describe('host action localization', () => {
   it('maps known IDs and states rather than English strings and preserves host-defined actions', () => {
     const i18n = createViewerI18n('zh-CN');
     expect(hostActionLabel(action, i18n)).toBe('附加');
-    const base = { kind: 'host_action_status' as const, protocolVersion: 1 as const, requestId: 'r1' };
+    const base = {
+      kind: 'host_action_status' as const,
+      protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
+      requestId: 'r1',
+    };
     expect(
       hostActionStatusMessage(
         {
@@ -98,30 +106,30 @@ describe('host action localization', () => {
     const i18n = createViewerI18n('zh-CN');
     const base = {
       kind: 'host_action_status' as const,
-      protocolVersion: 1 as const,
+      protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
       requestId: 'r1',
-      actionId: 'export-stl-file',
+      actionId: 'export-model-file',
     };
     expect(
       hostActionStatusMessage(
         {
           ...base,
           state: 'succeeded',
-          resultDetails: { kind: 'stl-saved', path: '/exports/模型.stl' },
+          resultDetails: { kind: 'model-saved', format: '3mf', path: '/exports/模型.3mf' },
         },
         i18n,
       ),
-    ).toBe('STL 已保存至 /exports/模型.stl');
+    ).toBe('3MF 已保存');
     expect(
       hostActionStatusMessage(
         {
           ...base,
           state: 'failed',
-          message: 'ENOENT: /exports/模型.stl',
+          message: 'ENOENT: /exports/模型.3mf',
         },
         i18n,
       ),
-    ).toBe('操作失败：ENOENT: /exports/模型.stl');
+    ).toBe('操作失败：ENOENT: /exports/模型.3mf');
   });
 
   it('localizes availability and local synchronization failures at render time', () => {

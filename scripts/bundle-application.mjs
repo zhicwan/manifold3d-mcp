@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { appendFile, chmod, mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,8 +8,13 @@ import { rolldown } from 'rolldown';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const resourceModule = 'virtual:manifold-resources';
+const dependencyLicenseOverrides = new Map([
+  ['@jscadui/3mf-export', resolve(repositoryRoot, 'scripts/licenses/jscadui-3mf-export.LICENSE')],
+  ['@nodable/entities', resolve(repositoryRoot, 'scripts/licenses/nodable-entities.LICENSE')],
+]);
 
 export async function bundleApplication({ entryFile, outputFile, viewerRoot, sdk = false, minify = true }) {
+  const viewerLicenses = await completeViewerLicenses(viewerRoot);
   const [assets, wasm, declarations, packageJson] = await Promise.all([
     readAssets(viewerRoot),
     readFile(fileURLToPath(import.meta.resolve('manifold-3d/manifold.wasm'))),
@@ -74,7 +79,7 @@ export async function bundleApplication({ entryFile, outputFile, viewerRoot, sdk
     const licenses = [
       await readFile(resolve(repositoryRoot, 'LICENSE'), 'utf8'),
       await readFile(resolve(repositoryRoot, 'NOTICE'), 'utf8'),
-      await readFile(resolve(viewerRoot, 'third-party-licenses.txt'), 'utf8'),
+      viewerLicenses,
       await dependencyLicenses(result.output),
     ].join('\n\n');
     await appendFile(
@@ -89,6 +94,31 @@ export async function bundleApplication({ entryFile, outputFile, viewerRoot, sdk
   }
   await chmod(outputFile, 0o755);
   return { bytes: (await stat(outputFile)).size, assets: assets.length };
+}
+
+async function completeViewerLicenses(viewerRoot) {
+  const licensePath = resolve(viewerRoot, 'third-party-licenses.txt');
+  let contents = await readFile(licensePath, 'utf8');
+  for (const [name, overridePath] of dependencyLicenseOverrides) {
+    contents = fillEmptyLicenseSection(contents, name, await readFile(overridePath, 'utf8'));
+  }
+  await writeFile(licensePath, contents);
+  return contents;
+}
+
+function fillEmptyLicenseSection(contents, packageName, license) {
+  const heading = `## ${packageName} - `;
+  const headingStart = contents.indexOf(heading);
+  if (headingStart < 0) {
+    return contents;
+  }
+  const bodyStart = contents.indexOf('\n', headingStart) + 1;
+  const nextHeading = contents.indexOf('\n## ', bodyStart);
+  const bodyEnd = nextHeading < 0 ? contents.length : nextHeading;
+  if (contents.slice(bodyStart, bodyEnd).trim().length > 0) {
+    return contents;
+  }
+  return `${contents.slice(0, bodyStart)}\n${license.trim()}\n${contents.slice(bodyEnd)}`;
 }
 
 async function dependencyLicenses(outputs) {
@@ -115,7 +145,12 @@ async function dependencyLicenses(outputs) {
       .filter(name => /^(?:licen[cs]e|copying|notice)(?:[.-].*)?$/i.test(name))
       .sort();
     if (files.length === 0) {
-      throw new Error(`Bundled dependency ${metadata.name} is missing its redistribution license.`);
+      const override = dependencyLicenseOverrides.get(metadata.name);
+      if (!override) {
+        throw new Error(`Bundled dependency ${metadata.name} is missing its redistribution license.`);
+      }
+      notices.push(`${metadata.name}@${metadata.version}\n${await readFile(override, 'utf8')}`);
+      continue;
     }
     for (const file of files) {
       notices.push(`${metadata.name}@${metadata.version}\n${await readFile(resolve(directory, file), 'utf8')}`);

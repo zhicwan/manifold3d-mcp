@@ -1,5 +1,5 @@
 import { Popover } from '@base-ui/react/popover';
-import { Box, Download, Info, Languages, Moon, Sun } from 'lucide-react';
+import { Box, Cuboid, Download, Info, Languages, Moon, Printer, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -16,12 +16,7 @@ import { ExportMenuHostActions, ToolbarHostActions, useHostActionsSnapshot } fro
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { glass, glassPopup } from '@/components/glass';
 import { useViewerPopupEscape } from '@/components/viewer-shortcuts';
-import {
-  getLatestHostActionStatus,
-  hasPendingHostActionRequest,
-  hostActionStatusMessage,
-  STL_EXPORT_ACTION_ID,
-} from '@/host-actions/client';
+import { hasPendingHostActionRequest, MODEL_EXPORT_ACTION_ID } from '@/host-actions/client';
 import { cn } from '@/lib/utils';
 import { useViewerI18n, useViewerState, type ViewerApi } from '@/store';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
@@ -102,12 +97,6 @@ function ActionsCluster({
   const exportTrigger = useRef<HTMLButtonElement>(null);
   const exportPopup = useRef<HTMLDivElement>(null);
   const snapshot = useHostActionsSnapshot();
-  const exportStatus = getLatestHostActionStatus(snapshot, STL_EXPORT_ACTION_ID);
-  const savedExport = [...snapshot.requestOrder]
-    .reverse()
-    .map(requestId => snapshot.statuses[requestId])
-    .find(status => status?.actionId === STL_EXPORT_ACTION_ID && status.state === 'succeeded');
-  const displayedExport = savedExport ?? exportStatus;
   const actionsEnabled = payload !== null && api !== null;
   useViewerPopupEscape(infoOpen, () => setInfoOpen(false), infoTrigger, infoPopup);
   useViewerPopupEscape(exportOpen, () => setExportOpen(false), exportTrigger, exportPopup);
@@ -131,7 +120,7 @@ function ActionsCluster({
                     size="icon"
                     className="viewer-top-button rounded-xl"
                     aria-label={i18n.t('export')}
-                    disabled={!actionsEnabled || hasPendingHostActionRequest(snapshot, STL_EXPORT_ACTION_ID)}
+                    disabled={!actionsEnabled || hasPendingHostActionRequest(snapshot, MODEL_EXPORT_ACTION_ID)}
                   />
                 }
               />
@@ -147,11 +136,21 @@ function ActionsCluster({
           container={exportTrigger.current?.closest('[data-viewer-root]')}
           ref={exportPopup}
           align="end"
-          className={cn(glassPopup, 'viewer-popup')}
+          className={cn(glassPopup, 'viewer-popup min-w-64')}
         >
-          <DropdownMenuItem className="min-h-10 rounded-xl" onClick={() => void api?.exportStl()}>
-            <Download className="size-4" aria-hidden="true" />
-            {i18n.t('exportStl')}
+          <DropdownMenuItem className="min-h-12 rounded-xl" onClick={() => void api?.exportModel('3mf')}>
+            <Printer className="size-4 self-start mt-0.5" aria-hidden="true" />
+            <span className="flex min-w-0 flex-col">
+              <span className="font-medium">{i18n.t('export3mf')}</span>
+              <span className="text-xs text-muted-foreground">{i18n.t('export3mfDescription')}</span>
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem className="min-h-12 rounded-xl" onClick={() => void api?.exportModel('glb')}>
+            <Cuboid className="size-4 self-start mt-0.5" aria-hidden="true" />
+            <span className="flex min-w-0 flex-col">
+              <span className="font-medium">{i18n.t('exportGlb')}</span>
+              <span className="text-xs text-muted-foreground">{i18n.t('exportGlbDescription')}</span>
+            </span>
           </DropdownMenuItem>
           <ExportMenuHostActions />
         </DropdownMenuContent>
@@ -168,7 +167,7 @@ function ActionsCluster({
                     size="icon"
                     className="viewer-top-button rounded-xl"
                     aria-label={i18n.t('modelInformation')}
-                    disabled={!payload && !exportStatus}
+                    disabled={!payload}
                   />
                 }
               />
@@ -194,19 +193,6 @@ function ActionsCluster({
                   </p>
                   <ModelStats payload={payload} />
                 </>
-              )}
-              {displayedExport && (
-                <div className="mt-3 border-t border-border/60 pt-3 text-xs">
-                  <h3 className="mb-1 font-medium">{i18n.t(savedExport ? 'lastSavedStl' : 'lastStlExport')}</h3>
-                  <p
-                    className={cn(
-                      'select-text break-words',
-                      !savedExport && exportStatus?.state === 'failed' && 'text-destructive',
-                    )}
-                  >
-                    {hostActionStatusMessage(displayedExport, i18n)}
-                  </p>
-                </div>
               )}
             </Popover.Popup>
           </Popover.Positioner>
