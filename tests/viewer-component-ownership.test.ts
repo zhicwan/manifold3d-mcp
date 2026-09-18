@@ -549,6 +549,22 @@ describe('Viewer component ownership', () => {
     );
   });
 
+  it('falls back to browser export when a retained host manifest is disconnected', async () => {
+    await mount();
+    harness.feed!.onHostActionsManifest?.(createHostActionsManifest([exportAction]));
+    harness.feed!.onStatusChange?.('disconnected');
+
+    await store.getState().viewerApi!.exportModel('3mf');
+
+    expect(download?.name).toBe('original-model.3mf');
+    expect(harness.sentMessages).not.toContainEqual(
+      expect.objectContaining({
+        kind: 'host_action_invoke',
+        actionId: 'export-model-file',
+      }),
+    );
+  });
+
   it.each(['succeeded', 'failed'] as const)('ignores a late location %s after model replacement', async state => {
     await mount();
     const marks = store.getState().marksRuntime!;

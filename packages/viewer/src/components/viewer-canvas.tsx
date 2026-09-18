@@ -397,11 +397,12 @@ function requestHostModelExport(hostActions: HostActionsClient, format: ModelExp
   if (!hostActions.getSnapshot().actions.some(action => action.id === MODEL_EXPORT_ACTION_ID)) {
     return false;
   }
-  hostActions.invoke(MODEL_EXPORT_ACTION_ID, {
-    input: { format },
-    synchronizeAnnotations: false,
-  });
-  return true;
+  return (
+    hostActions.invoke(MODEL_EXPORT_ACTION_ID, {
+      input: { format },
+      synchronizeAnnotations: false,
+    }) !== undefined
+  );
 }
 
 function download(blob: Blob, name: string): void {
