@@ -128,8 +128,8 @@ checks.
 
 The current report may include an `Estimated minimum feature size ...` string
 in `hints` (associated with the documented `FEATURE_TOO_FINE` concept, not a
-structured finding with that code). It is computed as the cube root of volume
-divided by triangle count and compared with 0.4 mm.
+structured finding with that code). It is computed as
+`Math.cbrt(volume / Math.max(1, triangles))` and compared with 0.4 mm.
 
 Despite the wording, this is **not a measured minimum feature size**. Mesh
 refinement can change the estimate without changing the shape, and a small local
