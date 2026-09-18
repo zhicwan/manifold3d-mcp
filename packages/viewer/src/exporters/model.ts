@@ -109,7 +109,20 @@ async function serialize3mf(
 }
 
 function escapeXmlText(value: string): string {
-  return value
+  const validXmlText = [...value]
+    .filter(character => {
+      const codePoint = character.codePointAt(0)!;
+      return (
+        codePoint === 0x09 ||
+        codePoint === 0x0a ||
+        codePoint === 0x0d ||
+        (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+        (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+        (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+      );
+    })
+    .join('');
+  return validXmlText
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')

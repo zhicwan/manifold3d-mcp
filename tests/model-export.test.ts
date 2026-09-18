@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
+import { Logger, Verbosity, WebIO } from '@gltf-transform/core';
 import { strFromU8, unzipSync } from 'fflate';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
@@ -83,13 +84,26 @@ describe('canonical Manifold exports', () => {
     expect(payload.mergeToVert).toEqual(mergeTo);
   });
 
+  it('writes GLB dimensions in metres', async () => {
+    const exported = await serializeModel(model(), 'glb', { wasmBinary });
+    const document = await new WebIO().setLogger(new Logger(Verbosity.SILENT)).readBinary(exported.bytes);
+    expect(worldDimensions(document).sort((a, b) => a - b)).toEqual([
+      expect.closeTo(0.01, 6),
+      expect.closeTo(0.02, 6),
+      expect.closeTo(0.03, 6),
+    ]);
+  });
+
   it('writes a core 3MF archive with explicit millimetre metadata', async () => {
-    const exported = await serializeModel({ ...model(), description: 'A & B <C> "quoted"' }, '3mf', { wasmBinary });
+    const exported = await serializeModel({ ...model(), description: 'A\u0001 & B <C> "quoted" \u{1f600}' }, '3mf', {
+      wasmBinary,
+    });
     const files = unzipSync(exported.bytes);
     expect(Object.keys(files).sort()).toEqual(['3D/3dmodel.model', '[Content_Types].xml', '_rels/.rels']);
     const xml = strFromU8(files['3D/3dmodel.model']!);
     expect(xml).toContain('unit="millimeter"');
-    expect(xml).toContain('A &amp; B &lt;C&gt; &quot;quoted&quot;');
+    expect(xml).toContain('A &amp; B &lt;C&gt; &quot;quoted&quot; \u{1f600}');
+    expect(xml).not.toContain('\u0001');
     expect(xml).not.toContain('A & B <C>');
   });
 });
