@@ -31,6 +31,12 @@ export async function bundleApplication({ entryFile, outputFile, viewerRoot, sdk
     external: id => id.startsWith('node:') || (sdk && id === '@github/copilot-sdk/extension'),
     plugins: [
       {
+        name: 'canonical-node-module',
+        resolveId(id) {
+          return id === 'module' ? { id: 'node:module', external: true } : null;
+        },
+      },
+      {
         name: 'embedded-manifold-resources',
         resolveId: id => (id === resourceModule ? `\0${resourceModule}` : null),
         load(id) {
