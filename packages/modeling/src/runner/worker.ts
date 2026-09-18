@@ -292,6 +292,8 @@ function handleRun(req: RunRequest): void {
     port.postMessage({ report, artifact } satisfies RunResult, [
       artifact.vertProperties,
       artifact.triVerts,
+      artifact.mergeFromVert,
+      artifact.mergeToVert,
       artifact.triFeatureIds,
     ]);
   } else {

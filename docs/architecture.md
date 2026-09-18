@@ -95,7 +95,7 @@ canonical model, annotation or action data. Browser language changes are observe
 only while the owning provider is mounted. The manual preference is intentionally
 runtime-local, with no storage or global document-language mutation.
 
-Relevant evidence includes [STL export](../tests/stl-export.test.ts),
+Relevant evidence includes [model export](../tests/model-export.test.ts),
 [component ownership](../tests/viewer-component-ownership.test.ts),
 [capture rendering](../tests/renderer.test.ts) and the existing flat-build check.
 
@@ -125,7 +125,7 @@ or patch Three.js prototypes globally.
 Fix success means the SDK accepted enqueueing, not that an agent finished the
 requested model edit. A static attachment is not a live synchronized object.
 The Viewer localizes known action IDs and status states at render time. Optional,
-validated completion `resultDetails` carry annotation counts or saved STL paths
+validated completion `resultDetails` carry annotation counts or saved model paths
 from the Extension through Viewer Host; they are canonical data, not translated
 messages. Raw host diagnostics and unknown host-defined labels remain intact.
 Request retransmission and a user's new operation are also different cases.

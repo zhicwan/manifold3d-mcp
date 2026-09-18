@@ -109,7 +109,7 @@ describe('Fix and Attach delivery (source composition)', () => {
     const serialized = sent.prompt.slice(`${FIX_ANNOTATION_BATCH_PROMPT}\n\n`.length);
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(MAX_ANNOTATION_ATTACHMENT_BYTES);
     expect(parseAnnotationAttachment(JSON.parse(serialized))).toEqual({
-      version: 2,
+      version: 3,
       source: 'manifold3d-viewer',
       mode: 'annotation-batch',
       batchId: 'batch-1',
@@ -118,18 +118,21 @@ describe('Fix and Attach delivery (source composition)', () => {
       annotations: [
         {
           id: 'point',
+          displayNumber: 1,
           partLabel: 'body#1',
           note: 'raise this point',
           selection: { kind: 'point', worldCoord: [1, 2, 3] },
         },
         {
           id: 'region',
+          displayNumber: 2,
           partLabel: 'body#1',
           note: 'round the region',
           selection: { kind: 'region', worldCoord: [4, 5, 6], triangleCount: 12 },
         },
         {
           id: 'sketch',
+          displayNumber: 3,
           partLabel: 'body#1',
           note: 'follow this curve',
           selection: {
@@ -216,7 +219,7 @@ describe('Fix and Attach delivery (source composition)', () => {
 
       const retry = actionContext(FIX_ANNOTATION_BATCH_ACTION_ID);
       retry.requestId = 'manual-retry';
-      retry.input = { batchId: 'retry-batch' };
+      retry.input = { batchId: 'retry-batch', markerNumbers: [1, 2, 3] };
       await actionHandler(FIX_ANNOTATION_BATCH_ACTION_ID)(retry);
       expect(retry.publish.succeeded).toHaveBeenCalledOnce();
       expect(retry.publish.failed).not.toHaveBeenCalled();
@@ -401,7 +404,10 @@ function actionContext(actionId: string, annotations = batchAnnotations()): Host
     annotationRevision: 9,
     annotationIds: annotations.map(annotation => annotation.id),
     annotations,
-    input: { batchId: 'batch-1' },
+    input: {
+      batchId: 'batch-1',
+      markerNumbers: annotations.map((_annotation, index) => index + 1),
+    },
     publish: { running: vi.fn(), failed: vi.fn(), succeeded: vi.fn() },
   };
 }
@@ -410,7 +416,14 @@ function batchAnnotations(): WireAnnotation[] {
   const base = { modelVersion: 'model-7', partLabel: 'body#1', clientId: 'transport-only-client' };
   return [
     { ...base, id: 'point', kind: 'point', note: 'raise this point', worldCoord: [1, 2, 3] },
-    { ...base, id: 'region', kind: 'region', note: 'round the region', worldCoord: [4, 5, 6], triCount: 12 },
+    {
+      ...base,
+      id: 'region',
+      kind: 'region',
+      note: 'round the region',
+      worldCoord: [4, 5, 6],
+      triCount: 12,
+    },
     {
       ...base,
       id: 'sketch',

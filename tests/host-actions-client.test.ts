@@ -6,6 +6,7 @@ import {
   createHostActionsManifest,
   type HostActionDescriptor,
 } from '../packages/protocol/src/wire/host-actions.js';
+import { VIEWER_PROTOCOL_VERSION } from '../packages/protocol/src/wire/model.js';
 import {
   HostActionsClient,
   getLatestHostActionStatus,
@@ -176,7 +177,7 @@ describe('HostActionsClient', () => {
     client.receiveManifest(createHostActionsManifest([action]));
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-1',
       resumed: false,
@@ -191,7 +192,7 @@ describe('HostActionsClient', () => {
     );
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-2',
       resumed: true,
@@ -209,7 +210,7 @@ describe('HostActionsClient', () => {
 
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-2',
       resumeToken: 'token-3',
       resumed: false,
@@ -228,7 +229,7 @@ describe('HostActionsClient', () => {
     });
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-1',
       resumed: false,
@@ -238,7 +239,7 @@ describe('HostActionsClient', () => {
 
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-2',
       resumeToken: 'token-2',
       resumed: false,
@@ -297,7 +298,7 @@ describe('HostActionsClient', () => {
     });
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-1',
       resumed: false,
@@ -309,7 +310,7 @@ describe('HostActionsClient', () => {
 
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-2',
       resumed: true,
@@ -329,7 +330,7 @@ describe('HostActionsClient', () => {
     });
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-1',
       resumed: false,
@@ -346,7 +347,7 @@ describe('HostActionsClient', () => {
     sent.length = 0;
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-2',
       resumed: true,
@@ -364,7 +365,7 @@ describe('HostActionsClient', () => {
     sent.length = 0;
     client.receiveHello({
       kind: 'hello',
-      protocolVersion: 1,
+      protocolVersion: VIEWER_PROTOCOL_VERSION,
       clientId: 'client-1',
       resumeToken: 'token-3',
       resumed: true,

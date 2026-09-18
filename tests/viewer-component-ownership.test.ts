@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as React from 'react';
 import type * as THREE from 'three';
-import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 
 import {
+  HOST_ACTION_PROTOCOL_VERSION,
   createHostActionsManifest,
   createHostActionStatus,
   type HostActionDescriptor,
@@ -102,11 +102,10 @@ vi.mock('@/transport/ws-client', async () => ({
     };
   },
 }));
-vi.mock('@/exporters/stl', async () => {
+vi.mock('@/exporters/model', async () => {
   await harness.exportReady;
-  return import('../packages/viewer/src/exporters/stl.js');
+  return import('../packages/viewer/src/exporters/model.js');
 });
-vi.mock('@/exporters/filename', () => import('../packages/viewer/src/exporters/filename.js'));
 vi.mock('@/demo-payload', () => ({}));
 
 // Keep Viewer, MarkTool, their stores and HostActionsClient real; only replace
@@ -176,8 +175,8 @@ const fixAction: HostActionDescriptor = {
 };
 const attachAction: HostActionDescriptor = { ...fixAction, id: 'attach-annotation-batch', label: 'Attach' };
 const exportAction: HostActionDescriptor = {
-  id: 'export-stl-file',
-  label: 'Export STL',
+  id: 'export-model-file',
+  label: 'Export model',
   icon: 'download',
   slot: 'export-handler',
   tone: 'default',
@@ -299,13 +298,15 @@ function model(description: string, width: number): ViewerModel {
   return {
     description,
     numProp: 3,
-    triangles: 1,
-    vertices: 3,
-    vertProperties: new Float32Array([0, 0, 0, width, 0, 0, 0, 20, 30]),
-    triVerts: new Uint32Array([0, 1, 2]),
+    triangles: 4,
+    vertices: 4,
+    vertProperties: new Float32Array([0, 0, 0, width, 0, 0, 0, 20, 0, 0, 0, 30]),
+    triVerts: new Uint32Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]),
+    mergeFromVert: new Uint32Array(),
+    mergeToVert: new Uint32Array(),
     features: [],
-    triFeatureIds: new Uint32Array(1),
-    volume: 0,
+    triFeatureIds: new Uint32Array(4),
+    volume: (width * 20 * 30) / 6,
     surfaceArea: 0,
     genus: 0,
     bboxMin: [0, 0, 0],
@@ -314,7 +315,7 @@ function model(description: string, width: number): ViewerModel {
 }
 
 describe('Viewer component ownership', () => {
-  it.each(['viewerStartupFailed', 'stlExportFailed', 'locationAttachmentFailed'] as const)(
+  it.each(['viewerStartupFailed', 'modelExportFailed', 'locationAttachmentFailed'] as const)(
     'preserves %s when annotation synchronization succeeds',
     async key => {
       await mount();
@@ -462,7 +463,7 @@ describe('Viewer component ownership', () => {
     } else {
       client.receiveHello({
         kind: 'hello',
-        protocolVersion: 1,
+        protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
         clientId: 'new-client',
         resumeToken: 'new-token',
         resumed: false,
@@ -508,7 +509,7 @@ describe('Viewer component ownership', () => {
     expect(document.body.dataset.markMode).toBeUndefined();
   });
 
-  it('captures the canonical payload and filename before a lazy STL import completes', async () => {
+  it('captures the canonical payload and filename before a lazy model exporter import completes', async () => {
     await mount();
     const payload = store.getState().payload!;
     const runtime = harness.runtime!.scene;
@@ -517,7 +518,7 @@ describe('Viewer component ownership', () => {
     runtime.modelRoot.position.set(1, 2, 3);
     runtime.modelRoot.updateMatrixWorld(true);
     const transform = runtime.modelRoot.matrixWorld.clone();
-    const exporting = store.getState().viewerApi!.exportStl();
+    const exporting = store.getState().viewerApi!.exportModel('glb');
     await settle();
     expect(download).toBeUndefined();
     payload.description = 'Changed description during import';
@@ -525,27 +526,41 @@ describe('Viewer component ownership', () => {
 
     harness.releaseExport();
     await exporting;
-    expect(download?.name).toBe('original-model.stl');
-    const geometry = new STLLoader().parse(await download!.blob.arrayBuffer());
-    geometry.computeBoundingBox();
-    expect(geometry.boundingBox?.min.toArray()).toEqual([0, 0, 0]);
-    expect(geometry.boundingBox?.max.toArray()).toEqual([10, 20, 30]);
+    expect(download?.name).toBe('original-model.glb');
+    expect(download?.blob.type).toBe('model/gltf-binary');
+    expect(download?.blob.size).toBeGreaterThan(100);
     expect(runtime.modelRoot.matrixWorld.equals(transform)).toBe(true);
     expect(store.getState().payload?.description).toBe('Replacement model');
-    geometry.dispose();
   });
 
   it('delegates export to a host export handler instead of starting a browser download', async () => {
     await mount();
     harness.feed!.onHostActionsManifest?.(createHostActionsManifest([fixAction, attachAction, exportAction]));
 
-    await store.getState().viewerApi!.exportStl();
+    await store.getState().viewerApi!.exportModel('3mf');
 
     expect(download).toBeUndefined();
     expect(harness.sentMessages).toContainEqual(
       expect.objectContaining({
         kind: 'host_action_invoke',
-        actionId: 'export-stl-file',
+        actionId: 'export-model-file',
+        input: { format: '3mf' },
+      }),
+    );
+  });
+
+  it('falls back to browser export when a retained host manifest is disconnected', async () => {
+    await mount();
+    harness.feed!.onHostActionsManifest?.(createHostActionsManifest([exportAction]));
+    harness.feed!.onStatusChange?.('disconnected');
+
+    await store.getState().viewerApi!.exportModel('3mf');
+
+    expect(download?.name).toBe('original-model.3mf');
+    expect(harness.sentMessages).not.toContainEqual(
+      expect.objectContaining({
+        kind: 'host_action_invoke',
+        actionId: 'export-model-file',
       }),
     );
   });

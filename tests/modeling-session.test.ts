@@ -59,6 +59,8 @@ function artifact(description: string): ModelArtifact {
     vertices: 0,
     vertProperties: new ArrayBuffer(0),
     triVerts: new ArrayBuffer(0),
+    mergeFromVert: new ArrayBuffer(0),
+    mergeToVert: new ArrayBuffer(0),
     triFeatureIds: new ArrayBuffer(0),
     features: [],
     volume: 0,

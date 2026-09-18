@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createModelHeader, type ViewerModelFrame } from '../packages/protocol/src/wire/model.js';
+import {
+  VIEWER_PROTOCOL_VERSION,
+  createModelHeader,
+  type ViewerModelFrame,
+} from '../packages/protocol/src/wire/model.js';
 import {
   buildViewerWebSocketUrl,
   connectMeshFeed,
@@ -22,6 +26,8 @@ function modelFrame(): ViewerModelFrame {
     vertices: 3,
     vertProperties: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer,
     triVerts: new Uint32Array([0, 1, 2]).buffer,
+    mergeFromVert: new Uint32Array().buffer,
+    mergeToVert: new Uint32Array().buffer,
     triFeatureIds: new Uint32Array([0]).buffer,
     features: [
       {
@@ -125,7 +131,7 @@ describe('viewer WS model frame receiver', () => {
     firstSocket.receive(
       JSON.stringify({
         kind: 'hello',
-        protocolVersion: 1,
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
         clientId: 'client-1',
         resumeToken: 'resume-xyz',
         resumed: false,
@@ -167,6 +173,29 @@ describe('viewer WS model frame receiver', () => {
     expect(onMesh.mock.calls[0]?.[0].triangles).toBe(1);
   });
 
+  it('waits for both declared weld frames before feature ids', () => {
+    const frame = {
+      ...modelFrame(),
+      mergeFromVert: new Uint32Array([2]).buffer,
+      mergeToVert: new Uint32Array([0]).buffer,
+    };
+    const onMesh = vi.fn();
+    const onError = vi.fn();
+    const receiver = createModelFrameReceiver({ onMesh, onError });
+
+    receiver.receiveText(JSON.stringify(createModelHeader(frame)));
+    receiver.receiveBinary(frame.vertProperties);
+    receiver.receiveBinary(frame.triVerts);
+    receiver.receiveBinary(frame.mergeFromVert);
+    receiver.receiveBinary(frame.mergeToVert);
+    expect(onMesh).not.toHaveBeenCalled();
+    receiver.receiveBinary(frame.triFeatureIds);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(onMesh.mock.calls[0]?.[0].mergeFromVert).toEqual(new Uint32Array([2]));
+    expect(onMesh.mock.calls[0]?.[0].mergeToVert).toEqual(new Uint32Array([0]));
+  });
+
   it('surfaces the rotating resumable hello message', () => {
     const onMesh = vi.fn();
     const onHello = vi.fn();
@@ -174,7 +203,7 @@ describe('viewer WS model frame receiver', () => {
     receiver.receiveText(
       JSON.stringify({
         kind: 'hello',
-        protocolVersion: 1,
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
         clientId: 'client-1',
         resumeToken: 'token-1',
         resumed: true,
@@ -224,7 +253,7 @@ describe('viewer WS model frame receiver', () => {
     socket.receive(
       JSON.stringify({
         kind: 'hello',
-        protocolVersion: 1,
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
         clientId: 'client-1',
         resumeToken: 'new-token',
         resumed: true,
@@ -234,7 +263,7 @@ describe('viewer WS model frame receiver', () => {
     expect(socket.sent.map(message => JSON.parse(message))).toEqual([
       {
         kind: 'resume_token_ack',
-        protocolVersion: 1,
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
         resumeToken: 'new-token',
       },
     ]);
@@ -255,7 +284,7 @@ describe('viewer WS model frame receiver', () => {
     receiver.receiveText(
       JSON.stringify({
         ...createModelHeader(modelFrame()),
-        protocolVersion: 2,
+        protocolVersion: 99,
       }),
     );
 
@@ -339,7 +368,11 @@ describe('viewer WS model frame receiver', () => {
 
     feed.close();
     lateMessage({
-      data: JSON.stringify({ kind: 'model_version', protocolVersion: 1, modelVersion: 'late' }),
+      data: JSON.stringify({
+        kind: 'model_version',
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
+        modelVersion: 'late',
+      }),
     } as MessageEvent<string>);
     lateMessage({ data: new ArrayBuffer(8) } as MessageEvent<ArrayBuffer>);
     lateOpen();
@@ -411,7 +444,11 @@ describe('viewer WS model frame receiver', () => {
     const statusesBeforeLateCallbacks = onStatusChange.mock.calls.slice();
 
     oldMessage({
-      data: JSON.stringify({ kind: 'model_version', protocolVersion: 1, modelVersion: 'stale' }),
+      data: JSON.stringify({
+        kind: 'model_version',
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
+        modelVersion: 'stale',
+      }),
     } as MessageEvent<string>);
     oldOpen();
     oldClose();

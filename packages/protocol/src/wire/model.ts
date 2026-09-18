@@ -1,16 +1,18 @@
 /**
  * Browser/Node wire contract for models sent by the preview server.
  *
- * Geometry is framed as one JSON header followed by two or three binary
+ * Geometry is framed as one JSON header followed by binary
  * ArrayBuffer frames:
  *   1. Float32 vertex properties
  *   2. Uint32 triangle vertex indices
- *   3. Uint32 per-triangle feature ids, when announced by the header
+ *   3. Uint32 property-vertex weld sources, when announced by the header
+ *   4. Uint32 property-vertex weld targets, when announced by the header
+ *   5. Uint32 per-triangle feature ids, when announced by the header
  *
  * Every JSON frame carries an explicit protocol version.
  */
 
-export const VIEWER_PROTOCOL_VERSION = 1 as const;
+export const VIEWER_PROTOCOL_VERSION = 2 as const;
 
 export type ViewerProtocolVersion = typeof VIEWER_PROTOCOL_VERSION;
 export type FeatureKind = 'cube' | 'sphere' | 'cylinder' | 'tetrahedron' | 'extrude' | 'revolve' | 'unknown';
@@ -33,6 +35,8 @@ export interface ViewerModelFrame {
   vertices: number;
   vertProperties: ArrayBuffer;
   triVerts: ArrayBuffer;
+  mergeFromVert: ArrayBuffer;
+  mergeToVert: ArrayBuffer;
   triFeatureIds: ArrayBuffer;
   features: ViewerFeature[];
   volume: number;
@@ -50,6 +54,8 @@ export interface ViewerModel {
   vertices: number;
   vertProperties: Float32Array;
   triVerts: Uint32Array;
+  mergeFromVert: Uint32Array;
+  mergeToVert: Uint32Array;
   triFeatureIds: Uint32Array;
   features: ViewerFeature[];
   volume: number;
@@ -67,6 +73,7 @@ export interface ModelHeader {
   triangles: number;
   vertices: number;
   features: ViewerFeature[];
+  mergePairs: number;
   hasTriFeatureIds: boolean;
   volume: number;
   surfaceArea: number;
@@ -99,11 +106,13 @@ export interface ResumeTokenAckMessage {
   resumeToken: string;
 }
 
-export type ModelBinaryFrameKind = 'vertProperties' | 'triVerts' | 'triFeatureIds';
+export type ModelBinaryFrameKind = 'vertProperties' | 'triVerts' | 'mergeFromVert' | 'mergeToVert' | 'triFeatureIds';
 
 export interface ViewerModelBinaryFrames {
   vertProperties: ArrayBuffer;
   triVerts: ArrayBuffer;
+  mergeFromVert?: ArrayBuffer;
+  mergeToVert?: ArrayBuffer;
   triFeatureIds?: ArrayBuffer;
 }
 
@@ -123,6 +132,7 @@ export function createModelHeader(model: ViewerModelFrame): ModelHeader {
     triangles: model.triangles,
     vertices: model.vertices,
     features: model.features,
+    mergePairs: model.mergeFromVert.byteLength / Uint32Array.BYTES_PER_ELEMENT,
     hasTriFeatureIds: model.triFeatureIds.byteLength > 0,
     volume: model.volume,
     surfaceArea: model.surfaceArea,
@@ -173,6 +183,7 @@ export function parseModelHeader(value: unknown): ModelHeader {
       'triangles',
       'vertices',
       'features',
+      'mergePairs',
       'hasTriFeatureIds',
       'volume',
       'surfaceArea',
@@ -200,6 +211,8 @@ export function parseModelHeader(value: unknown): ModelHeader {
     throw new ViewerProtocolError('Model header features must be an array of valid viewer features.');
   }
 
+  const mergePairs = nonnegativeInteger(record.mergePairs, 'mergePairs');
+
   if (typeof record.hasTriFeatureIds !== 'boolean') {
     throw new ViewerProtocolError('Model header hasTriFeatureIds must be a boolean.');
   }
@@ -223,6 +236,7 @@ export function parseModelHeader(value: unknown): ModelHeader {
     triangles,
     vertices,
     features: record.features,
+    mergePairs,
     hasTriFeatureIds: record.hasTriFeatureIds,
     volume,
     surfaceArea,
@@ -361,6 +375,9 @@ export function expectedModelBufferByteLength(header: ModelHeader, kind: ModelBi
       return safeByteLength(header.vertices, header.numProp, 'vertex properties');
     case 'triVerts':
       return safeByteLength(header.triangles, 3, 'triangle vertices');
+    case 'mergeFromVert':
+    case 'mergeToVert':
+      return safeByteLength(header.mergePairs, 1, 'merge vertices');
     case 'triFeatureIds':
       return header.hasTriFeatureIds ? safeByteLength(header.triangles, 1, 'triangle feature ids') : 0;
   }
@@ -383,6 +400,10 @@ export function decodeViewerModel(header: ModelHeader, frames: ViewerModelBinary
   assertModelBinaryFrame(header, 'triVerts', frames.triVerts);
 
   const triFeatureIdsBuffer = frames.triFeatureIds ?? new ArrayBuffer(0);
+  const mergeFromVertBuffer = frames.mergeFromVert ?? new ArrayBuffer(0);
+  const mergeToVertBuffer = frames.mergeToVert ?? new ArrayBuffer(0);
+  assertModelBinaryFrame(header, 'mergeFromVert', mergeFromVertBuffer);
+  assertModelBinaryFrame(header, 'mergeToVert', mergeToVertBuffer);
   assertModelBinaryFrame(header, 'triFeatureIds', triFeatureIdsBuffer);
 
   return {
@@ -392,6 +413,8 @@ export function decodeViewerModel(header: ModelHeader, frames: ViewerModelBinary
     vertices: header.vertices,
     vertProperties: new Float32Array(frames.vertProperties),
     triVerts: new Uint32Array(frames.triVerts),
+    mergeFromVert: new Uint32Array(mergeFromVertBuffer),
+    mergeToVert: new Uint32Array(mergeToVertBuffer),
     triFeatureIds: new Uint32Array(triFeatureIdsBuffer),
     features: header.features,
     volume: header.volume,
@@ -407,7 +430,18 @@ export function assertViewerModelFrame(frame: ViewerModelFrame): void {
   const header = parseModelHeader(createModelHeader(frame));
   assertModelBinaryFrame(header, 'vertProperties', frame.vertProperties);
   assertModelBinaryFrame(header, 'triVerts', frame.triVerts);
+  assertModelBinaryFrame(header, 'mergeFromVert', frame.mergeFromVert);
+  assertModelBinaryFrame(header, 'mergeToVert', frame.mergeToVert);
   assertModelBinaryFrame(header, 'triFeatureIds', frame.triFeatureIds);
+}
+
+export function modelBinaryFrameKinds(header: ModelHeader): ModelBinaryFrameKind[] {
+  return [
+    'vertProperties',
+    'triVerts',
+    ...(header.mergePairs > 0 ? (['mergeFromVert', 'mergeToVert'] as const) : []),
+    ...(header.hasTriFeatureIds ? (['triFeatureIds'] as const) : []),
+  ];
 }
 
 function requireProtocolVersion(value: unknown): void {

@@ -15,6 +15,8 @@ export type MarkMode = 'orbit' | 'annotate' | 'select';
 interface SpatialAnnotation {
   id: string;
   createdAt: number;
+  /** Viewer-local presentation number for this model, shown as #N. */
+  displayNumber: number;
   /** Identifies the model version this annotation was made against. */
   modelVersion: string;
   kind: AnnotationKind;

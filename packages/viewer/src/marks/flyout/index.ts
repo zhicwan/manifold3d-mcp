@@ -39,8 +39,6 @@ export class FlyoutLayer {
   private readonly host: HTMLDivElement;
   private readonly views = new Map<string, FlyoutView>();
   private readonly elements = new Map<string, HTMLElement>();
-  private readonly numbers = new Map<string, number>();
-  private nextNumber = 1;
   private readonly controller: FlyoutController;
   private unsubscribe: (() => void) | null = null;
 
@@ -182,14 +180,7 @@ export class FlyoutLayer {
       }
     }
     this.controller.syncAlive(aliveIds, editableIds);
-    if (items.length === 0) {
-      this.numbers.clear();
-      this.nextNumber = 1;
-    }
     for (const ann of items) {
-      if (!this.numbers.has(ann.id)) {
-        this.numbers.set(ann.id, this.nextNumber++);
-      }
       const existing = this.views.get(ann.id);
       if (existing) {
         existing.setView(this.toViewModel(ann));
@@ -269,7 +260,7 @@ export class FlyoutLayer {
       kind: ann.kind,
       expanded: this.controller.getExpandedId() === ann.id,
       readOnly: ann.intent === 'selection' || ann.state !== 'draft',
-      number: this.numbers.get(ann.id)!,
+      number: ann.displayNumber,
       intent: ann.intent,
       state: ann.state,
     };

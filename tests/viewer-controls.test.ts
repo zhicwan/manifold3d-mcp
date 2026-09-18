@@ -2,6 +2,7 @@ import * as React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  HOST_ACTION_PROTOCOL_VERSION,
   createHostActionsManifest,
   type HostActionDescriptor,
   type HostActionStatusMessage,
@@ -152,7 +153,7 @@ beforeEach(() => {
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
     fitToModel: vi.fn(),
-    exportStl: vi.fn(() => Promise.resolve()),
+    exportModel: vi.fn(() => Promise.resolve()),
   };
   harness.store.setViewerApi(api);
   harness.store.setPayload({
@@ -162,6 +163,8 @@ beforeEach(() => {
     vertices: 3,
     vertProperties: new Float32Array(9),
     triVerts: new Uint32Array([0, 1, 2]),
+    mergeFromVert: new Uint32Array(),
+    mergeToVert: new Uint32Array(),
     features: [],
     triFeatureIds: new Uint32Array(1),
     volume: 1,
@@ -318,7 +321,7 @@ describe('Viewer controls', () => {
       if (reason === 'pending') {
         const pending: HostActionStatusMessage = {
           kind: 'host_action_status',
-          protocolVersion: 1,
+          protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
           requestId: 'old-pending',
           actionId: selectionAction.id,
           state: 'running',
