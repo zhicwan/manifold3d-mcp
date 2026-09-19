@@ -15,15 +15,22 @@ function examples(file: string): string[] {
   });
 }
 
+function exampleContaining(blocks: string[], marker: string): string {
+  const matches = blocks.filter(code => code.includes(marker));
+  const code = matches[0];
+  assert(
+    matches.length === 1 && code !== undefined,
+    `Expected exactly one example containing "${marker}", found ${matches.length}`,
+  );
+  return code;
+}
+
 const memory = examples('memory-management.md');
 const tips = examples('tips.md');
 const models = examples('examples.md');
-const openBox = models[2];
-const openVase = models[4];
-const roundedPlate = models[5];
-assert(openBox !== undefined, 'Missing open-box example');
-assert(openVase !== undefined, 'Missing open-vase example');
-assert(roundedPlate !== undefined, 'Missing rounded-plate example');
+const openBox = exampleContaining(models, 'const outerSize:');
+const openVase = exampleContaining(models, 'const innerBottomRadius =');
+const roundedPlate = exampleContaining(models, 'const plate = CrossSection.square(');
 
 function parameter(code: string, name: string, value: number): string {
   const declaration = new RegExp(`const ${name} = [^;]+;`);
@@ -94,7 +101,25 @@ describe('shipped skill reference examples', () => {
   it('includes all expected runnable examples', () => {
     expect(memory).toHaveLength(1);
     expect(tips).toHaveLength(3);
-    expect(models).toHaveLength(8);
+    expect(models.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it.each([
+    { name: 'reordered blocks', blocks: [...models].reverse() },
+    { name: 'an additional unrelated block', blocks: ['result = Manifold.sphere(5);', ...models] },
+  ])('selects the intended geometry examples with $name', ({ blocks }) => {
+    expect(exampleContaining(blocks, 'const outerSize:')).toBe(openBox);
+    expect(exampleContaining(blocks, 'const innerBottomRadius =')).toBe(openVase);
+    expect(exampleContaining(blocks, 'const plate = CrossSection.square(')).toBe(roundedPlate);
+  });
+
+  it.each([
+    { name: 'missing', blocks: models.filter(code => code !== openBox), count: 0 },
+    { name: 'duplicate', blocks: [...models, openBox], count: 2 },
+  ])('rejects $name example matches', ({ blocks, count }) => {
+    expect(() => exampleContaining(blocks, 'const outerSize:')).toThrow(
+      `Expected exactly one example containing "const outerSize:", found ${count}`,
+    );
   });
 
   it.each([
