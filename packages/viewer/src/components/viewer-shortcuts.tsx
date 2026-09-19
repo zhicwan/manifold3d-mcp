@@ -16,8 +16,8 @@ import type { ViewerI18n } from '@/i18n';
 
 export const VIEWER_TOOLS = [
   { mode: 'orbit', shortcut: 'V', icon: MousePointer2 },
-  { mode: 'annotate', shortcut: 'M', icon: MapPin },
-  { mode: 'select', shortcut: 'S', icon: MessageSquare },
+  { mode: 'annotate', shortcut: 'M', icon: MessageSquare },
+  { mode: 'select', shortcut: 'S', icon: MapPin },
 ] as const;
 
 export function viewerTools(supportsSelect: boolean) {

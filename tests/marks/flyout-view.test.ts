@@ -103,6 +103,7 @@ describe('Compact annotation editor', () => {
     expect(textarea.maxLength).toBeGreaterThan(0);
     view.focusTextarea();
     expect(textarea.style.height).toBe('24px');
+    expect(textarea.style.overflowY).toBe('hidden');
     expect(document.activeElement).toBe(textarea);
     view.dispose();
     expect(disconnect).toHaveBeenCalledOnce();
@@ -115,6 +116,7 @@ describe('Compact annotation editor', () => {
     textarea.events.get('input')!({});
     expect(callbacks.onInput).toHaveBeenCalledWith(textarea.value);
     expect(textarea.style.height).toBe('120px');
+    expect(textarea.style.overflowY).toBe('auto');
     view.dispose();
   });
 

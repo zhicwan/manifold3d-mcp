@@ -228,7 +228,10 @@
   background: transparent;
   color: inherit;
   font: 13px/20px var(--font-sans, system-ui, sans-serif);
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .marks-flyout-body:has(.marks-flyout-textarea:focus-visible) {

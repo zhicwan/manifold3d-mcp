@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MapPin, MessageSquare } from 'lucide-react';
 
 import {
   HOST_ACTION_PROTOCOL_VERSION,
@@ -75,9 +76,10 @@ const { RightRail } = (await import(`${components}/right-rail.tsx`)) as {
 const { AnnotationBatchBar } = (await import(`${components}/annotation-batch-bar.tsx`)) as {
   AnnotationBatchBar(): React.ReactElement | null;
 };
-const { ViewerHelp, selectionDisabledReason, toolForShortcut, viewerTools } = (await import(
+const { VIEWER_TOOLS, ViewerHelp, selectionDisabledReason, toolForShortcut, viewerTools } = (await import(
   `${components}/viewer-shortcuts.tsx`
 )) as {
+  VIEWER_TOOLS: ReadonlyArray<{ mode: string; icon: unknown }>;
   ViewerHelp(props: { open: boolean; onOpenChange(open: boolean): void; supportsSelect: boolean }): React.ReactElement;
   selectionDisabledReason(snapshot: HostActionsSnapshot, hasModel: boolean, i18n: ViewerI18n): string | undefined;
   toolForShortcut(key: string, supportsSelect: boolean, selectDisabled: boolean): string | undefined;
@@ -300,6 +302,8 @@ describe('Viewer controls', () => {
   it('prioritizes only the advertised host capability and retains tool names', () => {
     expect(viewerTools(false).map(tool => tool.mode)).toEqual(['orbit', 'annotate']);
     expect(viewerTools(true).map(tool => tool.mode)).toEqual(['orbit', 'select', 'annotate']);
+    expect(VIEWER_TOOLS.find(tool => tool.mode === 'annotate')?.icon).toBe(MessageSquare);
+    expect(VIEWER_TOOLS.find(tool => tool.mode === 'select')?.icon).toBe(MapPin);
     expect(toolForShortcut('S', false, false)).toBeUndefined();
     expect(toolForShortcut('S', true, true)).toBeUndefined();
     expect(toolForShortcut('S', true, false)).toBe('select');

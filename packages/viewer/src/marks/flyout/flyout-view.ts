@@ -166,7 +166,9 @@ export class FlyoutView {
       return;
     }
     this.textarea.style.height = 'auto';
-    this.textarea.style.height = `${Math.min(120, Math.max(24, this.textarea.scrollHeight))}px`;
+    const contentHeight = this.textarea.scrollHeight;
+    this.textarea.style.height = `${Math.min(120, Math.max(24, contentHeight))}px`;
+    this.textarea.style.overflowY = contentHeight > 120 ? 'auto' : 'hidden';
   }
 
   private applyVm(): void {
