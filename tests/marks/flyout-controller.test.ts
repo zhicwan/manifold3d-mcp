@@ -117,6 +117,17 @@ describe('FlyoutController', () => {
     expect(bridge.setTextareaValue).not.toHaveBeenCalled();
   });
 
+  it('does not consume a display number when a new annotation is cancelled', () => {
+    const savedId = seed(store, 'saved');
+    const cancelledId = seed(store);
+    controller.open(cancelledId);
+    controller.cancel(cancelledId);
+
+    const replacementId = seed(store);
+    expect(store.get(savedId)?.displayNumber).toBe(1);
+    expect(store.get(replacementId)?.displayNumber).toBe(2);
+  });
+
   it('cancel() reverts the textarea to the saved note when one exists', () => {
     const id = seed(store, 'saved');
     controller.open(id);

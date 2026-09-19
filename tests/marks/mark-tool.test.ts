@@ -187,6 +187,47 @@ describe('MarkTool annotate/select gestures', () => {
     }
   });
 
+  it('removes an empty open draft before numbering the next annotation', () => {
+    let expandedId: string | null = null;
+    flyouts.dismissAll.mockImplementation(() => {
+      if (expandedId !== null) {
+        store.remove(expandedId);
+        expandedId = null;
+      }
+    });
+    flyouts.openExpanded.mockImplementation((id: string) => {
+      if (expandedId !== null) {
+        store.remove(expandedId);
+      }
+      expandedId = id;
+    });
+
+    performGesture('annotate', false);
+    performGesture('annotate', false);
+
+    expect(store.list()).toHaveLength(1);
+    expect(store.list()[0]?.displayNumber).toBe(1);
+  });
+
+  it('removes an empty open draft before numbering a location selection', () => {
+    let expandedId: string | null = null;
+    flyouts.dismissAll.mockImplementation(() => {
+      if (expandedId !== null) {
+        store.remove(expandedId);
+        expandedId = null;
+      }
+    });
+    flyouts.openExpanded.mockImplementation((id: string) => {
+      expandedId = id;
+    });
+
+    performGesture('annotate', false);
+    performGesture('select', false);
+
+    expect(store.list()).toHaveLength(1);
+    expect(store.list()[0]).toMatchObject({ intent: 'selection', displayNumber: 1 });
+  });
+
   it.each(['annotate', 'select'] as const)('does not mark a non-primary touch in %s mode', mode => {
     tool.setMode(mode);
     const secondary = { ...mouse(10, 10), pointerType: 'touch', isPrimary: false };

@@ -303,6 +303,10 @@ export class MarkTool {
   }
 
   private createAnnotation(input: AnnotationGeometryInput): void {
+    // Finish the current editor before allocating the next presentation number.
+    // Otherwise an empty draft is removed only after the new mark has already
+    // consumed the following number.
+    this.flyouts.dismissAll();
     if (this.mode === 'select') {
       const selection = this.store.addSelection(input);
       // One-shot selection ends before async delivery. A late result never

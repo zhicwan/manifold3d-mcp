@@ -40,6 +40,19 @@ describe('AnnotationStore transactions', () => {
     expect(store.addComment({ ...point, note: 'reset' }).displayNumber).toBe(1);
   });
 
+  it('reuses a trailing display number after an unsaved annotation is removed', () => {
+    const store = new AnnotationStore();
+    const saved = store.addComment({ ...point, note: 'saved' });
+    const unsaved = store.addComment(point);
+
+    expect([saved.displayNumber, unsaved.displayNumber]).toEqual([1, 2]);
+    expect(store.remove(unsaved.id)).toBe(true);
+
+    const replacement = store.addComment(point);
+    expect(saved.displayNumber).toBe(1);
+    expect(replacement.displayNumber).toBe(2);
+  });
+
   it('isolates the current draft comment batch from selections and later batches', () => {
     const store = new AnnotationStore();
     const batchId = store.getDraftBatch().batchId;

@@ -238,9 +238,10 @@ export class AnnotationStore {
     const snapshot = [...this.items.values()].sort((a, b) => a.createdAt - b.createdAt);
     Object.freeze(snapshot);
     this.snapshot = snapshot;
-    if (snapshot.length === 0) {
-      this.displaySequence = 0;
-    }
+    this.displaySequence = snapshot.reduce(
+      (highest, annotation) => Math.max(highest, annotation.displayNumber),
+      0,
+    );
     const snap = this.snapshot;
     for (const fn of this.listeners) {
       fn(snap);
