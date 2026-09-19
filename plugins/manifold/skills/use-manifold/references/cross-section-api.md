@@ -15,15 +15,19 @@ CrossSection.circle(radius: number, circularSegments?: number): CrossSection
 CrossSection.ofPolygons(contours: Polygons, fillRule?: FillRule): CrossSection
 
 // Booleans
-CrossSection.union(...c: CrossSection[]): CrossSection
-CrossSection.difference(...c: CrossSection[]): CrossSection
-CrossSection.intersection(...c: CrossSection[]): CrossSection
-CrossSection.compose(parts: CrossSection[]): CrossSection
-CrossSection.hull(parts: Array<CrossSection | Vec2>): CrossSection
+CrossSection.union(a: CrossSection | Polygons, b: CrossSection | Polygons): CrossSection
+CrossSection.union(c: readonly (CrossSection | Polygons)[]): CrossSection
+CrossSection.difference(a: CrossSection | Polygons, b: CrossSection | Polygons): CrossSection
+CrossSection.difference(c: readonly (CrossSection | Polygons)[]): CrossSection
+CrossSection.intersection(a: CrossSection | Polygons, b: CrossSection | Polygons): CrossSection
+CrossSection.intersection(c: readonly (CrossSection | Polygons)[]): CrossSection
+CrossSection.compose(parts: readonly (CrossSection | Polygons)[]): CrossSection
+CrossSection.hull(parts: readonly (CrossSection | Polygons)[]): CrossSection
 ```
 
-`Polygons` = `Vec2[][]`: the first ring is the outer boundary, additional
-rings are holes (CCW outer, CW holes is the safest convention).
+`SimplePolygon` = `Vec2[]`; `Polygons` accepts either one contour or an array
+of contours. For a complex polygon, the first ring is the outer boundary and
+additional rings are holes (CCW outer, CW holes is the safest convention).
 
 When using the default `'Positive'` fill rule, keep outer contours
 counter-clockwise and holes clockwise. If a simple `ofPolygons` profile reports
@@ -45,13 +49,13 @@ new CrossSection(contours: Polygons, fillRule?: FillRule)
 c.add(other: CrossSection | Polygons): CrossSection
 c.subtract(other: CrossSection | Polygons): CrossSection
 c.intersect(other: CrossSection | Polygons): CrossSection
-c.rectClip(rect: Rect): CrossSection
 ```
 
 ## Transforms
 
 ```ts
-c.translate(v: Vec2 | number, y?: number): CrossSection
+c.translate(v: Vec2): CrossSection
+c.translate(x: number, y?: number): CrossSection
 c.rotate(degrees: number): CrossSection
 c.scale(v: Vec2 | number): CrossSection
 c.mirror(normal: Vec2): CrossSection
@@ -68,6 +72,17 @@ c.offset(delta: number,
          circularSegments?: number): CrossSection
 c.hull(): CrossSection
 c.simplify(epsilon?: number): CrossSection
+```
+
+## Measurements and polygon output
+
+```ts
+c.area(): number
+c.bounds(): Rect
+c.toPolygons(): SimplePolygon[]
+c.isEmpty(): boolean
+c.numContour(): number
+c.numVert(): number
 ```
 
 ## Going from 2D to 3D

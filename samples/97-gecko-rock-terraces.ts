@@ -115,7 +115,7 @@
   const door = Manifold.extrude(CrossSection.ofPolygons([doorPoints]), 20, 0, 0, [1, 1], true)
     .rotate([90, 0, 0])
     .translate([outerLen / 2 - 30, 0, 0]);
-  const shell = Manifold.difference(outer, cavity, door);
+  const shell = Manifold.difference([outer, cavity, door]);
 
   const ventW = 1.8,
     topLen = outerH * 0.12,
@@ -143,7 +143,7 @@
       side.mirror([1, 0, 0]).translate([outerLen, 0, 0]),
     );
   }
-  const house = shell.subtract(Manifold.union(...vents));
+  const house = shell.subtract(Manifold.union(vents));
 
   function stairs(
     centerX: number,
@@ -159,7 +159,7 @@
         softBox([50, (count - i) * tread, (i + 1) * rise], [centerX - 25, startY + i * tread, baseZ], 4.5, 0.8),
       );
     }
-    return Manifold.union(...blocks);
+    return Manifold.union(blocks);
   }
 
   const glueGap = 0.15,
@@ -203,9 +203,9 @@
       extrudeYZ(archProfile, x0 + width - 0.82, 0.02),
       extrudeYZ(expanded, x0 + width, 0.4),
     ]);
-    supportParts.push(Manifold.difference(blank, Manifold.union(core, bevelA, bevelB), roofClearance));
+    supportParts.push(Manifold.difference([blank, Manifold.union([core, bevelA, bevelB]), roofClearance]));
   }
-  const platform = Manifold.union(...supportParts);
+  const platform = Manifold.union(supportParts);
   const parts = [house, groundStair, upperStair, platform];
 
   for (const part of parts) {

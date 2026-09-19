@@ -7,6 +7,10 @@
     "dist"
   ],
   "exports": {
+    "./manifoldcad-link.js": {
+      "types": "./dist/manifoldcad-link.d.ts",
+      "default": "./dist/manifoldcad-link.js"
+    },
     "./modeling.js": {
       "types": "./dist/modeling.d.ts",
       "default": "./dist/modeling.js"

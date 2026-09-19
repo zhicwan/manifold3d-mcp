@@ -207,7 +207,10 @@ export async function startMcpServer(opts: McpServerOptions): Promise<McpServerH
         {
           beforeCommit: async model => {
             const preview = await opts.getPreview();
-            preview.pushModel(toViewerModelFrame(model.artifact));
+            preview.pushModel(toViewerModelFrame(model.artifact), {
+              code,
+              ...(description !== undefined ? { description } : {}),
+            });
             publishedPreview = preview;
           },
         },

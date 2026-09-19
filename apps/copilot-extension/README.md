@@ -75,11 +75,19 @@ inline `code`; local `filePath` loading is intentionally deferred. Captures are
 written beneath the active Copilot session workspace at
 `files/manifold3d-captures/` and returned as a path.
 
-Each Viewer room exposes three host actions:
+Each Viewer room exposes these host actions:
 
 - `attach-annotation-batch` in `annotation-batch`
 - `fix-annotation-batch` in `annotation-batch`
 - `attach-location-selection` in `selection-gesture`
+- `open-in-manifoldcad` in the toolbar
+- `export-model-file` as the export handler
+
+`open-in-manifoldcad` builds a share URL from the exact successful script and
+description associated with the model displayed in that room, then opens it in
+the system default browser. Source is retained per room, including rooms opened
+after a model commit. URL-size and browser-launch failures are reported through
+the Viewer action status rather than treated as successful launches.
 
 Batch actions require explicit `annotationIds` and input
 `{ "batchId": "<safe-id>" }`. Both capture a bounded version 2 static snapshot

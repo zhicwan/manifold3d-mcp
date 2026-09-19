@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { ExternalLink } from 'lucide-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ViewerStore } from '../packages/viewer/src/store.js';
 import type { XrExperienceState } from '../packages/viewer/src/xr/state.js';
@@ -114,11 +115,43 @@ describe('localized host and optional XR component presentation', () => {
     });
     const status = client.getSnapshot().latestStatus;
     expect(text(HostActionStatusRegion())).toContain('Annotation fix was accepted by Copilot for enqueueing.');
-    expect(text(ToolbarHostActions())).toContain('Fix');
+    expect(findElement(ToolbarHostActions(), element => element.props['aria-label'] === 'Fix')).not.toBeNull();
     harness.store!.i18n.setPreference('zh-CN');
     expect(text(HostActionStatusRegion())).toContain('Copilot 已接受批注修复请求并将其加入队列。');
-    expect(text(ToolbarHostActions())).toContain('修复');
+    expect(findElement(ToolbarHostActions(), element => element.props['aria-label'] === '修复')).not.toBeNull();
     expect(client.getSnapshot().latestStatus).toBe(status);
+  });
+
+  it('renders the localized ManifoldCAD toolbar action with an external-link icon', () => {
+    const client = new HostActionsClient({
+      send: () => undefined,
+      isOpen: () => true,
+      flushAnnotations: () => true,
+      getInvocationContext: () => ({ modelVersion: 'v1', annotationRevision: 0 }),
+    });
+    client.receiveManifest(
+      createHostActionsManifest([
+        {
+          id: 'open-in-manifoldcad',
+          label: 'host label',
+          slot: 'toolbar',
+          icon: 'external-link',
+          tone: 'default',
+          requires: ['model'],
+        },
+      ]),
+    );
+    client.setConnectionStatus('connected');
+    harness.store!.setHostActionsClient(client);
+
+    const toolbar = ToolbarHostActions();
+    expect(findElement(toolbar, element => element.props['aria-label'] === 'Open in ManifoldCAD')).not.toBeNull();
+    expect(findElement(toolbar, element => element.type === ExternalLink)).not.toBeNull();
+    expect(findElement(toolbar, element => element.props.className === 'viewer-host-action-label')).toBeNull();
+    harness.store!.i18n.setPreference('zh-CN');
+    expect(
+      findElement(ToolbarHostActions(), element => element.props['aria-label'] === '在 ManifoldCAD 中打开'),
+    ).not.toBeNull();
   });
 
   it('shows concise model export feedback and copies the saved path', async () => {
@@ -212,6 +245,7 @@ function findElement(
   predicate: (
     element: React.ReactElement<{
       'aria-label'?: string;
+      className?: string;
       children?: React.ReactNode;
       onClick?: () => void;
       render?: React.ReactNode;
@@ -219,6 +253,7 @@ function findElement(
   ) => boolean,
 ): React.ReactElement<{
   'aria-label'?: string;
+  className?: string;
   children?: React.ReactNode;
   onClick?: () => void;
   render?: React.ReactNode;
@@ -235,6 +270,7 @@ function findElement(
   if (
     !React.isValidElement<{
       'aria-label'?: string;
+      className?: string;
       children?: React.ReactNode;
       onClick?: () => void;
       render?: React.ReactNode;

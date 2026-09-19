@@ -14,6 +14,7 @@ import {
   type RenderResult,
   type RenderViewOptions,
 } from '@manifold3d/modeling/modeling.js';
+import { createManifoldCadShareLink } from '@manifold3d/modeling/manifoldcad-link.js';
 import { Runner, type RunnerOptions } from '@manifold3d/modeling/runner/host.js';
 import type { RunRequest, RunResult } from '@manifold3d/modeling/runner/protocol.js';
 import { emptyReport } from '@manifold3d/modeling/validation/report.js';
@@ -27,6 +28,7 @@ import {
   FIX_ANNOTATION_BATCH_PROMPT,
   MANIFOLD_CANVAS_ID,
   MODEL_EXPORT_ACTION_ID,
+  OPEN_IN_MANIFOLDCAD_ACTION_ID,
   startCopilotExtension,
   type CopilotExtensionApplication,
 } from '../src/composition.js';
@@ -91,6 +93,12 @@ describe('production Copilot Extension composition', () => {
           expect.objectContaining({
             id: ATTACH_LOCATION_SELECTION_ACTION_ID,
             slot: 'selection-gesture',
+          }),
+          expect.objectContaining({
+            id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+            slot: 'toolbar',
+            icon: 'external-link',
+            requires: ['model'],
           }),
           expect.objectContaining({
             id: MODEL_EXPORT_ACTION_ID,
@@ -290,6 +298,95 @@ describe('production Copilot Extension composition', () => {
       } finally {
         clientB.socket.terminate();
       }
+    } finally {
+      clientA.socket.terminate();
+    }
+  });
+
+  it('opens each room model source in ManifoldCAD and reports link or launch failures', async () => {
+    const harness = createHarness();
+    application = await startCopilotExtension(harness.startOptions);
+    const canvas = harness.canvas();
+    const firstOpen = await canvas.open(openContext('canvas-manifoldcad-a'));
+    const clientA = await openRoom(requiredUrl(firstOpen.url));
+    try {
+      const firstSource = 'result = Manifold.cube(1);';
+      await harness
+        .tool('manifold_execute_script')
+        .handler?.({ code: firstSource, description: 'First model' }, invocation('manifold_execute_script'));
+      const firstVersion = await modelVersionAt(clientA, 1);
+      const firstLink = createManifoldCadShareLink({ code: firstSource, name: 'First model' });
+      await commitEmptyAnnotations(clientA, firstVersion);
+      await invokeAction(clientA, {
+        requestId: 'open-first-model',
+        actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+        modelVersion: firstVersion,
+        annotationRevision: 0,
+      });
+      expect(harness.launchExternalUrl).toHaveBeenLastCalledWith(firstLink.url);
+
+      const secondSource = 'const size = 2;\nresult = Manifold.cube(size);';
+      await harness
+        .tool('manifold_execute_script')
+        .handler?.({ code: secondSource, description: 'Updated model' }, invocation('manifold_execute_script'));
+      const secondVersion = await modelVersionAt(clientA, 2);
+      const secondLink = createManifoldCadShareLink({ code: secondSource, name: 'Updated model' });
+      await commitEmptyAnnotations(clientA, secondVersion);
+      await invokeAction(clientA, {
+        requestId: 'open-updated-model',
+        actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+        modelVersion: secondVersion,
+        annotationRevision: 0,
+      });
+      expect(harness.launchExternalUrl).toHaveBeenLastCalledWith(secondLink.url);
+
+      const lateOpen = await canvas.open(openContext('canvas-manifoldcad-late'));
+      const lateClient = await openRoom(requiredUrl(lateOpen.url));
+      try {
+        const lateVersion = await modelVersionAt(lateClient, 1);
+        await commitEmptyAnnotations(lateClient, lateVersion);
+        await invokeAction(lateClient, {
+          requestId: 'open-late-room-model',
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          modelVersion: lateVersion,
+          annotationRevision: 0,
+        });
+        expect(harness.launchExternalUrl).toHaveBeenLastCalledWith(secondLink.url);
+      } finally {
+        lateClient.socket.terminate();
+      }
+
+      const oversizedSource = `result = Manifold.cube(3);\n// ${'x'.repeat(33_000)}`;
+      await harness
+        .tool('manifold_execute_script')
+        .handler?.({ code: oversizedSource, description: 'Oversized model' }, invocation('manifold_execute_script'));
+      const oversizedVersion = await modelVersionAt(clientA, 3);
+      await commitEmptyAnnotations(clientA, oversizedVersion);
+      expect(
+        await expectFailedAction(clientA, {
+          requestId: 'open-oversized-model',
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          modelVersion: oversizedVersion,
+          annotationRevision: 0,
+        }),
+      ).toMatchObject({ message: expect.stringMatching(/supported limit/i) });
+      expect(harness.launchExternalUrl).toHaveBeenCalledTimes(3);
+
+      const launchFailureSource = 'result = Manifold.sphere(4);';
+      await harness
+        .tool('manifold_execute_script')
+        .handler?.({ code: launchFailureSource, description: 'Launch failure' }, invocation('manifold_execute_script'));
+      const launchFailureVersion = await modelVersionAt(clientA, 4);
+      await commitEmptyAnnotations(clientA, launchFailureVersion);
+      harness.launchExternalUrl.mockRejectedValueOnce(new Error('browser spawn failed'));
+      expect(
+        await expectFailedAction(clientA, {
+          requestId: 'open-launch-failure',
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          modelVersion: launchFailureVersion,
+          annotationRevision: 0,
+        }),
+      ).toMatchObject({ message: expect.stringContaining('browser spawn failed') });
     } finally {
       clientA.socket.terminate();
     }
@@ -766,6 +863,7 @@ function createHarness(options: HarnessOptions = {}) {
     options.log ? options.log(...args) : Promise.resolve(),
   );
   const disconnect = vi.fn(() => (options.disconnect ? options.disconnect() : Promise.resolve()));
+  const launchExternalUrl = vi.fn((_url: string) => Promise.resolve());
   const session: CopilotExtensionSession = {
     workspacePath: testWorkspace,
     send,
@@ -808,6 +906,7 @@ function createHarness(options: HarnessOptions = {}) {
     sendAttachments,
     log,
     disconnect,
+    launchExternalUrl,
     startOptions: {
       sdk,
       viewerAssets: new Map([
@@ -815,6 +914,7 @@ function createHarness(options: HarnessOptions = {}) {
         ['assets/app.js', { bytes: Buffer.from('export {};'), contentType: 'text/javascript; charset=utf-8' }],
       ]),
       modelingSession,
+      launchExternalUrl,
       preferredPort: 0,
       ...(options.shutdownTimings !== undefined ? { shutdownTimings: options.shutdownTimings } : {}),
     },
@@ -951,6 +1051,19 @@ async function invokeAction(
       message.requestId === invocationMessage.requestId &&
       message.state === 'succeeded',
   );
+}
+
+async function commitEmptyAnnotations(client: RoomClient, modelVersion: string): Promise<void> {
+  client.socket.send(JSON.stringify(createAnnotationsMessage(modelVersion, 0, [])));
+  await new Promise<void>(resolvePromise => setTimeout(resolvePromise, 10));
+}
+
+async function modelVersionAt(client: RoomClient, count: number): Promise<string> {
+  const isModelVersion = (message: Record<string, unknown>): boolean =>
+    message.kind === 'model_version' && message.modelVersion !== 'none';
+  await client.messages.waitForCount(isModelVersion, count);
+  const versions = client.messages.items.filter(isModelVersion);
+  return requiredString(versions[count - 1]?.modelVersion);
 }
 
 async function expectFailedAction(

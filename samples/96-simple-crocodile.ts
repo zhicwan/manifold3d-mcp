@@ -23,11 +23,11 @@
 
   const eyes = Manifold.union(sphere([112, -27, 47], 8, [1, 0.9, 1.15]), sphere([112, 27, 47], 8, [1, 0.9, 1.15]));
 
-  const tail = Manifold.union(
+  const tail = Manifold.union([
     taperedSegment([-92, 0, 20], 38, [-150, 2, 18], 28),
     taperedSegment([-150, 2, 18], 28, [-198, 14, 16], 18),
     taperedSegment([-198, 14, 16], 18, [-232, 28, 18], 7),
-  );
+  ]);
 
   const makeLeg = (x: number, side: -1 | 1): Manifold => {
     const hip: Vec3 = [x, side * 34, 7];
@@ -37,10 +37,10 @@
     return leg.add(foot);
   };
 
-  const legs = Manifold.union(makeLeg(-58, -1), makeLeg(-58, 1), makeLeg(42, -1), makeLeg(42, 1));
+  const legs = Manifold.union([makeLeg(-58, -1), makeLeg(-58, 1), makeLeg(42, -1), makeLeg(42, 1)]);
 
   // Low rounded scutes add a recognizable crocodile back silhouette.
-  const scutes = Manifold.union(...[-70, -42, -14, 14, 42, 70].map(x => sphere([x, 0, 51], 9, [1.25, 0.65, 0.7])));
+  const scutes = Manifold.union([-70, -42, -14, 14, 42, 70].map(x => sphere([x, 0, 51], 9, [1.25, 0.65, 0.7])));
 
-  result = Manifold.union(body, face, eyes, tail, legs, scutes);
+  result = Manifold.union([body, face, eyes, tail, legs, scutes]);
 }

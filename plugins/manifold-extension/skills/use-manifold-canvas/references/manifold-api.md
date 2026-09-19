@@ -35,21 +35,25 @@ Manifold.levelSet(sdf: (p: Vec3) => number,
                   level?: number,
                   tolerance?: number): Manifold
 
-// Combinators (variadic; same as a.add(b).add(c)…)
-Manifold.union(...m: Manifold[]): Manifold
-Manifold.difference(...m: Manifold[]): Manifold
-Manifold.intersection(...m: Manifold[]): Manifold
-Manifold.compose(parts: Manifold[]): Manifold
+// Combinators: binary or readonly-array overloads
+Manifold.union(a: Manifold, b: Manifold): Manifold
+Manifold.union(m: readonly Manifold[]): Manifold
+Manifold.difference(a: Manifold, b: Manifold): Manifold
+Manifold.difference(m: readonly Manifold[]): Manifold
+Manifold.intersection(a: Manifold, b: Manifold): Manifold
+Manifold.intersection(m: readonly Manifold[]): Manifold
+Manifold.compose(parts: readonly Manifold[]): Manifold
 
 // Hulls
-Manifold.hull(parts: Array<Manifold | Vec3>): Manifold
+Manifold.hull(parts: readonly (Manifold | Vec3)[]): Manifold
 
 // Mesh I/O
 Manifold.ofMesh(mesh: Mesh): Manifold
 ```
 
 `Vec3` = `[number, number, number]`. `Vec2` = `[number, number]`.
-`Polygons` = `Vec2[][]` (one outer ring plus zero or more hole rings).
+`SimplePolygon` = `Vec2[]`; `Polygons` accepts either one `SimplePolygon` or
+an array of them.
 
 Factory methods use **positional arguments**, not options objects:
 
@@ -86,8 +90,9 @@ m.rotate(v: Vec3): Manifold              // degrees, NOT radians
 m.rotate(x: number, y?: number, z?: number): Manifold
 m.scale(v: Vec3 | number): Manifold
 m.mirror(normal: Vec3): Manifold
-m.transform(m4: Mat4): Manifold          // 12-number affine matrix
+m.transform(m4: Mat4): Manifold          // 16-number column-major matrix
 m.warp(fn: (vert: Vec3) => void): Manifold   // mutate in place
+m.warpBatch(fn: (verts: Float64Array, count: number) => void): Manifold
 ```
 
 > **Rotations are degrees.** Manifold has special-cased exact handling for
@@ -110,9 +115,20 @@ m.project(): CrossSection                         // shadow on z = 0
 m.refine(n: number): Manifold                    // subdivide each tri n times
 m.refineToLength(maxEdge: number): Manifold
 m.refineToTolerance(tolerance: number): Manifold
-m.smooth(...): Manifold                          // see official docs
-m.smoothByNormals(normalIdx: number): Manifold
+m.simplify(tolerance?: number): Manifold
+Manifold.smooth(mesh: Mesh, sharpenedEdges?: readonly Smoothness[]): Manifold
+m.smoothByNormals(normalIdx?: number): Manifold
 m.smoothOut(minSharpAngle?: number, minSmoothness?: number): Manifold
+m.calculateCurvature(gaussianIdx: number, meanIdx: number): Manifold
+m.calculateNormals(normalIdx?: number, minSharpAngle?: number): Manifold
+```
+
+## Hulls and Minkowski operations
+
+```ts
+m.hull(): Manifold
+m.minkowskiSum(other: Manifold): Manifold
+m.minkowskiDifference(other: Manifold): Manifold
 ```
 
 ## Inspection (read-only, do not need `delete()`)
@@ -120,6 +136,9 @@ m.smoothOut(minSharpAngle?: number, minSmoothness?: number): Manifold
 ```ts
 m.numTri(): number
 m.numVert(): number
+m.numEdge(): number
+m.numProp(): number
+m.numPropVert(): number
 m.volume(): number
 m.surfaceArea(): number
 m.genus(): number               // topological genus (donut = 1)
@@ -127,12 +146,31 @@ m.decompose(): Manifold[]       // connected components; interpret with intended
 m.boundingBox(): { min: Vec3, max: Vec3 }
 m.isEmpty(): boolean
 m.status(): ErrorStatus         // 'NoError' if valid; see validation-report.md
+m.tolerance(): number
+m.setTolerance(tolerance: number): Manifold
+m.minGap(other: Manifold, searchLength: number): number
+m.rayCast(origin: Vec3, endpoint: Vec3): RayHit[]
 m.getMesh(normalIdx?: number): Mesh
 ```
 
-`Mesh` has fields `vertProperties: Float32Array`, `triVerts: Uint32Array`,
-`numProp: number`, plus run/material info. The first 3 floats per vertex are
-always position.
+`RayHit` contains `faceID`, `distance`, `position`, and `normal`.
+
+`Mesh` exposes readonly geometry and provenance data including
+`vertProperties`, `triVerts`, `runOriginalID`, and `runTransform`, plus
+`numTri`, `numVert`, `numRun`, `position()`, `verts()`, `extras()`,
+`tangent()`, `transform()`, `backside()`, and `hasNormals()`. The first three
+properties per vertex are always position. Construct custom meshes with
+`new Mesh({ numProp, vertProperties, triVerts, ... })`.
+
+## Deliberately unavailable upstream APIs
+
+The worker does not inject upstream module-level `triangulate` or circular
+resolution controls into snippet globals. Pass `circularSegments` explicitly
+to constructors instead. Lifecycle methods (`delete`, `withContext`) remain
+worker-owned. `Manifold.reserveIDs` is also omitted because sandbox feature
+registration does not support user-reserved provenance IDs; use the original
+`originalID`, `runOriginalID`, and `runTransform` values without inventing
+alternate IDs.
 
 ## Patterns you will reuse
 
@@ -155,13 +193,13 @@ result = Manifold.extrude(profile, 30); // tube
 // Typed helper for repeated parts.
 const makeFoot = (x: number, y: number): Manifold => Manifold.cylinder(6, 3, 3, 32, true).translate([x, y, -3]);
 
-result = Manifold.union(
+result = Manifold.union([
   Manifold.cube([40, 20, 4], true),
   makeFoot(-15, -7),
   makeFoot(15, -7),
   makeFoot(-15, 7),
   makeFoot(15, 7),
-);
+]);
 ```
 
 ```ts

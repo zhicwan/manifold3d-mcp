@@ -9,6 +9,7 @@ import {
   launchPreview,
   linuxChromiumBinaryForDesktop,
   macChromiumExeForBundleId,
+  openExternalUrl,
   parseWindowsCommandExe,
 } from '../apps/manifold3d-mcp/src/server/preview/launch-browser.js';
 
@@ -203,6 +204,45 @@ describe('launchPreview lifecycle', () => {
       helper?.kill('SIGKILL');
       await stopped;
     }
+  });
+});
+
+describe('openExternalUrl', () => {
+  beforeEach(() => {
+    subprocess.execFile.mockReset();
+    subprocess.spawn.mockReset();
+    vi.stubEnv('MANIFOLD_MCP_NO_OPEN', '');
+    subprocess.spawn.mockImplementation(() => {
+      const child = childProcess();
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('hands the URL directly to the OS default-browser launcher', async () => {
+    await openExternalUrl('https://manifoldcad.org/#model');
+
+    const command =
+      process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'powershell.exe' : 'xdg-open';
+    expect(subprocess.execFile).not.toHaveBeenCalled();
+    expect(subprocess.spawn).toHaveBeenCalledWith(command, expect.any(Array), {
+      detached: true,
+      stdio: 'ignore',
+    });
+  });
+
+  it('propagates a launcher spawn failure', async () => {
+    subprocess.spawn.mockImplementation(() => {
+      const child = childProcess();
+      queueMicrotask(() => child.emit('error', new Error('cannot open')));
+      return child;
+    });
+
+    await expect(openExternalUrl('https://manifoldcad.org/#model')).rejects.toThrow('cannot open');
   });
 });
 

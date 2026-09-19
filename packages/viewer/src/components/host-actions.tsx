@@ -3,6 +3,7 @@ import {
   Check,
   CircleAlert,
   Download,
+  ExternalLink,
   LoaderCircle,
   MessageSquare,
   Play,
@@ -44,6 +45,7 @@ const ICONS: Record<HostActionIcon, LucideIcon> = {
   bot: Bot,
   check: Check,
   download: Download,
+  'external-link': ExternalLink,
   message: MessageSquare,
   play: Play,
   sparkles: Sparkles,
@@ -69,8 +71,8 @@ export function ToolbarHostActions() {
               render={
                 <Button
                   variant={buttonVariant(action.tone)}
-                  size="sm"
-                  className="viewer-host-action viewer-top-button rounded-xl px-3"
+                  size="icon"
+                  className="viewer-host-action viewer-top-button rounded-xl"
                   disabled={disabledReason !== undefined}
                   aria-label={hostActionLabel(action, view.i18n)}
                   aria-busy={pending}
@@ -83,7 +85,6 @@ export function ToolbarHostActions() {
               ) : (
                 <Icon className={cn('size-4', status?.state === 'failed' && 'text-destructive')} aria-hidden="true" />
               )}
-              <span className="viewer-host-action-label">{hostActionLabel(action, view.i18n)}</span>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               {disabledReason ??
@@ -92,7 +93,6 @@ export function ToolbarHostActions() {
           </Tooltip>
         );
       })}
-      <div className="h-5 w-px bg-border/70" aria-hidden="true" />
     </>
   );
 }

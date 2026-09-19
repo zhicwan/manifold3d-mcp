@@ -15,6 +15,7 @@ import { enActions } from '../i18n/actions.js';
 
 export const LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
 export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
+export const OPEN_IN_MANIFOLDCAD_ACTION_ID = 'open-in-manifoldcad';
 
 export type HostActionsProtocolState = 'awaiting-manifest' | 'ready' | 'error';
 
@@ -333,6 +334,8 @@ export function hostActionLabel(action: HostActionDescriptor, i18n: ViewerI18n):
       return i18n.t('actionAttachLocation');
     case MODEL_EXPORT_ACTION_ID:
       return i18n.t('actionExportModel');
+    case OPEN_IN_MANIFOLDCAD_ACTION_ID:
+      return i18n.t('actionOpenInManifoldCAD');
     default:
       return action.label;
   }
@@ -362,6 +365,8 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
       case MODEL_EXPORT_ACTION_ID:
         // Older hosts may only provide the saved path in their diagnostic message.
         return status.message ?? i18n.t('actionDone');
+      case OPEN_IN_MANIFOLDCAD_ACTION_ID:
+        return i18n.t('actionOpenedInManifoldCAD');
       default:
         return status.message ?? i18n.t('actionDone');
     }
@@ -375,6 +380,8 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
       return i18n.t('actionAttachingLocation');
     case MODEL_EXPORT_ACTION_ID:
       return i18n.t('actionSavingModel');
+    case OPEN_IN_MANIFOLDCAD_ACTION_ID:
+      return i18n.t('actionOpeningInManifoldCAD');
     default:
       return status.message ?? i18n.t(status.state === 'accepted' ? 'actionSending' : 'actionWorking');
   }

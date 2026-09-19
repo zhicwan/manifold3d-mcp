@@ -129,7 +129,7 @@ const plates: Manifold[] = [];
 for (let i = 0; i < 6; i++) {
   plates.push(Manifold.cube([20 - i * 2, 20 - i * 2, 2], true).translate([0, 0, i * 2]));
 }
-result = Manifold.union(...plates);
+result = Manifold.union(plates);
 ```
 
 ## 8. Simple gyroid lattice (implicit surface)

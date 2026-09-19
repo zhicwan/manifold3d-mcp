@@ -286,9 +286,22 @@ function openDefaultBrowser(
         onExitFailure,
       );
     }
+
     default:
       return handOffBrowser('xdg-open', [url], signal, onExitFailure);
   }
+}
+
+export async function openExternalUrl(
+  url: string,
+  options: Pick<LaunchPreviewOptions, 'signal' | 'warn'> = {},
+): Promise<void> {
+  const { signal } = options;
+  if (process.env.MANIFOLD_MCP_NO_OPEN || signal?.aborted) {
+    return;
+  }
+  const warn = options.warn ?? (message => process.stderr.write(`[manifold3d-mcp] ${message}\n`));
+  await openDefaultBrowser(url, signal, error => warn(`browser launch failed: ${error.message}`));
 }
 
 /* -------------------------------------------------------------------------- */

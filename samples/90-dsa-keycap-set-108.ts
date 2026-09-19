@@ -290,4 +290,4 @@ for (const [col, row, w, d] of layout) {
   caps.push(cap.translate([cx, cy, 0]));
 }
 
-result = Manifold.union(...caps);
+result = Manifold.union(caps);

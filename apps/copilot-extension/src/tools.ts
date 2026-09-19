@@ -20,7 +20,7 @@ const MAX_DESCRIPTION_LENGTH = 240;
 
 export interface ExtensionToolsOptions {
   modelingSession: ModelingSession;
-  publishModel(model: CommittedModel): void;
+  publishModel(model: CommittedModel, source: string, description?: string): void;
   getSession(): CopilotExtensionSession;
 }
 
@@ -52,7 +52,7 @@ export function createExtensionTools(options: ExtensionToolsOptions): ExtensionT
               ...(input.description !== undefined ? { description: input.description } : {}),
             },
             {
-              beforeCommit: model => options.publishModel(model),
+              beforeCommit: model => options.publishModel(model, input.code, input.description),
             },
           );
           return reportResult(result.report, result.model ? { modelRevision: result.model.revision } : {});

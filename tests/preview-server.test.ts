@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,6 +11,8 @@ import {
   type ModelHeader,
   type ViewerModelFrame,
 } from '../packages/protocol/src/wire/model.js';
+import { createAnnotationsMessage } from '../packages/protocol/src/wire/annotations.js';
+import { createHostActionInvocation } from '../packages/protocol/src/wire/host-actions.js';
 import type * as PreviewModuleNs from '../apps/manifold3d-mcp/src/server/preview/preview-server.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,6 +51,21 @@ function syntheticModel(): ViewerModelFrame {
     bboxMin: [0, 0, 0],
     bboxMax: [1, 1, 0],
   };
+}
+
+async function waitForJson(
+  messages: Record<string, unknown>[],
+  predicate: (message: Record<string, unknown>) => boolean,
+): Promise<Record<string, unknown>> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const found = messages.find(predicate);
+    if (found) {
+      return found;
+    }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for JSON message. Received: ${JSON.stringify(messages)}`);
 }
 
 describe.skipIf(skipUnlessBuilt)('preview server', () => {
@@ -139,6 +156,111 @@ describe.skipIf(skipUnlessBuilt)('preview server', () => {
       expect(model.triangles).toBe(frame.triangles);
       expect([...model.triVerts]).toEqual([0, 1, 2]);
       expect(header.protocolVersion).toBe(VIEWER_PROTOCOL_VERSION);
+    } finally {
+      ws.terminate();
+      await localHandle.close();
+    }
+  });
+
+  it('opens the displayed model source in ManifoldCAD through a toolbar action', async () => {
+    const openExternalUrl = vi.fn<(url: string) => Promise<void>>().mockResolvedValue(undefined);
+    const localHandle = await previewModule.startPreviewServer({
+      preferredPort: 47871,
+      assetRoot: dirname(distPublic),
+      openExternalUrl,
+    });
+    const wsUrl = `${localHandle.url.replace(/^http/, 'ws')}ws`;
+    const origin = new URL(localHandle.url).origin;
+    const host = new URL(localHandle.url).host;
+    const ws = new WebSocket(wsUrl, { headers: { Origin: origin, Host: host } });
+    const messages: Record<string, unknown>[] = [];
+
+    try {
+      ws.on('message', (raw, isBinary) => {
+        if (!isBinary) {
+          messages.push(JSON.parse(raw.toString()) as Record<string, unknown>);
+        }
+      });
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', resolve);
+        ws.once('error', reject);
+      });
+      localHandle.pushModel(syntheticModel(), {
+        code: 'result = Manifold.cube([2, 3, 4], true);',
+        description: 'Preview action model',
+      });
+
+      const manifest = await waitForJson(messages, message => message.kind === 'host_actions_manifest');
+      expect(manifest.actions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: previewModule.OPEN_IN_MANIFOLDCAD_ACTION_ID,
+            slot: 'toolbar',
+            icon: 'external-link',
+          }),
+        ]),
+      );
+      const versionMessage = await waitForJson(
+        messages,
+        message => message.kind === 'model_version' && message.modelVersion !== 'none',
+      );
+      const modelVersion = String(versionMessage.modelVersion);
+      ws.send(JSON.stringify(createAnnotationsMessage(modelVersion, 0, [])));
+      ws.send(
+        JSON.stringify(
+          createHostActionInvocation({
+            requestId: 'open-manifoldcad',
+            actionId: previewModule.OPEN_IN_MANIFOLDCAD_ACTION_ID,
+            modelVersion,
+            annotationRevision: 0,
+          }),
+        ),
+      );
+      await waitForJson(
+        messages,
+        message =>
+          message.kind === 'host_action_status' &&
+          message.requestId === 'open-manifoldcad' &&
+          message.state === 'succeeded',
+      );
+
+      expect(openExternalUrl).toHaveBeenCalledTimes(1);
+      const openedUrl = openExternalUrl.mock.calls[0]![0];
+      const fragment = decodeURIComponent(new URL(openedUrl).hash.slice(1));
+      expect(fragment).toContain('Preview action model<code>');
+      expect(fragment).toContain('result = Manifold.cube([2, 3, 4], true);');
+      expect(fragment).toContain('export default result;');
+
+      localHandle.pushModel(syntheticModel(), {
+        code: `${'x'.repeat(32_000)}\nresult = Manifold.cube(1);`,
+        description: 'Oversized model',
+      });
+      const oversizedVersionMessage = await waitForJson(
+        messages,
+        message =>
+          message.kind === 'model_version' && message.modelVersion !== 'none' && message.modelVersion !== modelVersion,
+      );
+      const oversizedVersion = String(oversizedVersionMessage.modelVersion);
+      ws.send(JSON.stringify(createAnnotationsMessage(oversizedVersion, 0, [])));
+      ws.send(
+        JSON.stringify(
+          createHostActionInvocation({
+            requestId: 'open-manifoldcad-oversized',
+            actionId: previewModule.OPEN_IN_MANIFOLDCAD_ACTION_ID,
+            modelVersion: oversizedVersion,
+            annotationRevision: 0,
+          }),
+        ),
+      );
+      const oversizedFailure = await waitForJson(
+        messages,
+        message =>
+          message.kind === 'host_action_status' &&
+          message.requestId === 'open-manifoldcad-oversized' &&
+          message.state === 'failed',
+      );
+      expect(oversizedFailure.message).toMatch(/supported limit is 32,000/);
+      expect(openExternalUrl).toHaveBeenCalledTimes(1);
     } finally {
       ws.terminate();
       await localHandle.close();

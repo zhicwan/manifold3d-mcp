@@ -19,12 +19,14 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 import Module, { type CrossSection, type Manifold, type Mat3, type Mat4 } from 'manifold-3d';
+import ts from 'typescript';
 
 import { compileSnippetTypeScript } from '../packages/modeling/src/compiler/typescript-compiler.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 const ambientSourcePath = resolve(repoRoot, 'packages/modeling/src/sandbox/ambient-types.ts');
+const upstreamDeclarationPath = resolve(repoRoot, 'node_modules/manifold-3d/manifold.d.ts');
 
 interface DeclaredApi {
   classes: Map<string, ClassMembers>;
@@ -152,6 +154,99 @@ async function loadDeclaredApi(): Promise<DeclaredApi> {
   return parseDeclaredApi(extractTemplateLiteral(source));
 }
 
+async function compileUpstreamCompatibilityCheck(): Promise<readonly ts.Diagnostic[]> {
+  const source = await readFile(ambientSourcePath, 'utf8');
+  const ambientPath = resolve(repoRoot, '.sandbox-api-compat.d.ts');
+  const checkPath = resolve(repoRoot, '.sandbox-api-compat.ts');
+  const sources = new Map([
+    [ambientPath, extractTemplateLiteral(source)],
+    [
+      checkPath,
+      `
+import {
+  CrossSection as UpstreamCrossSection,
+  Manifold as UpstreamManifold,
+  Mesh as UpstreamMesh,
+  type Box as UpstreamBox,
+  type ErrorStatus as UpstreamErrorStatus,
+  type FillRule as UpstreamFillRule,
+  type JoinType as UpstreamJoinType,
+  type Mat3 as UpstreamMat3,
+  type Mat4 as UpstreamMat4,
+  type MeshOptions as UpstreamMeshOptions,
+  type Polygons as UpstreamPolygons,
+  type RayHit as UpstreamRayHit,
+  type Rect as UpstreamRect,
+  type SimplePolygon as UpstreamSimplePolygon,
+  type Smoothness as UpstreamSmoothness,
+  type Vec2 as UpstreamVec2,
+  type Vec3 as UpstreamVec3,
+} from 'manifold-3d';
+
+type Assert<T extends true> = T;
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type UnsupportedMembers<Published, Upstream> = {
+  [K in keyof Published]: K extends keyof Upstream
+    ? Upstream[K] extends Published[K]
+      ? never
+      : K
+    : K;
+}[keyof Published];
+type AssertNever<T extends never> = T;
+
+type _Vec2 = Assert<Same<Vec2, UpstreamVec2>>;
+type _Vec3 = Assert<Same<Vec3, UpstreamVec3>>;
+type _Mat3 = Assert<Same<Mat3, UpstreamMat3>>;
+type _Mat4 = Assert<Same<Mat4, UpstreamMat4>>;
+type _Rect = Assert<Same<Rect, UpstreamRect>>;
+type _Box = Assert<Same<Box, UpstreamBox>>;
+type _ErrorStatus = Assert<Same<ErrorStatus, UpstreamErrorStatus>>;
+type _SimplePolygon = Assert<Same<SimplePolygon, UpstreamSimplePolygon>>;
+type _Polygons = Assert<Same<Polygons, UpstreamPolygons>>;
+type _FillRule = Assert<Same<FillRule, UpstreamFillRule>>;
+type _JoinType = Assert<Same<JoinType, UpstreamJoinType>>;
+type _Smoothness = Assert<Same<Smoothness, UpstreamSmoothness>>;
+type _RayHit = Assert<Same<RayHit, UpstreamRayHit>>;
+type _MeshOptions = Assert<Same<MeshOptions, UpstreamMeshOptions>>;
+
+type _ManifoldStatics = AssertNever<UnsupportedMembers<typeof Manifold, typeof UpstreamManifold>>;
+type _ManifoldInstances = AssertNever<UnsupportedMembers<Manifold, UpstreamManifold>>;
+type _CrossSectionStatics = AssertNever<UnsupportedMembers<typeof CrossSection, typeof UpstreamCrossSection>>;
+type _CrossSectionInstances = AssertNever<UnsupportedMembers<CrossSection, UpstreamCrossSection>>;
+type _MeshStatics = AssertNever<UnsupportedMembers<typeof Mesh, typeof UpstreamMesh>>;
+type _MeshInstances = AssertNever<UnsupportedMembers<Mesh, UpstreamMesh>>;
+
+const _manifoldConstructor: typeof Manifold = UpstreamManifold;
+const _crossSectionConstructor: typeof CrossSection = UpstreamCrossSection;
+const _meshConstructor: typeof Mesh = UpstreamMesh;
+`,
+    ],
+  ]);
+  const options: ts.CompilerOptions = {
+    lib: ['lib.es2022.d.ts'],
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    noEmit: true,
+    skipLibCheck: true,
+    strict: true,
+    target: ts.ScriptTarget.ES2022,
+    types: [],
+  };
+  const host = ts.createCompilerHost(options);
+  const originalFileExists = host.fileExists.bind(host);
+  const originalReadFile = host.readFile.bind(host);
+  const originalGetSourceFile = host.getSourceFile.bind(host);
+  host.fileExists = fileName => sources.has(fileName) || originalFileExists(fileName);
+  host.readFile = fileName => sources.get(fileName) ?? originalReadFile(fileName);
+  host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
+    const virtualSource = sources.get(fileName);
+    return virtualSource === undefined
+      ? originalGetSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile)
+      : ts.createSourceFile(fileName, virtualSource, languageVersion, true);
+  };
+  return ts.getPreEmitDiagnostics(ts.createProgram([...sources.keys()], options, host));
+}
+
 function isFunction(value: unknown): boolean {
   return typeof value === 'function';
 }
@@ -164,6 +259,40 @@ function lookup(target: unknown, name: string): unknown {
 }
 
 describe('sandbox ambient declarations vs. live manifold-3d runtime', () => {
+  it('every published signature is fulfilled by installed upstream declarations', async () => {
+    const diagnostics = await compileUpstreamCompatibilityCheck();
+    expect(diagnostics.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))).toEqual([]);
+  });
+
+  it('exposes every compatible upstream class method except owned lifecycle and ID registration', async () => {
+    const [ambient, upstreamSource] = await Promise.all([loadDeclaredApi(), readFile(upstreamDeclarationPath, 'utf8')]);
+    const upstream = parseDeclaredApi(upstreamSource);
+    const intentionalOmissions: Record<string, Set<string>> = {
+      CrossSection: new Set(['delete']),
+      Manifold: new Set(['delete', 'reserveIDs', 'withContext']),
+      Mesh: new Set(),
+    };
+    const missing: string[] = [];
+    for (const [className, upstreamMembers] of upstream.classes) {
+      const published = ambient.classes.get(className);
+      if (!published || !(className in intentionalOmissions)) {
+        continue;
+      }
+      const omitted = intentionalOmissions[className] ?? new Set<string>();
+      for (const name of upstreamMembers.staticMethods) {
+        if (!omitted.has(name) && !published.staticMethods.has(name)) {
+          missing.push(`${className}.${name} (static)`);
+        }
+      }
+      for (const name of upstreamMembers.instanceMethods) {
+        if (!omitted.has(name) && !published.instanceMethods.has(name)) {
+          missing.push(`${className}.${name}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
   it.concurrent('every declared static method exists on the live class', async () => {
     const [api, wasm] = await Promise.all([loadDeclaredApi(), initWasm()]);
     const targets: Record<string, unknown> = {
@@ -276,6 +405,75 @@ describe('sandbox ambient declarations vs. live manifold-3d runtime', () => {
       expect(cyl.volume()).toBeGreaterThan(0);
     } finally {
       cyl.delete();
+    }
+  });
+
+  it('supports audited geometry and measurement APIs', async () => {
+    const wasm = await initWasm();
+    const Mfd = wasm.Manifold as typeof Manifold;
+    const Section = wasm.CrossSection as typeof CrossSection;
+    const section = Section.square([6, 4], true);
+    const left = Mfd.cube([2, 2, 2], true).translate([-2.5, 0, 0]);
+    const right = Mfd.cube([2, 2, 2], true).translate([2.5, 0, 0]);
+    const combined = Mfd.union([left, right]);
+    const warped = Mfd.cube([2, 2, 2], true).warpBatch((verts, count) => {
+      for (let i = 0; i < count; i++) {
+        verts[3 * i] = (verts[3 * i] ?? 0) + 3;
+      }
+    });
+    const minkowskiLeft = Mfd.cube([2, 2, 2], true);
+    const minkowskiRight = Mfd.cube([1, 1, 1], true);
+    const minkowski = minkowskiLeft.minkowskiSum(minkowskiRight);
+    const simplified = combined.simplify();
+    try {
+      expect(section.area()).toBeCloseTo(24, 5);
+      expect(section.bounds()).toEqual({ min: [-3, -2], max: [3, 2] });
+      expect(section.numContour()).toBe(1);
+      expect(section.numVert()).toBe(4);
+      expect(section.toPolygons()).toHaveLength(1);
+      expect(combined.numEdge()).toBeGreaterThan(0);
+      expect(combined.numProp()).toBe(0);
+      expect(combined.numPropVert()).toBe(combined.numVert());
+      expect(left.minGap(right, 10)).toBeCloseTo(3, 5);
+      expect(left.rayCast([-5, 0, 0], [5, 0, 0])).toHaveLength(2);
+      expect(warped.boundingBox()).toEqual({ min: [2, -1, -1], max: [4, 1, 1] });
+      expect(minkowski.boundingBox()).toEqual({ min: [-1.5, -1.5, -1.5], max: [1.5, 1.5, 1.5] });
+      expect(simplified.numTri()).toBeLessThanOrEqual(combined.numTri());
+    } finally {
+      simplified.delete();
+      minkowski.delete();
+      minkowskiRight.delete();
+      minkowskiLeft.delete();
+      warped.delete();
+      combined.delete();
+      right.delete();
+      left.delete();
+      section.delete();
+    }
+  });
+
+  it('preserves original IDs and run transforms through array booleans', async () => {
+    const wasm = await initWasm();
+    const Mfd = wasm.Manifold as typeof Manifold;
+    const first = Mfd.cube([2, 2, 2], true).asOriginal();
+    const second = Mfd.sphere(1, 16).asOriginal();
+    const firstPlaced = first.translate([4, 0, 0]);
+    const secondPlaced = second.translate([-4, 0, 0]);
+    const combined = Mfd.union([firstPlaced, secondPlaced]);
+    try {
+      const mesh = combined.getMesh();
+      expect(new Set(mesh.runOriginalID)).toEqual(new Set([first.originalID(), second.originalID()]));
+      expect(mesh.runTransform).toHaveLength(mesh.runOriginalID.length * 12);
+      const translations = Array.from({ length: mesh.numRun }, (_, run) => mesh.transform(run)[12]).sort(
+        (a, b) => a - b,
+      );
+      expect(translations).toEqual([-4, 4]);
+    } finally {
+      combined.delete();
+      secondPlaced.delete();
+      firstPlaced.delete();
+      second.delete();
+      first.delete();
     }
   });
 

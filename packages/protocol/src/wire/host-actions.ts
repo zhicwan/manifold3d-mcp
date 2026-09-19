@@ -9,7 +9,7 @@ export const MAX_HOST_ACTION_ANNOTATION_IDS = 128;
 const MAX_HOST_ACTION_JSON_DEPTH = 8;
 
 export type HostActionProtocolVersion = typeof HOST_ACTION_PROTOCOL_VERSION;
-export type HostActionIcon = 'bot' | 'check' | 'download' | 'message' | 'play' | 'sparkles' | 'wand';
+export type HostActionIcon = 'bot' | 'check' | 'download' | 'external-link' | 'message' | 'play' | 'sparkles' | 'wand';
 export type HostActionSlot =
   'toolbar' | 'annotation-footer' | 'export-menu' | 'export-handler' | 'annotation-batch' | 'selection-gesture';
 export type HostActionTone = 'default' | 'primary' | 'danger';
@@ -463,6 +463,7 @@ function isHostActionIcon(value: unknown): value is HostActionIcon {
     value === 'bot' ||
     value === 'check' ||
     value === 'download' ||
+    value === 'external-link' ||
     value === 'message' ||
     value === 'play' ||
     value === 'sparkles' ||

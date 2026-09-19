@@ -33,7 +33,7 @@ for (let i = 0; i < 50; i++) {
   const block = Manifold.cube([10, 10, 1], true).translate([0, 0, i]);
   tower.push(block);
 }
-result = Manifold.union(...tower);
+result = Manifold.union(tower);
 // Cleanup owns the blocks, their intermediates, and the final Manifold.
 ```
 
