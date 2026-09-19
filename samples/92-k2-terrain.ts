@@ -141,8 +141,9 @@ for (let j = 0; j < ny - 1; j++) {
   tris.push(t(0, j), b(0, j), t(0, j + 1), t(0, j + 1), b(0, j), b(0, j + 1));
   tris.push(t(nx - 1, j), t(nx - 1, j + 1), b(nx - 1, j), t(nx - 1, j + 1), b(nx - 1, j + 1), b(nx - 1, j));
 }
-const mesh = new Mesh();
-mesh.numProp = 3;
-mesh.vertProperties = new Float32Array(verts);
-mesh.triVerts = new Uint32Array(tris);
+const mesh = new Mesh({
+  numProp: 3,
+  vertProperties: new Float32Array(verts),
+  triVerts: new Uint32Array(tris),
+});
 result = Manifold.ofMesh(mesh);

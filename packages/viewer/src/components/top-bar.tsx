@@ -103,7 +103,6 @@ function ActionsCluster({
 
   return (
     <div className="viewer-top-actions flex shrink-0 items-center gap-0.5 px-1">
-      <ToolbarHostActions />
       <ThemeToggle />
       <LanguageMenu />
       {toolbarEnd}
@@ -139,14 +138,14 @@ function ActionsCluster({
           className={cn(glassPopup, 'viewer-popup min-w-64')}
         >
           <DropdownMenuItem className="min-h-12 rounded-xl" onClick={() => void api?.exportModel('3mf')}>
-            <Printer className="size-4 self-start mt-0.5" aria-hidden="true" />
+            <Printer className="size-4" aria-hidden="true" />
             <span className="flex min-w-0 flex-col">
               <span className="font-medium">{i18n.t('export3mf')}</span>
               <span className="text-xs text-muted-foreground">{i18n.t('export3mfDescription')}</span>
             </span>
           </DropdownMenuItem>
           <DropdownMenuItem className="min-h-12 rounded-xl" onClick={() => void api?.exportModel('glb')}>
-            <Cuboid className="size-4 self-start mt-0.5" aria-hidden="true" />
+            <Cuboid className="size-4" aria-hidden="true" />
             <span className="flex min-w-0 flex-col">
               <span className="font-medium">{i18n.t('exportGlb')}</span>
               <span className="text-xs text-muted-foreground">{i18n.t('exportGlbDescription')}</span>
@@ -155,6 +154,7 @@ function ActionsCluster({
           <ExportMenuHostActions />
         </DropdownMenuContent>
       </DropdownMenu>
+      <ToolbarHostActions />
       <Popover.Root open={infoOpen} onOpenChange={setInfoOpen}>
         <Tooltip>
           <TooltipTrigger

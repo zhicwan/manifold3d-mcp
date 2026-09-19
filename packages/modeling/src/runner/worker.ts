@@ -87,7 +87,11 @@ async function bootstrap(options: ModelingWorkerOptions): Promise<void> {
   // chains so user code cannot corrupt post-execution inspection/cleanup.
   const manifoldProbe = (Manifold as unknown as { cube(): object }).cube();
   const crossSectionProbe = (CrossSection as unknown as { square(): object }).square();
-  const meshProbe = new TrackedMesh();
+  const meshProbe = new TrackedMesh({
+    numProp: 3,
+    vertProperties: new Float32Array(),
+    triVerts: new Uint32Array(),
+  });
   hardenModelingApi(
     [
       [TrackedManifold, Manifold as unknown as AnyConstructor],

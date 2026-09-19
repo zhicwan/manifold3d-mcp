@@ -8,7 +8,7 @@
  *
  * Logs only to stderr — stdout is reserved for MCP protocol frames.
  */
-import { launchPreview } from './preview/launch-browser.js';
+import { launchPreview, openExternalUrl } from './preview/launch-browser.js';
 import { createPreviewLifecycle } from './preview/preview-lifecycle.js';
 import type { ModelingSession } from '@manifold3d/modeling/modeling.js';
 import { createInMemoryViewerAssetProvider, type ViewerAssetManifest } from '@manifold3d/viewer-host/viewer-host.js';
@@ -32,6 +32,7 @@ export async function startMcpApplication({
         ...(process.env.NODE_ENV === 'development'
           ? { additionalOrigins: ['http://127.0.0.1:5173', 'http://localhost:5173'] }
           : {}),
+        openExternalUrl,
       }),
     launch: (url, signal) => launchPreview(url, { signal }),
     log: message => process.stderr.write(`[manifold3d-mcp] ${message}\n`),

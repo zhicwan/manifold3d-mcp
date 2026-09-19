@@ -30,11 +30,11 @@
 
   const grip = Manifold.cylinder(110, 11.5, 10.5, 48, true).translate([0, 0, -65]);
   const gripRings = Manifold.union(
-    ...[-22, -40, -58, -76, -94, -112].map(z => Manifold.cylinder(3.2, 12.3, 12.3, 40, true).translate([0, 0, z])),
+    [-22, -40, -58, -76, -94, -112].map(z => Manifold.cylinder(3.2, 12.3, 12.3, 40, true).translate([0, 0, z])),
   );
 
   const pommelNeck = Manifold.cylinder(18, 10, 12, 40, true).translate([0, 0, -119]);
   const pommel = Manifold.sphere(18, 48).scale([0.85, 0.72, 1.1]).translate([0, 0, -134]);
 
-  result = Manifold.union(blade, guardBar, guardCenter, guardEnds, grip, gripRings, pommelNeck, pommel);
+  result = Manifold.union([blade, guardBar, guardCenter, guardEnds, grip, gripRings, pommelNeck, pommel]);
 }

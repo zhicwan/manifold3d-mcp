@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
 
 import type { CanvasOptions, JoinSessionConfig } from '@github/copilot-sdk/extension';
+import { createManifoldCadShareLink } from '@manifold3d/modeling/manifoldcad-link.js';
 import { ModelingEngine, ModelingSession, type CommittedModel } from '@manifold3d/modeling/modeling.js';
 import { toViewerModelFrame } from '@manifold3d/modeling/runner/model-artifact.js';
 import { Runner } from '@manifold3d/modeling/runner/host.js';
@@ -18,6 +19,7 @@ import {
 } from '@manifold3d/viewer-host/viewer-host.js';
 
 import { buildAnnotationAttachment, type AnnotationAttachmentPayload } from './annotation-attachment.js';
+import { launchExternalUrl, type ExternalUrlLauncher } from './external-url.js';
 import type { CopilotExtensionSession, CopilotSdkBoundary } from './sdk-boundary.js';
 import { createExtensionTools } from './tools.js';
 
@@ -27,6 +29,7 @@ export const ATTACH_ANNOTATION_BATCH_ACTION_ID = 'attach-annotation-batch';
 export const FIX_ANNOTATION_BATCH_ACTION_ID = 'fix-annotation-batch';
 export const ATTACH_LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
 export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
+export const OPEN_IN_MANIFOLDCAD_ACTION_ID = 'open-in-manifoldcad';
 export const FIX_ANNOTATION_BATCH_PROMPT =
   'Revise the current manifold-3d model using the following static annotation batch snapshot.';
 const DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS = 500;
@@ -35,8 +38,15 @@ const DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS = 250;
 interface RoomBinding {
   instanceId: string;
   room: ViewerRoom;
+  publication?: ModelPublication;
   cleanup: Array<() => void>;
   closed: boolean;
+}
+
+interface ModelPublication {
+  revision: number;
+  source: string;
+  description?: string;
 }
 
 export interface StartCopilotExtensionOptions {
@@ -46,6 +56,7 @@ export interface StartCopilotExtensionOptions {
   manifoldWasmBytes?: Uint8Array;
   typescriptLibDeclarations?: string;
   modelingSession?: ModelingSession;
+  launchExternalUrl?: ExternalUrlLauncher;
   preferredPort?: number;
   shutdownTimings?: {
     disconnectTimeoutMs?: number;
@@ -96,14 +107,20 @@ export async function startCopilotExtension(
     await modelingSession.dispose();
     throw error;
   }
-  const controller = new ExtensionController(host, modelingSession, options.manifoldWasmBytes, {
-    disconnectTimeoutMs: options.shutdownTimings?.disconnectTimeoutMs ?? DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS,
-    fixSendDrainTimeoutMs: options.shutdownTimings?.fixSendDrainTimeoutMs ?? DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS,
-  });
+  const controller = new ExtensionController(
+    host,
+    modelingSession,
+    options.manifoldWasmBytes,
+    options.launchExternalUrl ?? launchExternalUrl,
+    {
+      disconnectTimeoutMs: options.shutdownTimings?.disconnectTimeoutMs ?? DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS,
+      fixSendDrainTimeoutMs: options.shutdownTimings?.fixSendDrainTimeoutMs ?? DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS,
+    },
+  );
   const canvas = options.sdk.createCanvas(controller.canvasOptions());
   const tools = createExtensionTools({
     modelingSession,
-    publishModel: model => controller.publishModel(model),
+    publishModel: (model, source, description) => controller.publishModel(model, source, description),
     getSession: () => controller.getSession(),
   });
 
@@ -141,6 +158,7 @@ class ExtensionController {
   private readonly rooms = new Map<string, RoomBinding>();
   private readonly pendingFixSends = new Set<Promise<void>>();
   private session: CopilotExtensionSession | undefined;
+  private publication: ModelPublication | undefined;
   private shuttingDown = false;
   private shutdownPromise: Promise<void> | undefined;
 
@@ -148,6 +166,7 @@ class ExtensionController {
     private readonly host: ViewerHost,
     private readonly modelingSession: ModelingSession,
     private readonly manifoldWasmBytes: Uint8Array | undefined,
+    private readonly openExternalUrl: ExternalUrlLauncher,
     private readonly shutdownTimings: {
       disconnectTimeoutMs: number;
       fixSendDrainTimeoutMs: number;
@@ -204,11 +223,16 @@ class ExtensionController {
     };
   }
 
-  publishModel(model: CommittedModel): void {
+  publishModel(model: CommittedModel, source: string, description?: string): void {
     if (this.shuttingDown) {
       throw new Error('Cannot publish a model while the Copilot extension is shutting down.');
     }
     const frame = toViewerModelFrame(model.artifact);
+    const publication: ModelPublication = {
+      revision: model.revision,
+      source,
+      ...(description !== undefined ? { description } : {}),
+    };
     const snapshot = [...this.rooms.values()];
     for (const binding of snapshot) {
       if (binding.closed || this.rooms.get(binding.instanceId) !== binding) {
@@ -216,6 +240,7 @@ class ExtensionController {
       }
       try {
         binding.room.pushModel(frame);
+        binding.publication = publication;
       } catch (error) {
         if (binding.closed || this.rooms.get(binding.instanceId) !== binding) {
           continue;
@@ -223,6 +248,7 @@ class ExtensionController {
         throw error;
       }
     }
+    this.publication = publication;
   }
 
   shutdown(options: ShutdownOptions = {}): Promise<void> {
@@ -333,6 +359,17 @@ class ExtensionController {
         ),
         room.registerAction(
           {
+            id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+            label: 'Open in ManifoldCAD',
+            icon: 'external-link',
+            slot: 'toolbar',
+            tone: 'default',
+            requires: ['model'],
+          },
+          () => this.openInManifoldCad(binding),
+        ),
+        room.registerAction(
+          {
             id: MODEL_EXPORT_ACTION_ID,
             label: 'Export model',
             icon: 'download',
@@ -346,6 +383,9 @@ class ExtensionController {
       const current = this.modelingSession.getCurrentModel();
       if (current) {
         room.pushModel(toViewerModelFrame(current.artifact));
+        if (this.publication?.revision === current.revision) {
+          binding.publication = this.publication;
+        }
       }
       return canvasOpenResult(room.url);
     } catch (error) {
@@ -469,6 +509,25 @@ class ExtensionController {
       status: 'succeeded',
       message,
       resultDetails: { kind: 'model-saved', format, path: filePath },
+    };
+  }
+
+  private async openInManifoldCad(binding: RoomBinding): Promise<HostActionHandlerResult> {
+    if (!this.canPublishTo(binding)) {
+      throw new Error('Canvas room is no longer available.');
+    }
+    const publication = binding.publication;
+    if (!publication) {
+      throw new Error('Source is unavailable for the model displayed in this Canvas room.');
+    }
+    const link = createManifoldCadShareLink({
+      code: publication.source,
+      ...(publication.description !== undefined ? { name: publication.description } : {}),
+    });
+    await this.openExternalUrl(link.url);
+    return {
+      status: 'succeeded',
+      message: 'Opened the current model in ManifoldCAD.',
     };
   }
 

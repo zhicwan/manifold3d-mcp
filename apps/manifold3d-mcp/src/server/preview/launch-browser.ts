@@ -286,9 +286,57 @@ function openDefaultBrowser(
         onExitFailure,
       );
     }
+
     default:
       return handOffBrowser('xdg-open', [url], signal, onExitFailure);
   }
+}
+
+export function externalBrowserCommand(
+  url: string,
+  platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[] } {
+  switch (platform) {
+    case 'darwin':
+      return { command: 'open', args: [url] };
+    case 'win32':
+      return { command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', url] };
+    default:
+      return { command: 'xdg-open', args: [url] };
+  }
+}
+
+function runBrowserLauncher(command: string, args: string[], signal: AbortSignal | undefined): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
+    child.once('error', reject);
+    child.once('exit', (code, exitSignal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          code === null
+            ? `${command} exited with signal ${exitSignal ?? 'unknown'}`
+            : `${command} exited with status ${code}`,
+        ),
+      );
+    });
+  });
+}
+
+export async function openExternalUrl(
+  url: string,
+  options: Pick<LaunchPreviewOptions, 'signal' | 'warn'> = {},
+): Promise<void> {
+  const { signal } = options;
+  if (process.env.MANIFOLD_MCP_NO_OPEN || signal?.aborted) {
+    return;
+  }
+  const { command, args } = externalBrowserCommand(url);
+  await runBrowserLauncher(command, args, signal);
 }
 
 /* -------------------------------------------------------------------------- */

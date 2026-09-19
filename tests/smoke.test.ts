@@ -352,7 +352,7 @@ function makePost(width: number, depth: number, height: number): Manifold {
 }
 const offsets: Array<[number, number, number]> = [[-4, 0, 0], [4, 0, 0]];
 const posts = offsets.map(offset => makePost(3, 3, 10).translate(offset));
-result = Manifold.union(...posts);
+result = Manifold.union(posts);
 `,
     );
 

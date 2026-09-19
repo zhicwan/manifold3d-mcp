@@ -167,6 +167,7 @@ const manifoldMemberFunctions = [
   'intersect',
   'decompose',
   'warp',
+  'warpBatch',
   'transform',
   'translate',
   'rotate',
@@ -189,6 +190,8 @@ const manifoldMemberFunctions = [
   'slice',
   'project',
   'hull',
+  'minkowskiSum',
+  'minkowskiDifference',
 ];
 
 // CrossSection static methods (that return a new cross-section)

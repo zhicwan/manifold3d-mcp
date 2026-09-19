@@ -31,6 +31,11 @@ const rib = CrossSection.ofPolygons([
 // Extend the cut beyond the base and lip; leave the backrest joined at the rear.
 const cableSlot = roundedRectangle(cableSlotWidth, 42, 3).extrude(24).translate([0, -33, -1]);
 
-result = Manifold.union(base, backrest, shelf, lip, rib.translate([-27.5, 0, 0]), rib.translate([22.5, 0, 0])).subtract(
-  cableSlot,
-);
+result = Manifold.union([
+  base,
+  backrest,
+  shelf,
+  lip,
+  rib.translate([-27.5, 0, 0]),
+  rib.translate([22.5, 0, 0]),
+]).subtract(cableSlot);

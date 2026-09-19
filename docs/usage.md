@@ -250,6 +250,19 @@ Numbered anchors reveal their notes on demand. In the note editor, the check
 button or **Enter** saves; the cross or **Escape** cancels the current edit.
 **Shift+Enter** adds a line. Typing in a note does not switch Viewer tools.
 
+### Continue in ManifoldCAD
+
+Choose **Open in ManifoldCAD** in the Viewer toolbar to open the source for the
+displayed model in the system default browser. This action is available in both
+the MCP browser Viewer and native Copilot Canvas.
+
+The handoff adds the official `manifold-3d/manifoldCAD` imports and
+`export default result`, then uses ManifoldCAD's share-link format. Source is
+carried in the URL fragment rather than uploaded by this project; ManifoldCAD
+stores edited scripts locally in the browser. Links longer than 32,000
+characters are rejected with an action error instead of opening a potentially
+truncated script.
+
 ## Export and printing
 
 Choose **Export → 3MF for printing** in the Viewer. Open the 3MF in your slicer,

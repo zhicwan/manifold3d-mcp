@@ -11,13 +11,13 @@ function makePost(width: number, depth: number, height: number): Manifold {
 }
 const offsets: Array<[number, number, number]> = [[-4, 0, 0], [4, 0, 0]];
 const posts = offsets.map(offset => makePost(3, 3, 10).translate(offset));
-result = Manifold.union(...posts);
+result = Manifold.union(posts);
 `);
 
     expect(result.ok).toBe(true);
     expect(result.issues).toEqual([]);
     expect(result.js).toContain('function makePost(width, depth, height)');
-    expect(result.js).toContain('Manifold.union(...posts)');
+    expect(result.js).toContain('Manifold.union(posts)');
     expect(result.js).not.toContain(': number');
     expect(result.js).not.toContain(': Manifold');
   });
@@ -39,6 +39,65 @@ result = Manifold.union(...posts);
         }),
       ]),
     );
+  });
+
+  it('exposes audited upstream geometry, measurement, provenance, and mesh readers', () => {
+    const result = compileSnippetTypeScript(`
+const section = CrossSection.square([4, 6], true);
+const polygonCount: number = section.toPolygons().length;
+const sectionStats: number[] = [
+  section.area(),
+  section.bounds().max[0],
+  section.numContour(),
+  section.numVert(),
+  section.isEmpty() ? 0 : 1,
+  polygonCount,
+];
+const first = Manifold.cube([2, 2, 2], true).asOriginal();
+const second = Manifold.sphere(1, 16).asOriginal();
+const combined = Manifold.union([first, second.translate([4, 0, 0])]);
+const mesh = combined.getMesh();
+const rebuilt = new Mesh({
+  numProp: mesh.numProp,
+  vertProperties: mesh.vertProperties,
+  triVerts: mesh.triVerts,
+  runIndex: mesh.runIndex,
+  runOriginalID: mesh.runOriginalID,
+  runTransform: mesh.runTransform,
+});
+const firstPosition = mesh.position(0);
+const firstTriangle = mesh.verts(0);
+const runTransform = mesh.transform(0);
+const measurements: number[] = [
+  combined.numEdge(),
+  combined.numProp(),
+  combined.numPropVert(),
+  combined.minGap(second.translate([8, 0, 0]), 20),
+  combined.rayCast([-10, 0, 0], [10, 0, 0]).length,
+  mesh.numTri,
+  mesh.numVert,
+  mesh.numRun,
+  firstPosition[0] ?? 0,
+  firstTriangle[0] ?? 0,
+  runTransform[0] ?? 0,
+  mesh.backside(0) ? 1 : 0,
+  mesh.hasNormals(0) ? 1 : 0,
+  sectionStats[0] ?? 0,
+];
+result = Manifold.ofMesh(rebuilt)
+  .warpBatch((verts, count) => {
+    if (count > 0) verts[0] = verts[0] ?? 0;
+  })
+  .calculateNormals()
+  .calculateCurvature(3, 4)
+  .simplify()
+  .hull()
+  .minkowskiSum(Manifold.cube(0.1, true))
+  .minkowskiDifference(Manifold.cube(0.05, true));
+`);
+
+    expect(result.ok).toBe(true);
+    expect(result.issues).toEqual([]);
   });
 
   it('does not expose Node globals to snippets', () => {
@@ -109,6 +168,16 @@ result = Manifold.cube();
       code: 'const parts: Manifold[] = []; result = parts[0];',
       tsCode: 2322,
       message: /cannot be undefined/,
+    },
+    {
+      name: 'variadic Manifold union',
+      code: 'result = Manifold.union(Manifold.cube(), Manifold.cube(), Manifold.cube());',
+      tsCode: 2554,
+    },
+    {
+      name: 'spread Manifold union',
+      code: 'const parts = [Manifold.cube(), Manifold.cube()]; result = Manifold.union(...parts);',
+      tsCode: 2556,
     },
   ])('blocks $name', ({ code, tsCode, message }) => {
     const result = compileSnippetTypeScript(code);

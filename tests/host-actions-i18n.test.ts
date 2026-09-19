@@ -11,6 +11,7 @@ import {
   hostActionDisabledReason,
   hostActionLabel,
   hostActionStatusMessage,
+  OPEN_IN_MANIFOLDCAD_ACTION_ID,
 } from '../packages/viewer/src/host-actions/client.js';
 
 const action: HostActionDescriptor = {
@@ -20,6 +21,13 @@ const action: HostActionDescriptor = {
   slot: 'annotation-batch',
   tone: 'default',
   requires: ['model', 'annotations'],
+};
+const openInManifoldCADAction: HostActionDescriptor = {
+  ...action,
+  id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+  label: 'Unlocalized host label',
+  icon: 'external-link',
+  slot: 'toolbar',
 };
 
 describe('host action localization', () => {
@@ -88,6 +96,63 @@ describe('host action localization', () => {
         i18n,
       ),
     ).toBe('已附加所选位置。');
+    expect(hostActionLabel(openInManifoldCADAction, i18n)).toBe('在 ManifoldCAD 中打开');
+    expect(
+      hostActionStatusMessage(
+        {
+          ...base,
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          state: 'running',
+          message: 'raw opening diagnostic',
+        },
+        i18n,
+      ),
+    ).toBe('正在 ManifoldCAD 中打开…');
+    expect(
+      hostActionStatusMessage(
+        {
+          ...base,
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          state: 'succeeded',
+          message: 'raw completion diagnostic',
+        },
+        i18n,
+      ),
+    ).toBe('已在 ManifoldCAD 中打开。');
+    expect(
+      hostActionStatusMessage(
+        {
+          ...base,
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          state: 'failed',
+          message: 'raw host failure',
+        },
+        i18n,
+      ),
+    ).toBe('操作失败：raw host failure');
+    i18n.setPreference('en');
+    expect(hostActionLabel(openInManifoldCADAction, i18n)).toBe('Open in ManifoldCAD');
+    expect(
+      hostActionStatusMessage(
+        {
+          ...base,
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          state: 'running',
+        },
+        i18n,
+      ),
+    ).toBe('Opening in ManifoldCAD…');
+    expect(
+      hostActionStatusMessage(
+        {
+          ...base,
+          actionId: OPEN_IN_MANIFOLDCAD_ACTION_ID,
+          state: 'succeeded',
+        },
+        i18n,
+      ),
+    ).toBe('Opened in ManifoldCAD.');
+    i18n.setPreference('zh-CN');
     expect(hostActionLabel({ ...action, id: 'custom' }, i18n)).toBe(action.label);
     expect(
       hostActionStatusMessage(

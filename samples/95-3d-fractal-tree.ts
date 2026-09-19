@@ -76,5 +76,5 @@
   parts.push(Manifold.cylinder(10, 22, 18, 48));
   grow([0, 0, 5], [0, 0, 1], 92, 8, 5, 0);
 
-  result = Manifold.union(...parts).scale(6.2);
+  result = Manifold.union(parts).scale(6.2);
 }
