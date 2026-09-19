@@ -4,6 +4,7 @@ import {
   cleanup,
   garbageCollectFunction,
   garbageCollectInstance,
+  garbageCollectManifold,
   getLastCleanupDeleteFailures,
 } from '../packages/modeling/src/sandbox/garbage-collector.js';
 
@@ -155,5 +156,46 @@ describe('garbage-collector MNT-6 delete failure tracking', () => {
     garbageCollectInstance(shared);
     cleanup();
     expect(calls).toBe(2);
+  });
+
+  it('tracks manifolds returned by newly exposed member functions', () => {
+    let calls = 0;
+    const trackedResult = () => ({
+      delete() {
+        calls++;
+      },
+    });
+    class FakeManifold {
+      static cube(): FakeManifold {
+        return new FakeManifold();
+      }
+
+      warpBatch(): { delete(): void } {
+        return trackedResult();
+      }
+
+      minkowskiSum(): { delete(): void } {
+        return trackedResult();
+      }
+
+      minkowskiDifference(): { delete(): void } {
+        return trackedResult();
+      }
+    }
+    class FakeCrossSection {
+      static square(): FakeCrossSection {
+        return new FakeCrossSection();
+      }
+    }
+
+    garbageCollectManifold({ Manifold: FakeManifold, CrossSection: FakeCrossSection });
+    cleanup();
+    const manifold = new FakeManifold();
+    manifold.warpBatch();
+    manifold.minkowskiSum();
+    manifold.minkowskiDifference();
+    cleanup();
+
+    expect(calls).toBe(3);
   });
 });

@@ -45,7 +45,13 @@ describe('ManifoldCAD source adapter', () => {
 function describe(Manifold: number, Vec3: string): string {
   return \`\${Manifold}:\${Vec3}\`;
 }
+function normalize(value: string): string {
+  type Manifold = string;
+  const normalized: Manifold = value;
+  return normalized;
+}
 const label = describe(2, 'cube');
+const normalized = normalize(label);
 const size: Vec3 = [2, 3, 4];
 result = Manifold.cube(size);
 `);
