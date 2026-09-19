@@ -7,22 +7,33 @@ export const launchExternalUrl: ExternalUrlLauncher = url =>
   new Promise((resolve, reject) => {
     const { command, args } = launchCommand(url);
     const child = spawn(command, args, {
-      detached: true,
       stdio: 'ignore',
       windowsHide: true,
     });
     child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolve();
+    child.once('exit', (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          code === null
+            ? `${command} exited with signal ${signal ?? 'unknown'}`
+            : `${command} exited with status ${code}`,
+        ),
+      );
     });
   });
 
-function launchCommand(url: string): { command: string; args: string[] } {
-  if (process.platform === 'darwin') {
+export function launchCommand(
+  url: string,
+  platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[] } {
+  if (platform === 'darwin') {
     return { command: 'open', args: [url] };
   }
-  if (process.platform === 'win32') {
+  if (platform === 'win32') {
     return { command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', url] };
   }
   return { command: 'xdg-open', args: [url] };

@@ -5,6 +5,7 @@ import type * as ChildProcessModule from 'node:child_process';
 
 import {
   buildChromeAppArgs,
+  externalBrowserCommand,
   isWindowsChromiumProgId,
   launchPreview,
   linuxChromiumBinaryForDesktop,
@@ -214,7 +215,10 @@ describe('openExternalUrl', () => {
     vi.stubEnv('MANIFOLD_MCP_NO_OPEN', '');
     subprocess.spawn.mockImplementation(() => {
       const child = childProcess();
-      queueMicrotask(() => child.emit('spawn'));
+      queueMicrotask(() => {
+        child.emit('spawn');
+        child.emit('exit', 0, null);
+      });
       return child;
     });
   });
@@ -226,13 +230,9 @@ describe('openExternalUrl', () => {
   it('hands the URL directly to the OS default-browser launcher', async () => {
     await openExternalUrl('https://manifoldcad.org/#model');
 
-    const command =
-      process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'powershell.exe' : 'xdg-open';
+    const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'rundll32.exe' : 'xdg-open';
     expect(subprocess.execFile).not.toHaveBeenCalled();
-    expect(subprocess.spawn).toHaveBeenCalledWith(command, expect.any(Array), {
-      detached: true,
-      stdio: 'ignore',
-    });
+    expect(subprocess.spawn).toHaveBeenCalledWith(command, expect.any(Array), { stdio: 'ignore', windowsHide: true });
   });
 
   it('propagates a launcher spawn failure', async () => {
@@ -243,6 +243,25 @@ describe('openExternalUrl', () => {
     });
 
     await expect(openExternalUrl('https://manifoldcad.org/#model')).rejects.toThrow('cannot open');
+  });
+
+  it('propagates a launcher nonzero exit', async () => {
+    subprocess.spawn.mockImplementation(() => {
+      const child = childProcess();
+      queueMicrotask(() => child.emit('exit', 3, null));
+      return child;
+    });
+
+    await expect(openExternalUrl('https://manifoldcad.org/#model')).rejects.toThrow(/exited with status 3/);
+  });
+
+  it('passes near-limit Windows URLs directly without encoded-command expansion', () => {
+    const url = `https://manifoldcad.org/#${'x'.repeat(31_900)}`;
+
+    expect(externalBrowserCommand(url, 'win32')).toEqual({
+      command: 'rundll32.exe',
+      args: ['url.dll,FileProtocolHandler', url],
+    });
   });
 });
 

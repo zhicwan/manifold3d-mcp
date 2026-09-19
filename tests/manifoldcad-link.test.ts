@@ -40,6 +40,34 @@ describe('ManifoldCAD source adapter', () => {
     expect(source).toContain('const result = Manifold.cube(2);');
   });
 
+  it('keeps global imports when the same names are shadowed only in nested scopes', () => {
+    const source = createManifoldCadSource(`
+function describe(Manifold: number, Vec3: string): string {
+  return \`\${Manifold}:\${Vec3}\`;
+}
+const label = describe(2, 'cube');
+const size: Vec3 = [2, 3, 4];
+result = Manifold.cube(size);
+`);
+
+    expect(source).toContain("import { Manifold } from 'manifold-3d/manifoldCAD';");
+    expect(source).toMatch(/type Vec3 = \[\s*number,\s*number,\s*number\s*\];/);
+  });
+
+  it('detects globals independently of TypeScript suppression directives', () => {
+    const source = createManifoldCadSource(`
+// @ts-nocheck
+const profile: CrossSection = CrossSection.circle(2);
+// @ts-ignore
+const options: MeshOptions = { numProp: 3, vertProperties: new Float32Array(), triVerts: new Uint32Array() };
+const mesh = new Mesh(options);
+result = profile.extrude(3).add(Manifold.ofMesh(mesh));
+`);
+
+    expect(source).toContain("import { Manifold, CrossSection, Mesh } from 'manifold-3d/manifoldCAD';");
+    expect(source).toContain('interface MeshOptions');
+  });
+
   it('encodes the official name-code fragment and normalizes unsafe names', () => {
     const link = createManifoldCadShareLink({
       code: 'result = Manifold.cube(2);',

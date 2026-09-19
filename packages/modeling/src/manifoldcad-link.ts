@@ -86,9 +86,8 @@ export function createManifoldCadShareLink({
 }
 
 export function createManifoldCadSource(code: string): string {
-  const sourceFile = ts.createSourceFile('manifold-mcp-model.ts', code, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
-  const declaredNames = collectDeclaredNames(sourceFile);
-  const referencedNames = collectReferencedNames(sourceFile);
+  const { sourceFile, checker } = createCheckedSource(code);
+  const unresolvedNames = collectUnresolvedNames(sourceFile, checker);
   const declaresResult = sourceFile.statements.some(statement => {
     if (!ts.isVariableStatement(statement)) {
       return false;
@@ -96,9 +95,9 @@ export function createManifoldCadSource(code: string): string {
     return statement.declarationList.declarations.some(declaration => bindingContainsResult(declaration.name));
   });
   const importedValues = MANIFOLDCAD_VALUES.filter(
-    name => !declaredNames.has(name) && (referencedNames.has(name) || (name === 'Manifold' && !declaresResult)),
+    name => unresolvedNames.has(name) || (name === 'Manifold' && !declaresResult),
   );
-  const requiredTypes = resolveRequiredTypes(referencedNames, declaredNames);
+  const requiredTypes = resolveRequiredTypes(unresolvedNames);
   const unformatted = [
     ...(importedValues.length > 0 ? [`import { ${importedValues.join(', ')} } from 'manifold-3d/manifoldCAD';`] : []),
     ...requiredTypes.map(name => MANIFOLDCAD_TYPES[name]!.declaration),
@@ -119,52 +118,36 @@ export function createManifoldCadSource(code: string): string {
   return ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(moduleSource);
 }
 
-function collectDeclaredNames(sourceFile: ts.SourceFile): Set<string> {
-  const names = new Set<string>();
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isVariableDeclaration(node) ||
-      ts.isParameter(node) ||
-      ts.isFunctionDeclaration(node) ||
-      ts.isClassDeclaration(node) ||
-      ts.isInterfaceDeclaration(node) ||
-      ts.isTypeAliasDeclaration(node) ||
-      ts.isEnumDeclaration(node)
-    ) {
-      if (node.name) {
-        collectBindingNames(node.name, names);
-      }
-    }
-    ts.forEachChild(node, visit);
+function createCheckedSource(code: string): { sourceFile: ts.SourceFile; checker: ts.TypeChecker } {
+  const fileName = '/manifold-mcp-model.ts';
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    noLib: true,
+    noResolve: true,
   };
-  visit(sourceFile);
-  return names;
+  const host = ts.createCompilerHost(options);
+  host.fileExists = requested => requested === fileName;
+  host.readFile = requested => (requested === fileName ? code : undefined);
+  host.getSourceFile = (requested, languageVersion) =>
+    requested === fileName ? ts.createSourceFile(fileName, code, languageVersion, true, ts.ScriptKind.TS) : undefined;
+  const program = ts.createProgram([fileName], options, host);
+  const sourceFile = program.getSourceFile(fileName)!;
+  return { sourceFile, checker: program.getTypeChecker() };
 }
 
-function collectBindingNames(name: ts.BindingName | ts.DeclarationName, names: Set<string>): void {
-  if (ts.isIdentifier(name)) {
-    names.add(name.text);
-    return;
-  }
-  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
-    for (const element of name.elements) {
-      if (ts.isBindingElement(element)) {
-        collectBindingNames(element.name, names);
-      }
-    }
-  }
-}
-
-function collectReferencedNames(sourceFile: ts.SourceFile): Set<string> {
-  const names = new Set<string>();
+function collectUnresolvedNames(sourceFile: ts.SourceFile, checker: ts.TypeChecker): Set<string> {
+  const unresolvedNames = new Set<string>();
   const visit = (node: ts.Node): void => {
     if (ts.isIdentifier(node) && isReferenceIdentifier(node)) {
-      names.add(node.text);
+      const symbol = checker.getSymbolAtLocation(node);
+      if (!symbol || !symbol.declarations || symbol.declarations.length === 0) {
+        unresolvedNames.add(node.text);
+      }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return names;
+  return unresolvedNames;
 }
 
 function isReferenceIdentifier(identifier: ts.Identifier): boolean {
@@ -191,10 +174,10 @@ function isReferenceIdentifier(identifier: ts.Identifier): boolean {
   );
 }
 
-function resolveRequiredTypes(referencedNames: Set<string>, declaredNames: Set<string>): string[] {
+function resolveRequiredTypes(referencedNames: Set<string>): string[] {
   const required = new Set<string>();
   const add = (name: string): void => {
-    if (required.has(name) || declaredNames.has(name)) {
+    if (required.has(name)) {
       return;
     }
     const entry = MANIFOLDCAD_TYPES[name];
