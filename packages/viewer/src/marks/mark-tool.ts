@@ -8,6 +8,15 @@ import { eventToNdc, pickPoint, pickRegion } from './picker.js';
 import type { FlyoutLayer } from './flyout/index.js';
 import type { AnnotationGeometryInput, MarkMode } from './types.js';
 
+export interface MeasurementTool {
+  hover(event: Pick<PointerEvent, 'clientX' | 'clientY'>): void;
+  click(event: Pick<PointerEvent, 'clientX' | 'clientY'>): void;
+  escape(): boolean;
+  clearHover(): void;
+  setNavigating?(navigating: boolean): void;
+  trackPointer?(event: Pick<PointerEvent, 'clientX' | 'clientY'>): void;
+}
+
 /**
  * Marking takes only the primary pointer. OrbitControls still tracks pointers
  * and owns capture, wheel, middle/right pan and two-finger navigation; disabling
@@ -43,6 +52,7 @@ export class MarkTool {
     private readonly getResolver: () => FeatureResolver | null,
     private readonly onModeChange?: (mode: MarkMode) => void,
     private readonly onSelectionCreated?: (id: string) => void,
+    private readonly measurement?: MeasurementTool,
   ) {
     this.root = canvas.closest<HTMLElement>('[data-viewer-root]') ?? canvas;
     this.originalLeft = controls.mouseButtons.LEFT;
@@ -81,24 +91,12 @@ export class MarkTool {
       this.cameraGesture = false;
       this.updateNavigation();
     };
-    const onOutside = (event: PointerEvent) => {
-      if (
-        this.enabled &&
-        event.target instanceof Node &&
-        this.root.contains(event.target) &&
-        !this.flyouts.ownsTarget(event.target) &&
-        this.mode === 'orbit'
-      ) {
-        this.flyouts.dismissAll();
-      }
-    };
     canvas.addEventListener('pointerdown', onDown, true);
     canvas.addEventListener('pointerleave', onLeave);
     canvas.addEventListener('lostpointercapture', onCancel);
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onCancel);
-    document.addEventListener('pointerdown', onOutside);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
@@ -109,7 +107,6 @@ export class MarkTool {
       () => document.removeEventListener('pointermove', onMove),
       () => document.removeEventListener('pointerup', onUp),
       () => document.removeEventListener('pointercancel', onCancel),
-      () => document.removeEventListener('pointerdown', onOutside),
       () => window.removeEventListener('keydown', onKeyDown),
       () => window.removeEventListener('keyup', onKeyUp),
       () => window.removeEventListener('blur', onBlur),
@@ -158,12 +155,14 @@ export class MarkTool {
 
   private updateNavigation(): void {
     const navigating = !this.enabled || this.mode === 'orbit' || this.spacePressed || this.cameraGesture;
+    this.measurement?.setNavigating?.(navigating);
     this.controls.mouseButtons.LEFT = navigating ? this.originalLeft : null;
     this.controls.touches.ONE = navigating ? this.originalTouch : null;
     this.canvas.dataset.markMode = navigating ? 'orbit' : this.mode;
     this.canvas.dataset.navigating = String(this.cameraGesture && this.pointers.size > 0);
     if (navigating) {
       this.clearPreview();
+      this.measurement?.clearHover();
     }
   }
 
@@ -175,13 +174,15 @@ export class MarkTool {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
-    if (!this.enabled || !isViewerShortcutEvent(event, this.root) || this.flyouts.ownsTarget(event.target)) {
+    if (!this.enabled || !isViewerShortcutEvent(event, this.root)) {
       return;
     }
     if (event.key === 'Escape') {
       event.preventDefault();
       if (this.state !== 'idle') {
         this.cancelGesture();
+      } else if (this.mode === 'measure' && this.measurement?.escape()) {
+        return;
       } else {
         this.setMode('orbit');
       }
@@ -228,6 +229,9 @@ export class MarkTool {
     if (!this.enabled) {
       return;
     }
+    if (this.mode === 'measure' && (event.target === this.canvas || this.pointers.has(event.pointerId))) {
+      this.measurement?.trackPointer?.(event);
+    }
     if (this.state === 'idle') {
       if (event.target === this.canvas && this.pointers.size === 0 && this.mode !== 'orbit' && !this.spacePressed) {
         this.previewEvent = { clientX: event.clientX, clientY: event.clientY };
@@ -247,6 +251,10 @@ export class MarkTool {
       this.rubberBand.hidden = false;
     }
     if (this.state === 'dragging') {
+      if (this.mode === 'measure') {
+        this.rubberBand.hidden = true;
+        return;
+      }
       const rect = this.canvas.getBoundingClientRect();
       Object.assign(this.rubberBand.style, {
         left: `${Math.min(this.startScreen.x, event.clientX) - rect.left}px`,
@@ -264,7 +272,11 @@ export class MarkTool {
       const mesh = this.getMesh();
       if (mesh) {
         const end = eventToNdc(event, this.canvas);
-        if (wasDragging) {
+        if (this.mode === 'measure') {
+          if (!wasDragging && Math.abs(end.x) <= 1 && Math.abs(end.y) <= 1) {
+            this.measurement?.click(event);
+          }
+        } else if (wasDragging) {
           const region = pickRegion(this.startNdc, end, this.camera, mesh);
           if (region) {
             const partLabel = this.getResolver()?.labelForRegion(region.triIds) ?? undefined;
@@ -325,6 +337,11 @@ export class MarkTool {
     const mesh = this.getMesh();
     if (!event || !mesh) {
       this.targetPreview.hidden = true;
+      return;
+    }
+    if (this.mode === 'measure') {
+      this.targetPreview.hidden = true;
+      this.measurement?.hover(event);
       return;
     }
     const hit = pickPoint(eventToNdc(event, this.canvas), this.camera, mesh);

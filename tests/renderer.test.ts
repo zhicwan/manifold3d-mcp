@@ -8,6 +8,7 @@ import { createRenderer } from '../packages/modeling/src/preview/renderer.js';
 import type { CaptureView, RenderViewOptions } from '../packages/modeling/src/preview/renderer.js';
 import type { ModelArtifact } from '../packages/modeling/src/runner/protocol.js';
 import type { WireAnnotation } from '../packages/protocol/src/wire/annotations.js';
+import { MeasurementGeometry } from '../packages/viewer/src/measurements/geometry.js';
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const CAPTURE_VIEWS: CaptureView[] = ['iso', 'front', 'back', 'left', 'right', 'top', 'bottom'];
@@ -101,6 +102,17 @@ function cubeAnnotations(scale = 1, center: Vec3 = [0, 0, 0]): WireAnnotation[] 
       ],
     },
   ];
+}
+
+function measurementGeometry(mesh: ModelArtifact): MeasurementGeometry {
+  return new MeasurementGeometry({
+    ...mesh,
+    vertProperties: new Float32Array(mesh.vertProperties),
+    triVerts: new Uint32Array(mesh.triVerts),
+    mergeFromVert: new Uint32Array(mesh.mergeFromVert),
+    mergeToVert: new Uint32Array(mesh.mergeToVert),
+    triFeatureIds: new Uint32Array(mesh.triFeatureIds),
+  });
 }
 
 function mergeMeshes(first: ModelArtifact, second: ModelArtifact): ModelArtifact {
@@ -237,6 +249,49 @@ function countColor(pixels: Buffer, color: readonly [number, number, number]): n
     }
   }
   return count;
+}
+
+function expectMeasurementText(image: DecodedPng, x: number, y: number, text: string): void {
+  const glyphs: Record<string, string[]> = {
+    '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+    '1': ['010', '110', '010', '010', '010', '010', '111'],
+    '2': ['11110', '00001', '00001', '01110', '10000', '10000', '11111'],
+    '5': ['11111', '10000', '10000', '11110', '00001', '00001', '11110'],
+    '9': ['01110', '10001', '10001', '01111', '00001', '00001', '11110'],
+    '.': ['0', '0', '0', '0', '0', '0', '1'],
+    '-': ['0', '0', '0', '111', '0', '0', '0'],
+    '(': ['01', '10', '10', '10', '10', '10', '01'],
+    ')': ['10', '01', '01', '01', '01', '01', '10'],
+    ' ': ['0', '0', '0', '0', '0', '0', '0'],
+    A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+    C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+    D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+    E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+    G: ['01111', '10000', '10000', '10111', '10001', '10001', '01110'],
+    I: ['111', '010', '010', '010', '010', '010', '111'],
+    L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+    M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+    N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+    O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+    P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+    T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+    X: ['10001', '01010', '00100', '00100', '00100', '01010', '10001'],
+  };
+  let cursor = x;
+  for (const char of text) {
+    const glyph = glyphs[char]!;
+    expect(glyph, `Missing expected capture glyph ${char}`).toBeDefined();
+    for (let row = 0; row < glyph.length; row++) {
+      for (let col = 0; col < glyph[row]!.length; col++) {
+        const offset = ((y + row) * image.width + cursor + col) * 4;
+        const ink = [14, 116, 144].every((channel, index) => image.pixels[offset + index] === channel);
+        expect(ink, `${char} at ${cursor + col}, ${y + row}`).toBe(glyph[row]![col] === '1');
+      }
+    }
+    cursor += glyph[0]!.length + 1;
+  }
 }
 
 function edgeBounds({ width, height, pixels }: DecodedPng): { minX: number; minY: number; maxX: number; maxY: number } {
@@ -492,6 +547,170 @@ describe('preview renderer', () => {
       1024,
     );
     await expectDimensions(renderer.renderView(cubeMesh(), { width: 130, height: 9999 }), 130, 2048);
+  });
+
+  it('renders measurement witness distances distinctly and refuses invalid evidence', async () => {
+    const renderer = createRenderer();
+    const measurement: WireAnnotation = {
+      id: 'distance',
+      modelVersion: 'v-test',
+      kind: 'measurement',
+      partLabel: 'Measurement',
+      note: '',
+      worldCoord: [0, 0, 5],
+      measurement: {
+        kind: 'relation',
+        operands: [
+          { kind: 'point', position: [-5, 0, 5] },
+          { kind: 'point', position: [5, 0, 5] },
+        ],
+        distance: { method: 'point-point', unit: 'mm', value: 10, start: [-5, 0, 5], end: [5, 0, 5] },
+      },
+    };
+    const options = { view: 'top', width: 320, height: 240, annotations: [measurement] } as const;
+    const hidden = decodeRendererPng((await renderer.renderView(cubeMesh(), options)).png);
+    const shown = decodeRendererPng(
+      (await renderer.renderView(cubeMesh(), { ...options, includeAnnotations: true })).png,
+    );
+    expect(countColor(hidden.pixels, [14, 116, 144])).toBe(0);
+    expect(countColor(shown.pixels, [14, 116, 144])).toBeGreaterThan(80);
+    expect(
+      countColor(shown.pixels.subarray(120 * shown.width * 4, 121 * shown.width * 4), [14, 116, 144]),
+    ).toBeGreaterThan(50);
+    const bounds = edgeBounds(hidden);
+    for (const x of [bounds.minX, bounds.maxX]) {
+      const offset = (120 * shown.width + x) * 4;
+      expect([...shown.pixels.subarray(offset, offset + 3)]).toEqual([14, 116, 144]);
+    }
+    expect(countColor(shown.pixels, [236, 72, 153])).toBe(0);
+    expect(countColor(shown.pixels, [245, 158, 11])).toBe(0);
+    const { measurement: _evidence, ...missingEvidence } = measurement;
+    await expect(
+      renderer.renderView(cubeMesh(), {
+        ...options,
+        includeAnnotations: true,
+        annotations: [missingEvidence],
+      }),
+    ).rejects.toThrow(/Measurement/);
+  });
+
+  it('captures canonical fractional witnesses and full extended-plane semantics rather than truncated mark labels', async () => {
+    const mesh = mergeMeshes(cubeMesh([1, 1, 1], [-6, 0, 0]), cubeMesh([1, 1, 1], [6, 0, 0]));
+    const geometry = measurementGeometry(mesh);
+    const plane = geometry.planes.find(
+      candidate => candidate.operand.kind === 'plane' && candidate.operand.normal[2] === 1,
+    )!;
+    const evidence = geometry.measure(
+      { key: 'point', operand: { kind: 'point', position: [0, 0, 5.125] }, anchor: [0, 0, 5.125], triIds: [] },
+      plane,
+    )!;
+    expect(evidence.distance).toEqual({
+      method: 'point-plane',
+      unit: 'mm',
+      value: 0.125,
+      start: [0, 0, 5.125],
+      end: [0, 0, 5],
+      extended: true,
+    });
+    const renderer = createRenderer();
+    const annotation: WireAnnotation = {
+      id: 'extended',
+      modelVersion: 'v-test',
+      kind: 'measurement',
+      partLabel: 'Measurement',
+      note: '',
+      worldCoord: [-6, -4, -5],
+      measurement: evidence,
+    };
+    const image = decodeRendererPng(
+      (
+        await renderer.renderView(mesh, {
+          view: 'top',
+          width: 640,
+          height: 480,
+          includeAnnotations: true,
+          annotations: [annotation],
+        })
+      ).png,
+    );
+    // The true witnesses project to the center; the intentionally different
+    // annotation anchor must not move their marker or distance labels.
+    const center = (240 * image.width + 320) * 4;
+    expect([...image.pixels.subarray(center, center + 3)]).toEqual([14, 116, 144]);
+    expectMeasurementText(image, 329, 230, '0.125 MM');
+    expectMeasurementText(image, 329, 246, 'POINT-PLANE (EXTENDED PLANE)');
+    renderer.dispose();
+  });
+
+  it('captures the canonical smaller angle and its complete method', async () => {
+    const mesh = cubeMesh();
+    const geometry = measurementGeometry(mesh);
+    const top = geometry.planes.find(
+      candidate => candidate.operand.kind === 'plane' && candidate.operand.normal[2] === 1,
+    )!;
+    const side = geometry.planes.find(
+      candidate => candidate.operand.kind === 'plane' && candidate.operand.normal[0] === 1,
+    )!;
+    const evidence = geometry.measure(top, side)!;
+    expect(evidence).toMatchObject({ angle: { method: 'plane-plane', value: 90, unit: 'deg' } });
+    expect(evidence.distance).toBeUndefined();
+    const annotation: WireAnnotation = {
+      id: 'angle',
+      modelVersion: 'v-test',
+      kind: 'measurement',
+      partLabel: 'Measurement',
+      note: '',
+      worldCoord: [0, 0, 5],
+      measurement: evidence,
+    };
+    const renderer = createRenderer();
+    const image = decodeRendererPng(
+      (
+        await renderer.renderView(mesh, {
+          view: 'top',
+          width: 640,
+          height: 480,
+          includeAnnotations: true,
+          annotations: [annotation],
+        })
+      ).png,
+    );
+    expectMeasurementText(image, 329, 230, 'SMALLER 90 DEG (PLANE-PLANE)');
+    renderer.dispose();
+  });
+
+  it('captures an obtuse corner without relabeling it as a smaller angle', async () => {
+    const renderer = createRenderer();
+    const annotation: WireAnnotation = {
+      id: 'corner',
+      modelVersion: 'v-test',
+      kind: 'measurement',
+      partLabel: 'Measurement',
+      note: '',
+      worldCoord: [0, 0, 5],
+      measurement: {
+        kind: 'relation',
+        operands: [
+          { kind: 'edge', edgeId: 'a', start: [0, 0, 5], end: [4, 0, 5] },
+          { kind: 'edge', edgeId: 'b', start: [0, 0, 5], end: [-2, 2 * Math.sqrt(3), 5] },
+        ],
+        distance: { method: 'segment-segment', unit: 'mm', value: 0, start: [0, 0, 5], end: [0, 0, 5] },
+        angle: { method: 'edge-corner', unit: 'deg', value: 120 },
+      },
+    };
+    const image = decodeRendererPng(
+      (
+        await renderer.renderView(cubeMesh(), {
+          view: 'top',
+          width: 640,
+          height: 480,
+          includeAnnotations: true,
+          annotations: [annotation],
+        })
+      ).png,
+    );
+    expectMeasurementText(image, 329, 262, 'CORNER 120 DEG (EDGE-CORNER)');
+    renderer.dispose();
   });
 
   it('overlays point, region, and sketch annotations only when requested', async () => {

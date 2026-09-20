@@ -15,10 +15,12 @@
  * the other (VIE-2). AI clients still see a flat list — the clientId
  * is purely an internal routing tag.
  */
+import { parseMeasurementEvidence, type MeasurementEvidence } from './measurements.js';
+
 export interface WireAnnotation {
   id: string;
   modelVersion: string;
-  kind: 'point' | 'region' | 'sketch';
+  kind: 'point' | 'region' | 'sketch' | 'measurement';
   partLabel: string;
   note: string;
   worldCoord: [number, number, number];
@@ -30,6 +32,8 @@ export interface WireAnnotation {
   planeOrigin?: [number, number, number];
   /** Only set for kind='sketch'. 2D strokes in sketch-plane coordinates. */
   strokes?: Array<Array<[number, number]>>;
+  /** Required only for kind='measurement'; note remains optional user commentary. */
+  measurement?: MeasurementEvidence;
   /**
    * Server-assigned identifier of the WebSocket connection that owns
    * this annotation. Set by the server on the inbound message before
@@ -39,8 +43,8 @@ export interface WireAnnotation {
   clientId?: string;
 }
 
-export const ANNOTATIONS_PROTOCOL_VERSION = 1 as const;
-const MAX_ANNOTATIONS = 500;
+export const ANNOTATIONS_PROTOCOL_VERSION = 3 as const;
+export const MAX_ANNOTATIONS = 500;
 const MAX_ANNOTATION_ID_LENGTH = 64;
 export const MAX_ANNOTATION_NOTE_LENGTH = 4_096;
 export const MAX_ANNOTATIONS_PAYLOAD_BYTES = 256 * 1024;
@@ -147,12 +151,13 @@ export function parseWireAnnotation(x: unknown, label = 'Annotation'): WireAnnot
       'planeOrigin',
       'strokes',
       'clientId',
+      'measurement',
     ],
     label,
   );
   const id = boundedIdentifier(a.id, `${label} id`);
   const modelVersion = boundedString(a.modelVersion, `${label} modelVersion`, 128, false);
-  if (a.kind !== 'point' && a.kind !== 'region' && a.kind !== 'sketch') {
+  if (a.kind !== 'point' && a.kind !== 'region' && a.kind !== 'sketch' && a.kind !== 'measurement') {
     throw new Error(`${label} kind is unsupported.`);
   }
   const partLabel = boundedString(a.partLabel, `${label} partLabel`, 160, false);
@@ -175,13 +180,19 @@ export function parseWireAnnotation(x: unknown, label = 'Annotation'): WireAnnot
     ...(a.triCount !== undefined ? { triCount: a.triCount } : {}),
     ...(clientId !== undefined ? { clientId } : {}),
   };
+  if (a.kind !== 'measurement' && Object.hasOwn(a, 'measurement')) {
+    throw new Error(`${label} measurement requires kind="measurement".`);
+  }
+  if (a.kind === 'measurement' && a.triCount !== undefined) {
+    throw new Error(`${label} measurement must not contain region fields.`);
+  }
   if (a.kind === 'sketch') {
     return { ...base, ...parseWireSketchAnnotation(a, label) };
   }
   if (a.viewPlane !== undefined || a.planeOrigin !== undefined || a.strokes !== undefined) {
     throw new Error(`${label} sketch fields require kind="sketch".`);
   }
-  return base;
+  return a.kind === 'measurement' ? { ...base, measurement: parseMeasurementEvidence(a.measurement) } : base;
 }
 
 const VIEW_PLANES = new Set(['front', 'back', 'left', 'right', 'top', 'bottom']);

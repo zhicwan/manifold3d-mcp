@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-import { HostActionsClient, LOCATION_SELECTION_ACTION_ID, MODEL_EXPORT_ACTION_ID } from '@/host-actions/client';
+import {
+  HostActionsClient,
+  hostActionDisabledReason,
+  LOCATION_SELECTION_ACTION_ID,
+  MODEL_EXPORT_ACTION_ID,
+} from '@/host-actions/client';
+import { SEND_MEASUREMENT, submitMeasurement } from '@/measurements/submission';
 import { installMarks } from '@/marks';
 import type { MarkMode } from '@/marks/types';
 import { installAnnotationsUplink } from '@/marks/ws-uplink';
@@ -172,6 +178,55 @@ async function startViewerGeneration(
         annotationRevision: marks.store.getRevision(),
       }),
     });
+    const refreshMeasurementAction = () => {
+      const snapshot = hostActions.getSnapshot();
+      const action = snapshot.actions.find(item => item.id === SEND_MEASUREMENT);
+      if (!action) {
+        marks.setMeasurementAction(null);
+        return;
+      }
+      const disabledReason = hostActionDisabledReason(
+        action,
+        {
+          connected: snapshot.connected,
+          protocolReady: snapshot.protocolState === 'ready',
+          hasModel: viewerStore.getState().payload !== null,
+          annotationCount: 1,
+          pending: false,
+        },
+        viewerStore.i18n,
+      );
+      marks.setMeasurementAction({
+        ...(disabledReason ? { disabledReason } : {}),
+        send(id) {
+          const modelVersion = marks.store.getModelVersion();
+          const isCurrent = () =>
+            mounted &&
+            viewerStore.getState().marksRuntime?.store === marks.store &&
+            viewerStore.getState().hostActionsClient === hostActions &&
+            marks.store.getModelVersion() === modelVersion;
+          if (viewerStore.getState().viewerError?.key === 'measurementDeliveryFailed') {
+            viewerStore.setViewerError(null);
+          }
+          void submitMeasurement({
+            id,
+            kind: 'send',
+            store: marks.store,
+            client: hostActions,
+            i18n: viewerStore.i18n,
+            isCurrent,
+            flush: () => uplink.flushNow(),
+          }).catch(error => {
+            if (isCurrent() && marks.store.get(id)) {
+              viewerStore.setViewerError({ key: 'measurementDeliveryFailed', detail: errorMessage(error) });
+            }
+          });
+        },
+      });
+    };
+    const removeMeasurementActionSubscription = hostActions.subscribe(refreshMeasurementAction);
+    const removeMeasurementLocaleSubscription = viewerStore.i18n.subscribe(refreshMeasurementAction);
+    partialCleanup.push(removeMeasurementActionSubscription, removeMeasurementLocaleSubscription);
     attachSelection = id => {
       const selection = marks.store.get(id);
       if (!selection) {
@@ -215,10 +270,12 @@ async function startViewerGeneration(
         viewerStore.setPayload(payload);
         viewer.setMesh(payload);
         marks.setPayload(payload);
+        refreshMeasurementAction();
       },
       onModelVersion: version => {
         viewerStore.setModelVersion(version);
         marks.setModelVersion(version);
+        hostActions.setModelVersion(version);
         uplink.flushNow();
       },
       onHostActionsManifest: manifest => hostActions.receiveManifest(manifest),
@@ -257,26 +314,46 @@ async function startViewerGeneration(
         if (!mounted || viewerStore.getState().payload) {
           return;
         }
-        void import('@/demo-payload').then(({ buildDemoPayload }) => {
-          if (!mounted || viewerStore.getState().payload) {
-            return;
-          }
-          const demo = buildDemoPayload();
-          viewerStore.setStatus('connected');
-          viewerStore.setPayload(demo);
-          viewer.setMesh(demo);
-          marks.setPayload(demo);
-          marks.setModelVersion('demo');
-          viewerStore.setModelVersion('demo');
-        });
+        void Promise.all([import('@/demo-payload'), import('manifold-3d/manifold.wasm?url')])
+          .then(async ([{ buildDemoPayload }, { default: wasmUrl }]) => {
+            if (!mounted || viewerStore.getState().payload) {
+              return;
+            }
+            const demo = await buildDemoPayload(() => wasmUrl);
+            if (!mounted || viewerStore.getState().payload) {
+              return;
+            }
+            viewerStore.setStatus('connected');
+            viewerStore.setPayload(demo);
+            viewer.setMesh(demo);
+            marks.setPayload(demo);
+            marks.setModelVersion('demo');
+            viewerStore.setModelVersion('demo');
+          })
+          .catch(error => {
+            if (mounted && !viewerStore.getState().payload) {
+              console.error('Failed to build the offline demo model.', error);
+              viewerStore.setViewerError({ key: 'viewerStartupFailed', detail: errorMessage(error) });
+            }
+          });
       }, 600);
       partialCleanup.push(() => window.clearTimeout(demoTimer));
     }
 
     viewerStore.setMarksRuntime({
       store: marks.store,
+      ruler: marks.ruler,
+      openMeasurementComment(id): void {
+        marks.openMeasurementComment(id);
+      },
+      setMeasurementAnchor(id, element): void {
+        marks.setMeasurementAnchor(id, element);
+      },
       commitOpenDraft(): void {
         marks.commitOpenDraft();
+      },
+      cancelOpenDraft(): void {
+        marks.cancelOpenDraft();
       },
       flushAnnotations(): boolean {
         return uplink.flushNow();
@@ -294,6 +371,7 @@ async function startViewerGeneration(
       },
       setTheme(theme: ViewerTheme): void {
         viewer.setTheme(theme);
+        marks.ruler.setTheme(theme);
       },
       zoomIn(): void {
         viewer.zoomIn();
@@ -353,6 +431,8 @@ async function startViewerGeneration(
         viewer.stop();
       },
       beforeContributions: [
+        removeMeasurementActionSubscription,
+        removeMeasurementLocaleSubscription,
         () => {
           if (demoTimer !== undefined) {
             window.clearTimeout(demoTimer);

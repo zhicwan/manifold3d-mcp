@@ -85,6 +85,44 @@ export function RightRail() {
   }, [api, markMode, supportsSelect]);
 
   const ActiveRenderIcon = RENDER_OPTIONS.find(option => option.value === renderMode)!.icon;
+  const tools = viewerTools(supportsSelect);
+  const renderTool = (tool: (typeof tools)[number]) => {
+    const Icon = tool.icon;
+    const primary = tool.mode === (supportsSelect ? 'select' : 'annotate');
+    const disabled = !enabled || (tool.mode === 'select' && selectReason !== undefined);
+    return (
+      <Tooltip key={tool.mode}>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label={i18n.t('shortcutLabel', i18n.t(tool.mode), tool.shortcut)}
+              aria-pressed={markMode === tool.mode}
+              data-primary={primary || undefined}
+              disabled={disabled}
+              title={tool.mode === 'select' ? selectReason : undefined}
+              className="viewer-rail-button viewer-tool-button"
+              onClick={() => {
+                if (disabled) {
+                  return;
+                }
+                api?.setMarkMode(tool.mode);
+                rootRef.current
+                  ?.closest('[data-viewer-root]')
+                  ?.querySelector<HTMLCanvasElement>('#view')
+                  ?.focus({ preventScroll: true });
+              }}
+            />
+          }
+        >
+          <Icon className="size-4 shrink-0" aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          {i18n.t(tool.mode)} <kbd>{tool.shortcut}</kbd>
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
 
   return (
     <nav
@@ -93,47 +131,10 @@ export function RightRail() {
       aria-label={i18n.t('viewerTools')}
       className={cn(glass, 'viewer-right-rail')}
     >
-      <div className="flex flex-col gap-1">
-        {viewerTools(supportsSelect).map(tool => {
-          const Icon = tool.icon;
-          const primary = tool.mode === (supportsSelect ? 'select' : 'annotate');
-          const disabled = !enabled || (tool.mode === 'select' && selectReason !== undefined);
-          return (
-            <Tooltip key={tool.mode}>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label={i18n.t('shortcutLabel', i18n.t(tool.mode), tool.shortcut)}
-                    aria-pressed={markMode === tool.mode}
-                    data-primary={primary || undefined}
-                    disabled={disabled}
-                    title={tool.mode === 'select' ? selectReason : undefined}
-                    className="viewer-rail-button viewer-tool-button"
-                    onClick={() => {
-                      if (disabled) {
-                        return;
-                      }
-                      api?.setMarkMode(tool.mode);
-                      rootRef.current
-                        ?.closest('[data-viewer-root]')
-                        ?.querySelector<HTMLCanvasElement>('#view')
-                        ?.focus({ preventScroll: true });
-                    }}
-                  />
-                }
-              >
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                {i18n.t(tool.mode)} <kbd>{tool.shortcut}</kbd>
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
-      </div>
+      <div className="flex flex-col gap-1">{tools.filter(tool => tool.mode !== 'measure').map(renderTool)}</div>
       <div className="viewer-rail-divider" aria-hidden="true" />
       <div className="viewer-view-controls">
+        {tools.filter(tool => tool.mode === 'measure').map(renderTool)}
         <RailAction label={i18n.t('zoomIn')} icon={ZoomIn} disabled={!enabled} onClick={() => api?.zoomIn()} />
         <RailAction label={i18n.t('zoomOut')} icon={ZoomOut} disabled={!enabled} onClick={() => api?.zoomOut()} />
         <RailAction

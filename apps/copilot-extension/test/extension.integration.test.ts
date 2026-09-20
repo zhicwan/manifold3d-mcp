@@ -24,8 +24,11 @@ import { buildAnnotationAttachment } from '../src/annotation-attachment.js';
 import {
   ATTACH_ANNOTATION_BATCH_ACTION_ID,
   ATTACH_LOCATION_SELECTION_ACTION_ID,
+  ATTACH_MEASUREMENT_ACTION_ID,
   FIX_ANNOTATION_BATCH_ACTION_ID,
   FIX_ANNOTATION_BATCH_PROMPT,
+  FIX_MEASUREMENT_ACTION_ID,
+  FIX_MEASUREMENT_PROMPT,
   MANIFOLD_CANVAS_ID,
   MODEL_EXPORT_ACTION_ID,
   OPEN_IN_MANIFOLDCAD_ACTION_ID,
@@ -93,6 +96,17 @@ describe('production Copilot Extension composition', () => {
           expect.objectContaining({
             id: ATTACH_LOCATION_SELECTION_ACTION_ID,
             slot: 'selection-gesture',
+          }),
+          expect.objectContaining({
+            id: ATTACH_MEASUREMENT_ACTION_ID,
+            slot: 'measurement-result',
+          }),
+          expect.objectContaining({
+            id: FIX_MEASUREMENT_ACTION_ID,
+            slot: 'measurement-result',
+            icon: 'wand',
+            tone: 'primary',
+            requires: ['model', 'annotations'],
           }),
           expect.objectContaining({
             id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
@@ -208,7 +222,7 @@ describe('production Copilot Extension composition', () => {
               type: 'extension_context',
               title: 'Annotations · #1 #2',
               payload: {
-                version: 3,
+                version: 5,
                 source: 'manifold3d-viewer',
                 mode: 'annotation-batch',
                 batchId: 'batch-a',
@@ -251,7 +265,7 @@ describe('production Copilot Extension composition', () => {
               type: 'extension_context',
               title: 'Location · #3',
               payload: {
-                version: 3,
+                version: 5,
                 source: 'manifold3d-viewer',
                 mode: 'location-selection',
                 modelVersion: versionA,
@@ -392,85 +406,278 @@ describe('production Copilot Extension composition', () => {
     }
   });
 
-  it('enqueues the complete fix snapshot without a pill and replays idempotent statuses', async () => {
-    const sendResult = deferred<string>();
-    const harness = createHarness({
-      send: () => sendResult.promise,
-    });
-    application = await startCopilotExtension(harness.startOptions);
-    const opened = await harness.canvas().open(openContext('canvas-fix'));
-    const client = await openRoom(requiredUrl(opened.url));
-    try {
-      await harness
-        .tool('manifold_execute_script')
-        .handler?.({ code: 'result = Manifold.cube(1);', description: 'first' }, invocation('manifold_execute_script'));
-      const version = requiredString(
-        (await client.messages.waitFor(message => message.kind === 'model_version' && message.modelVersion !== 'none'))
-          .modelVersion,
-      );
-      client.socket.send(
-        JSON.stringify(createAnnotationsMessage(version, 1, [pointAnnotation('fix-me', version, 'make it taller')])),
-      );
-      await new Promise<void>(resolvePromise => setTimeout(resolvePromise, 10));
-      const request = createHostActionInvocation({
-        requestId: 'fix-request',
-        actionId: FIX_ANNOTATION_BATCH_ACTION_ID,
-        modelVersion: version,
-        annotationRevision: 1,
-        annotationIds: ['fix-me'],
-        input: { batchId: 'fix-batch', markerNumbers: [1] },
+  it.each([FIX_ANNOTATION_BATCH_ACTION_ID, FIX_MEASUREMENT_ACTION_ID])(
+    'enqueues %s snapshot without a pill and replays idempotent statuses',
+    async actionId => {
+      const sendResult = deferred<string>();
+      const harness = createHarness({
+        send: () => sendResult.promise,
       });
-      client.socket.send(JSON.stringify(request));
-      await client.messages.waitFor(
-        message =>
-          message.kind === 'host_action_status' &&
-          message.requestId === request.requestId &&
-          message.state === 'running' &&
-          message.operationId === request.requestId,
-      );
-      await eventually(() => harness.send.mock.calls.length === 1);
-      expect(harness.send).toHaveBeenLastCalledWith({
-        mode: 'enqueue',
-        prompt: `${FIX_ANNOTATION_BATCH_PROMPT}\n\n${JSON.stringify(
-          buildAnnotationAttachment({
-            mode: 'annotation-batch',
-            batchId: 'fix-batch',
+      application = await startCopilotExtension(harness.startOptions);
+      const opened = await harness.canvas().open(openContext('canvas-fix'));
+      const client = await openRoom(requiredUrl(opened.url));
+      try {
+        await harness
+          .tool('manifold_execute_script')
+          .handler?.(
+            { code: 'result = Manifold.cube(1);', description: 'first' },
+            invocation('manifold_execute_script'),
+          );
+        const version = requiredString(
+          (
+            await client.messages.waitFor(
+              message => message.kind === 'model_version' && message.modelVersion !== 'none',
+            )
+          ).modelVersion,
+        );
+        const measurement: WireAnnotation = {
+          id: 'fix-me',
+          modelVersion: version,
+          kind: 'measurement',
+          partLabel: 'Measurement',
+          note: 'Make this 12 mm',
+          worldCoord: [5, 0, 0],
+          measurement: {
+            kind: 'edge-length',
+            operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+            distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+          },
+        };
+        const annotations: WireAnnotation[] =
+          actionId === FIX_MEASUREMENT_ACTION_ID
+            ? [measurement]
+            : [
+                pointAnnotation('point', version, 'make it taller'),
+                { ...pointAnnotation('region', version, 'round this region'), kind: 'region', triCount: 12 },
+                measurement,
+              ];
+        const markerNumbers = annotations.map((_annotation, index) => index + 1);
+        client.socket.send(JSON.stringify(createAnnotationsMessage(version, 1, annotations)));
+        await new Promise<void>(resolvePromise => setTimeout(resolvePromise, 10));
+        if (actionId === FIX_MEASUREMENT_ACTION_ID) {
+          await expectFailedAction(client, {
+            requestId: 'unrelated-measurement',
+            actionId,
             modelVersion: version,
             annotationRevision: 1,
-            annotations: [pointAnnotation('fix-me', version, 'make it taller')],
-            markerNumbers: [1],
-          }),
-        )}`,
-        displayPrompt: 'Fix 1 Manifold annotation · fix-batch',
+            annotationIds: ['unrelated'],
+            input: { markerNumbers: [1] },
+          });
+          expect(harness.send).not.toHaveBeenCalled();
+        }
+        const request = createHostActionInvocation({
+          requestId: 'fix-request',
+          actionId,
+          modelVersion: version,
+          annotationRevision: 1,
+          annotationIds: annotations.map(annotation => annotation.id),
+          input: { ...(actionId === FIX_MEASUREMENT_ACTION_ID ? {} : { batchId: 'fix-batch' }), markerNumbers },
+        });
+        client.socket.send(JSON.stringify(request));
+        await client.messages.waitFor(
+          message =>
+            message.kind === 'host_action_status' &&
+            message.requestId === request.requestId &&
+            message.state === 'running' &&
+            message.operationId === request.requestId,
+        );
+        await eventually(() => harness.send.mock.calls.length === 1);
+        const attachmentInput = {
+          modelVersion: version,
+          annotationRevision: 1,
+          annotations,
+          markerNumbers,
+        };
+        const expectedAttachment =
+          actionId === FIX_MEASUREMENT_ACTION_ID
+            ? buildAnnotationAttachment({ ...attachmentInput, mode: 'measurement' })
+            : buildAnnotationAttachment({ ...attachmentInput, mode: 'annotation-batch', batchId: 'fix-batch' });
+        expect(harness.send).toHaveBeenLastCalledWith({
+          mode: 'enqueue',
+          prompt: `${actionId === FIX_MEASUREMENT_ACTION_ID ? FIX_MEASUREMENT_PROMPT : FIX_ANNOTATION_BATCH_PROMPT}\n\n${JSON.stringify(expectedAttachment)}`,
+          displayPrompt:
+            actionId === FIX_MEASUREMENT_ACTION_ID
+              ? 'Modify Manifold measurement · #1'
+              : 'Fix 3 Manifold annotations · fix-batch',
+        });
+        expect(harness.sendAttachments).not.toHaveBeenCalled();
+
+        client.socket.send(JSON.stringify(request));
+        await client.messages.waitForCount(
+          message => message.kind === 'host_action_status' && message.requestId === request.requestId,
+          4,
+        );
+        expect(harness.sendAttachments).not.toHaveBeenCalled();
+        expect(harness.send).toHaveBeenCalledTimes(1);
+
+        sendResult.resolve('assistant-message');
+        await client.messages.waitFor(
+          message =>
+            message.kind === 'host_action_status' &&
+            message.requestId === request.requestId &&
+            message.state === 'succeeded',
+        );
+        client.socket.send(JSON.stringify(request));
+        await client.messages.waitForCount(
+          message =>
+            message.kind === 'host_action_status' &&
+            message.requestId === request.requestId &&
+            message.state === 'succeeded',
+          2,
+        );
+        expect(harness.sendAttachments).not.toHaveBeenCalled();
+        expect(harness.send).toHaveBeenCalledTimes(1);
+      } finally {
+        client.socket.terminate();
+      }
+    },
+  );
+
+  it('attaches one static measurement without sending and rejects stale, location and empty-note batch requests', async () => {
+    const delivery = deferred<void>();
+    const harness = createHarness({ sendAttachments: () => delivery.promise });
+    application = await startCopilotExtension(harness.startOptions);
+    const opened = await harness.canvas().open(openContext('canvas-measurement'));
+    const client = await openRoom(requiredUrl(opened.url));
+    try {
+      const execute = harness.tool('manifold_execute_script');
+      await execute.handler?.({ code: 'result = Manifold.cube(1);' }, invocation('manifold_execute_script'));
+      const version = await modelVersionAt(client, 1);
+      const measurement: WireAnnotation = {
+        id: 'measure-1',
+        modelVersion: version,
+        kind: 'measurement',
+        partLabel: 'Measurement',
+        note: '',
+        worldCoord: [5, 0, 0],
+        measurement: {
+          kind: 'edge-length',
+          operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+          distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+        },
+      };
+      client.socket.send(
+        JSON.stringify(
+          createAnnotationsMessage(version, 1, [
+            measurement,
+            { ...measurement, id: 'measure-2', note: 'make shorter' },
+            pointAnnotation('comment', version, 'ordinary note'),
+          ]),
+        ),
+      );
+      const base = {
+        actionId: ATTACH_MEASUREMENT_ACTION_ID,
+        modelVersion: version,
+        annotationRevision: 1,
+        annotationIds: ['measure-1'],
+        input: { markerNumbers: [7] },
+      };
+      const { annotationIds: _ids, ...withoutIds } = base;
+      await expectFailedAction(client, { ...withoutIds, requestId: 'missing-ids' });
+      const invalidRequests: Array<[string, Partial<Parameters<typeof createHostActionInvocation>[0]>]> = [
+        ['two-ids', { annotationIds: ['measure-1', 'measure-2'], input: { markerNumbers: [7, 8] } }],
+        ['comment-kind', { annotationIds: ['comment'] }],
+        ['bad-input', { input: { markerNumbers: [7], batchId: 'bad' } }],
+        ['missing-marker', { input: {} }],
+        ['stale-revision', { annotationRevision: 0 }],
+        ['future-revision', { annotationRevision: 2 }],
+        ['wrong-model', { modelVersion: 'old' }],
+      ];
+      for (const [requestId, overrides] of invalidRequests) {
+        await expectFailedAction(client, { ...base, requestId, ...overrides });
+      }
+      for (const actionId of [
+        ATTACH_ANNOTATION_BATCH_ACTION_ID,
+        FIX_ANNOTATION_BATCH_ACTION_ID,
+        ATTACH_LOCATION_SELECTION_ACTION_ID,
+      ]) {
+        await expectFailedAction(client, {
+          ...base,
+          requestId: `reject-${actionId}`,
+          actionId,
+          annotationIds: ['measure-1'],
+          input:
+            actionId === ATTACH_LOCATION_SELECTION_ACTION_ID
+              ? { markerNumbers: [7] }
+              : { batchId: 'batch', markerNumbers: [8] },
+        });
+      }
+      expect(harness.sendAttachments).not.toHaveBeenCalled();
+      expect(harness.send).not.toHaveBeenCalled();
+
+      const pending = invokeAction(client, { ...base, requestId: 'attach-measurement' });
+      await eventually(() => harness.sendAttachments.mock.calls.length === 1);
+      const delivered = harness.sendAttachments.mock.calls[0]![0];
+      expect(delivered).toMatchObject({
+        instanceId: 'canvas-measurement',
+        attachments: [
+          {
+            type: 'extension_context',
+            title: 'Measurement · #7',
+            payload: {
+              version: 5,
+              mode: 'measurement',
+              modelVersion: version,
+              annotationRevision: 1,
+              annotations: [{ id: 'measure-1', displayNumber: 7, note: '', measurement: measurement.measurement }],
+            },
+          },
+        ],
       });
-      expect(harness.sendAttachments).not.toHaveBeenCalled();
+      const original = JSON.stringify(delivered);
+      client.socket.send(
+        JSON.stringify(createAnnotationsMessage(version, 2, [{ ...measurement, note: 'edited later' }])),
+      );
+      await execute.handler?.({ code: 'result = Manifold.cube(2);' }, invocation('manifold_execute_script'));
+      const replacementVersion = await modelVersionAt(client, 2);
+      expect(replacementVersion).not.toBe(version);
+      await expectFailedAction(client, { ...base, requestId: 'attach-old-measurement' });
+      delivery.resolve();
+      expect(await pending).toMatchObject({ resultDetails: { kind: 'annotations-attached', count: 1 } });
+      expect(JSON.stringify(delivered)).toBe(original);
+      expect(harness.sendAttachments).toHaveBeenCalledTimes(1);
+      expect(harness.send).not.toHaveBeenCalled();
 
-      client.socket.send(JSON.stringify(request));
-      await client.messages.waitForCount(
-        message => message.kind === 'host_action_status' && message.requestId === request.requestId,
-        4,
-      );
-      expect(harness.sendAttachments).not.toHaveBeenCalled();
-      expect(harness.send).toHaveBeenCalledTimes(1);
-
-      sendResult.resolve('assistant-message');
-      await client.messages.waitFor(
-        message =>
-          message.kind === 'host_action_status' &&
-          message.requestId === request.requestId &&
-          message.state === 'succeeded',
-      );
-      client.socket.send(JSON.stringify(request));
-      await client.messages.waitForCount(
-        message =>
-          message.kind === 'host_action_status' &&
-          message.requestId === request.requestId &&
-          message.state === 'succeeded',
-        2,
-      );
-      expect(harness.sendAttachments).not.toHaveBeenCalled();
-      expect(harness.send).toHaveBeenCalledTimes(1);
+      const mixed = [
+        pointAnnotation('point', replacementVersion, 'raise this point'),
+        regionAnnotation('region', replacementVersion, 'round this region'),
+        { ...measurement, modelVersion: replacementVersion, note: 'make this 12 mm' },
+      ];
+      client.socket.send(JSON.stringify(createAnnotationsMessage(replacementVersion, 3, mixed)));
+      await invokeAction(client, {
+        requestId: 'attach-mixed-measurement-notes',
+        actionId: ATTACH_ANNOTATION_BATCH_ACTION_ID,
+        modelVersion: replacementVersion,
+        annotationRevision: 3,
+        annotationIds: mixed.map(item => item.id),
+        input: { batchId: 'mixed-notes', markerNumbers: [2, 5, 7] },
+      });
+      expect(harness.sendAttachments).toHaveBeenCalledTimes(2);
+      expect(harness.sendAttachments.mock.calls[1]![0]).toMatchObject({
+        attachments: [
+          {
+            payload: {
+              mode: 'annotation-batch',
+              modelVersion: replacementVersion,
+              annotationRevision: 3,
+              annotations: [
+                { id: 'point', displayNumber: 2, selection: { kind: 'point' } },
+                { id: 'region', displayNumber: 5, selection: { kind: 'region' } },
+                {
+                  id: measurement.id,
+                  displayNumber: 7,
+                  note: 'make this 12 mm',
+                  selection: { kind: 'measurement', measurement: measurement.measurement, worldCoord: [5, 0, 0] },
+                },
+              ],
+            },
+          },
+        ],
+      });
+      expect(JSON.stringify(delivered)).toBe(original);
+      expect(harness.send).not.toHaveBeenCalled();
     } finally {
+      delivery.resolve();
       client.socket.terminate();
     }
   });

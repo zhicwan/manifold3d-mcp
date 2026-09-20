@@ -31,6 +31,25 @@ const openInManifoldCADAction: HostActionDescriptor = {
 };
 
 describe('host action localization', () => {
+  it('distinguishes measurement attachment from enqueueing a requested change', () => {
+    const i18n = createViewerI18n('zh-CN');
+    const status = {
+      kind: 'host_action_status' as const,
+      protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
+      requestId: 'measurement-request',
+    };
+    expect(hostActionLabel({ ...action, id: 'fix-measurement' }, i18n)).toBe('发送修改');
+    expect(hostActionStatusMessage({ ...status, actionId: 'fix-measurement', state: 'running' }, i18n)).toBe(
+      '正在提交…',
+    );
+    expect(hostActionStatusMessage({ ...status, actionId: 'fix-measurement', state: 'succeeded' }, i18n)).toBe(
+      '修改请求已发送给助手。',
+    );
+    expect(hostActionStatusMessage({ ...status, actionId: 'attach-measurement', state: 'succeeded' }, i18n)).toBe(
+      '快照已附加',
+    );
+  });
+
   it('updates in-flight and completed feedback without mutating canonical request or status data', async () => {
     const sent: unknown[] = [];
     const i18n = createViewerI18n('en');

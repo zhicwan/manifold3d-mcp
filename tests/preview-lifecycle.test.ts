@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallToolRequest, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import yaml from 'yaml';
+import { once } from 'node:events';
+import { resolve as resolvePath } from 'node:path';
+import { WebSocket } from 'ws';
 
 import { ModelingEngine, ModelingSession } from '@manifold3d/modeling/modeling.js';
 import { Runner } from '@manifold3d/modeling/runner/host.js';
-import { ANNOTATIONS_PROTOCOL_VERSION } from '@manifold3d/protocol/wire/annotations.js';
+import { ANNOTATIONS_PROTOCOL_VERSION, createAnnotationsMessage } from '@manifold3d/protocol/wire/annotations.js';
 import type { ModelArtifact } from '../packages/modeling/src/runner/protocol.js';
 import { emptyReport } from '../packages/modeling/src/validation/report.js';
-import type { PreviewServerHandle } from '../apps/manifold3d-mcp/src/server/preview/preview-server.js';
+import {
+  startPreviewServer,
+  type PreviewServerHandle,
+} from '../apps/manifold3d-mcp/src/server/preview/preview-server.js';
 import { startMcpServer } from '../apps/manifold3d-mcp/src/server/mcp/mcp-server.js';
 import { createPreviewLifecycle } from '../apps/manifold3d-mcp/src/server/preview/preview-lifecycle.js';
 
@@ -64,6 +71,102 @@ describe('MCP preview lifecycle', () => {
     handlers.length = 0;
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it('reads measurement YAML through the real preview and clears old evidence on model publication without implicit startup', async () => {
+    let previewHandle: PreviewServerHandle | undefined;
+    let socket: WebSocket | undefined;
+    const getPreview = vi.fn(
+      async () =>
+        (previewHandle ??= await startPreviewServer({
+          preferredPort: 0,
+          assetRoot: resolvePath('packages/viewer'),
+        })),
+    );
+    const runner = new Runner();
+    vi.spyOn(runner, 'run').mockResolvedValue({ report: emptyReport(), artifact });
+    const session = new ModelingSession(new ModelingEngine(runner));
+    const mcp = await startMcpServer({
+      version: 'test',
+      modelingSession: session,
+      getPreview,
+      peekPreview: () => previewHandle,
+    });
+    try {
+      const call = handlers[1]!;
+      const readAnnotations = async () => {
+        const result = await call({ method: 'tools/call', params: { name: 'get_annotations', arguments: {} } });
+        const text = result.content.find(item => item.type === 'text');
+        expect(text?.type).toBe('text');
+        return yaml.parse(text!.text as string) as Record<string, unknown>;
+      };
+      expect(await readAnnotations()).toMatchObject({ modelVersion: 'none', count: 0, annotations: [] });
+      expect(getPreview).not.toHaveBeenCalled();
+      const publish = async () => {
+        const result = await call({
+          method: 'tools/call',
+          params: { name: 'execute_script', arguments: { code: 'result = Manifold.cube(10);' } },
+        });
+        expect(result.isError).not.toBe(true);
+      };
+      await publish();
+      const preview = previewHandle!;
+      const modelVersion = preview.getAnnotations().modelVersion;
+      socket = new WebSocket(`${preview.url.replace(/^http/, 'ws')}ws`, { origin: new URL(preview.url).origin });
+      const manifests: Array<{ actions: Array<{ id: string }> }> = [];
+      socket.on('message', (raw, binary) => {
+        if (!binary) {
+          const message = JSON.parse(raw.toString());
+          if (message.kind === 'host_actions_manifest') {
+            manifests.push(message);
+          }
+        }
+      });
+      await once(socket, 'open');
+      const snapshot = createAnnotationsMessage(modelVersion, 2, [
+        {
+          id: 'measurement-1',
+          kind: 'measurement',
+          modelVersion,
+          note: '',
+          partLabel: 'Measurement',
+          worldCoord: [5, 0, 0],
+          measurement: {
+            kind: 'edge-length',
+            operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+            distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+          },
+        },
+      ]);
+      socket.send(JSON.stringify(snapshot));
+      await vi.waitFor(() => expect(preview.getAnnotations().items).toHaveLength(1));
+      expect(await readAnnotations()).toMatchObject({ modelVersion, count: 1, annotations: snapshot.items });
+      await vi.waitFor(() => expect(manifests.length).toBeGreaterThan(0));
+      expect(manifests.at(-1)!.actions.map(action => action.id)).toEqual(['open-in-manifoldcad']);
+      expect(getPreview).toHaveBeenCalledTimes(1);
+
+      await publish();
+      const replacementVersion = preview.getAnnotations().modelVersion;
+      expect(replacementVersion).not.toBe(modelVersion);
+      expect(await readAnnotations()).toMatchObject({ modelVersion: replacementVersion, count: 0, annotations: [] });
+      socket.send(JSON.stringify(snapshot));
+      const replacement = createAnnotationsMessage(replacementVersion, 3, [
+        { ...snapshot.items[0]!, modelVersion: replacementVersion, note: 'current model only' },
+      ]);
+      socket.send(JSON.stringify(replacement));
+      await vi.waitFor(() => expect(preview.getAnnotations().items[0]?.note).toBe('current model only'));
+      expect(await readAnnotations()).toMatchObject({
+        modelVersion: replacementVersion,
+        count: 1,
+        annotations: replacement.items,
+      });
+      expect(getPreview).toHaveBeenCalledTimes(2);
+    } finally {
+      socket?.terminate();
+      await mcp.close();
+      await previewHandle?.close();
+      await session.dispose();
+    }
+  });
 
   it.each(['pending', 'rejected'])(
     'commits, drains and shuts down independently of a %s browser launch',

@@ -37,6 +37,7 @@ export default tseslint.config(
           allowDefaultProject: [
             'eslint.config.mjs',
             'vitest.config.ts',
+            'playwright.config.ts',
             'scripts/*.mjs',
             'scripts/*.ts',
             'tests/*.mjs',
@@ -223,6 +224,8 @@ export default tseslint.config(
       'plugins/',
       'node_modules/',
       '.test-tmp/',
+      'test-results/',
+      'playwright-report/',
       'apps/copilot-extension/.verify-empty/',
       'apps/copilot-extension/.test-workspace/',
       'skills/shared/references/manifold-sandbox.d.ts',

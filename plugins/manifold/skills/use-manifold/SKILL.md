@@ -21,7 +21,8 @@ for 3D printing or GLB for viewing and interchange.
 - **`execute_script`** — full run; on success the mesh is pushed to the preview
   page and the YAML report includes a `previewUrl`.
 - **`get_annotations`** — cheap, zero-arg, no preview side effects; reads the
-  user's active marks on the current model and returns them as a YAML document.
+  user's active marks and completed structured ruler measurements on the current
+  model and returns them as a YAML document. MCP has no composer attachment action.
   See [`references/annotations.md`](references/annotations.md).
 - **`capture_view`** — renders the last executed model as a PNG from a named
   camera preset (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`).

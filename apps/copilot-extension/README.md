@@ -80,6 +80,8 @@ Each Viewer room exposes these host actions:
 - `attach-annotation-batch` in `annotation-batch`
 - `fix-annotation-batch` in `annotation-batch`
 - `attach-location-selection` in `selection-gesture`
+- `attach-measurement` in `measurement-result`
+- `fix-measurement` (Send modification) in `measurement-result`
 - `open-in-manifoldcad` in the toolbar
 - `export-model-file` as the export handler
 
@@ -90,10 +92,19 @@ after a model commit. URL-size and browser-launch failures are reported through
 the Viewer action status rather than treated as successful launches.
 
 Batch actions require explicit `annotationIds` and input
-`{ "batchId": "<safe-id>" }`. Both capture a bounded version 2 static snapshot
+`{ "batchId": "<safe-id>", "markerNumbers": [1, 2] }` (one display number per id).
+Both capture a bounded version 5 static snapshot
 with mode `annotation-batch`, the model version, annotation revision, batch id,
 selected geometry, and notes. `attach-annotation-batch` adds exactly one
 `extension_context` composer pill and does not send a message.
+Saved nonempty measurement comments join the same batch/count/Done/Attach/Fix
+workflow as point and region comments; mixed batches are supported. Their
+selection is `{ kind: "measurement", measurement: <structured evidence>,
+worldCoord: [x, y, z] }`, preserving both evidence and the marker anchor.
+Batch ids and marker display numbers retain their ordinary meanings. Measurement
+items without a non-whitespace note cannot enter a batch attachment. Pure ruler
+results remain independent of comment batches, and cancelling a batch restores
+the measurement's pre-batch note without deleting the dimension.
 `fix-annotation-batch` never adds a pill: it sends a clear revision request and
 the complete serialized snapshot in the actual message `prompt`, with a readable
 `displayPrompt` and `mode: "enqueue"`. It reports accepted, running, and terminal
@@ -106,12 +117,42 @@ retry, without leaving a composer pill behind. There is no automatic retry or
 exactly-once guarantee if a network acknowledgement is lost.
 
 `attach-location-selection` requires exactly one point or region annotation
-whose note is empty. Its single version 2 pill uses mode `location-selection`,
+whose note is empty, with input `{ "markerNumbers": [1] }`.
+Its single version 5 pill uses mode `location-selection`,
 omits `batchId` and comment text, and records only the selected location.
 Snapshots are validated against the room's committed model version and
 annotation revision before dispatch. Saving or editing annotations alone never
 adds pills, and the Extension does not rewrite transformed prompts or maintain
-live attachment tokens.
+live attachment tokens. Browser-local `commentBase`, `attachedNote`, `sentNote`
+and `pendingDelivery` never enter the snapshot or message prompt. Only a
+successful completion owned by the current Viewer operation updates its local
+delivery receipt.
+
+`attach-measurement` requires exactly one explicit measurement `annotationIds`
+entry and input `{ "markerNumbers": [1] }`. Its version 5, mode `measurement`
+pill stores structured `measurement` evidence under `annotations[0]`, with an
+optional/empty note, model version and annotation revision. Canonical operands,
+distance witnesses in mm, supporting-plane methods/extensions, and angle methods
+are preserved separately from prose. `edge-corner` is the angle between rays
+leaving the unique shared endpoint of two edges (0-180 degrees); other methods
+remain smaller unoriented angles (0-90 degrees). The
+snapshot is validated, detached and bounded to 128 KiB. Attach adds a composer
+pill without sending a message. `fix-measurement` uses the same explicit single-id
+and marker-number input, but requires a non-whitespace instruction in the
+measurement note. Its **Send modification** action enqueues the complete static
+snapshot and a measurement-specific revision prompt via `session.send`; it never
+adds a composer pill. Success means SDK enqueue acceptance, not completion of
+the model edit. Failed sends remain failed actions for an explicit manual retry.
+Saving or editing the instruction alone never sends anything. This dedicated
+mode remains separate from commented measurement selections in ordinary batches.
+Location-selection attachments still reject measurements: clicking a ruler with
+Select to chat invokes the dedicated measurement attachment action instead.
+Replacing the model clears live
+measurements but cannot rewrite already attached historical snapshots.
+The MCP browser exposes completed measurements through `get_annotations` YAML;
+it does not offer composer pills or active Send modification. These actions are
+available only when the host advertises them. Software capture supports witness lines and
+method/value labels; angle labels do not imply a physical intersection arc.
 
 The Canvas prioritizes this location-selection path over commented batches.
 A valid selection is one-shot: the tool returns to browsing while delivery is

@@ -3,12 +3,11 @@ import * as React from 'react';
 import type * as THREE from 'three';
 
 import {
-  HOST_ACTION_PROTOCOL_VERSION,
   createHostActionsManifest,
   createHostActionStatus,
   type HostActionDescriptor,
 } from '../packages/protocol/src/wire/host-actions.js';
-import type { ViewerModel } from '../packages/protocol/src/wire/model.js';
+import { VIEWER_PROTOCOL_VERSION, type ViewerModel } from '../packages/protocol/src/wire/model.js';
 import type { ViewerSceneRuntime } from '../packages/viewer/src/scene/runtime.js';
 import { createViewerStore, type ViewerState, type ViewerStore } from '../packages/viewer/src/store.js';
 import type { ConnectOptions } from '../packages/viewer/src/transport/ws-client.js';
@@ -139,10 +138,15 @@ vi.mock('../packages/viewer/src/scene/view-cube.js', () => ({
 vi.mock('../packages/viewer/src/marks/flyout/index.js', () => ({
   FlyoutLayer: class {
     dismissAll = vi.fn();
+    cancelOpenDraft = vi.fn();
     updatePositions = vi.fn();
     dispose = vi.fn();
+    setMeasurementAction = vi.fn();
+    setMeasurementAnchor = vi.fn();
+    toggleMeasurement = vi.fn();
   },
 }));
+vi.mock('@/measurements/submission', () => import('../packages/viewer/src/measurements/submission.js'));
 vi.mock('../packages/viewer/src/marks/marker-renderer.js', () => ({
   MarkerRenderer: class {
     dispose = vi.fn();
@@ -151,6 +155,7 @@ vi.mock('../packages/viewer/src/marks/marker-renderer.js', () => ({
 vi.mock('../packages/viewer/src/marks/hover-highlight.js', () => ({
   HoverHighlight: class {
     reset = vi.fn();
+    setEnabled = vi.fn();
     dispose = vi.fn();
   },
 }));
@@ -463,7 +468,7 @@ describe('Viewer component ownership', () => {
     } else {
       client.receiveHello({
         kind: 'hello',
-        protocolVersion: HOST_ACTION_PROTOCOL_VERSION,
+        protocolVersion: VIEWER_PROTOCOL_VERSION,
         clientId: 'new-client',
         resumeToken: 'new-token',
         resumed: false,
@@ -478,6 +483,43 @@ describe('Viewer component ownership', () => {
     expect(document.body.dataset.markMode).toBeUndefined();
     expect(button('Cancel').disabled).toBe(false);
     expect(harness.pending).toBeNull();
+  });
+
+  it.each(['succeeded', 'failed'] as const)(
+    'does not block the next model or settle its batch on an old model %s reply',
+    async outcome => {
+      await mount();
+      const marks = store.getState().marksRuntime!;
+      const client = store.getState().hostActionsClient!;
+      const old = addDraft();
+      button('Attach').onClick();
+      const oldRequest = client.getSnapshot().latestStatus!;
+      harness.feed!.onModelVersion?.('model-v2');
+      expect(marks.store.get(old.id)).toBeUndefined();
+      const current = addDraft();
+      expect(button('Attach').disabled).toBe(false);
+      button('Attach').onClick();
+      const pending = harness.pending;
+      expect(marks.store.get(current.id)?.state).toBe('pending');
+      client.receiveStatus(createHostActionStatus({ ...oldRequest, state: outcome }));
+      await settle();
+      expect(harness.pending).toBe(pending);
+      expect(marks.store.get(current.id)?.state).toBe('pending');
+      expect(store.getState().markMode).toBe('orbit');
+      expect(store.getState().viewerError).toBeNull();
+    },
+  );
+
+  it('reports an unavailable batch delivery and restores notes without fabricating host success', async () => {
+    await mount();
+    const draft = addDraft();
+    const submit = button('Fix').onClick;
+    store.getState().hostActionsClient!.receiveManifest(createHostActionsManifest([]));
+    submit();
+    await settle();
+    expect(store.getState().marksRuntime!.store.get(draft.id)?.state).toBe('draft');
+    expect(store.getState().markMode).toBe('annotate');
+    expect(store.getState().viewerError).toMatchObject({ key: 'annotationDeliveryFailed' });
   });
 
   it.each(['Fix', 'Attach'])('freezes only the submitted batch after %s succeeds', async label => {

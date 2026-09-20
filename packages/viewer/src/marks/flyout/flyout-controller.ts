@@ -1,4 +1,5 @@
 import type { AnnotationStore } from '../annotation-store.js';
+import type { Annotation } from '../types.js';
 import { MAX_ANNOTATION_NOTE_LENGTH } from '@manifold3d/protocol/wire/annotations.js';
 
 /**
@@ -80,7 +81,7 @@ export class FlyoutController {
     if (this.expandedId !== null && this.expandedId !== id) {
       this.commit(this.expandedId);
     }
-    if (ann.intent === 'comment' && ann.state === 'draft') {
+    if (editable(ann)) {
       this.drafts.set(id, ann.note);
     }
     const previous = this.expandedId;
@@ -95,7 +96,7 @@ export class FlyoutController {
   /** Update the in-flight draft text for `id`. View refresh is left to the caller. */
   setDraft(id: string, value: string): void {
     const ann = this.store.get(id);
-    if (!ann || ann.intent !== 'comment' || ann.state !== 'draft') {
+    if (!ann || !editable(ann)) {
       return;
     }
     this.drafts.set(id, value.slice(0, MAX_ANNOTATION_NOTE_LENGTH));
@@ -108,7 +109,7 @@ export class FlyoutController {
    */
   commit(id: string): void {
     const ann = this.store.get(id);
-    if (!ann || ann.intent !== 'comment' || ann.state !== 'draft') {
+    if (!ann || !editable(ann)) {
       this.drafts.delete(id);
       if (this.expandedId === id) {
         this.expandedId = null;
@@ -118,7 +119,12 @@ export class FlyoutController {
     }
     const draft = this.drafts.get(id) ?? ann.note;
     const trimmed = draft.trim();
-    if (trimmed === '') {
+    if (ann.intent === 'measurement') {
+      if (draft !== ann.note) {
+        this.store.updateMeasurementNote(id, draft);
+        this.onCommit?.();
+      }
+    } else if (trimmed === '') {
       this.store.remove(id);
     } else if (draft !== ann.note) {
       this.store.update(id, { note: draft });
@@ -134,11 +140,11 @@ export class FlyoutController {
    */
   cancel(id: string): void {
     const ann = this.store.get(id);
-    if (!ann || ann.intent !== 'comment' || ann.state !== 'draft') {
+    if (!ann || !editable(ann)) {
       this.collapseAfterFinish(id);
       return;
     }
-    if (ann.note.trim() === '') {
+    if (ann.intent !== 'measurement' && ann.note.trim() === '') {
       this.store.remove(id);
     } else {
       this.view.setTextareaValue(id, ann.note);
@@ -184,4 +190,10 @@ export class FlyoutController {
       this.view.refresh(id);
     }
   }
+}
+
+function editable(annotation: Annotation): boolean {
+  return annotation.intent === 'measurement'
+    ? annotation.state !== 'pending'
+    : annotation.intent === 'comment' && annotation.state === 'draft';
 }

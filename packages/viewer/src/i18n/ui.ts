@@ -58,9 +58,11 @@ export const enUi = {
   shortcutLabel: (_locale: Locale, label: string, shortcut: string) => `${label} (${shortcut})`,
   locationUnavailable: 'Location attachment is unavailable.',
   annotationSyncFailed: (_locale: Locale, detail: string) => `Annotation sync failed: ${detail}`,
+  annotationDeliveryFailed: (_locale: Locale, detail: string) => `Could not deliver notes: ${detail}`,
   locationAttachmentFailed: (_locale: Locale, detail: string) => `Location attachment failed: ${detail}`,
   viewerStartupFailed: (_locale: Locale, detail: string) => `Could not start the 3D viewer: ${detail}`,
   modelExportFailed: (_locale: Locale, detail: string) => `Model export failed: ${detail}`,
+  measurementDeliveryFailed: (_locale: Locale, detail: string) => `Measurement request failed: ${detail}`,
 };
 
 export const zhUi: typeof enUi = {
@@ -121,7 +123,9 @@ export const zhUi: typeof enUi = {
   shortcutLabel: (_locale, label, shortcut) => `${label}（${shortcut}）`,
   locationUnavailable: '无法附加位置。',
   annotationSyncFailed: (_locale, detail) => `批注同步失败：${detail}`,
+  annotationDeliveryFailed: (_locale, detail) => `批注交付失败：${detail}`,
   locationAttachmentFailed: (_locale, detail) => `位置附加失败：${detail}`,
   viewerStartupFailed: (_locale, detail) => `无法启动 3D 查看器：${detail}`,
   modelExportFailed: (_locale, detail) => `模型导出失败：${detail}`,
+  measurementDeliveryFailed: (_locale, detail) => `测量请求失败：${detail}`,
 };

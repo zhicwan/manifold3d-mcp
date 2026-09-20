@@ -17,6 +17,7 @@ import type { Annotation, MarkMode } from './marks/types.js';
 import type { RenderMode } from './scene/viewer.js';
 import type { ConnectionStatus } from './transport/ws-client.js';
 import { createViewerI18n } from './i18n/index.js';
+import type { RulerController } from './measurements/controller.js';
 
 /**
  * Tiny instance-scoped external store. Imperative subsystems write to the
@@ -24,7 +25,11 @@ import { createViewerI18n } from './i18n/index.js';
  */
 export interface MarksRuntime {
   store: AnnotationStore;
+  ruler: RulerController;
+  openMeasurementComment(id: string): void;
+  setMeasurementAnchor(id: string, element: HTMLElement | null): void;
   commitOpenDraft(): void;
+  cancelOpenDraft(): void;
   flushAnnotations(): boolean;
 }
 
@@ -66,7 +71,13 @@ export interface ViewerState {
 }
 
 export interface ViewerError {
-  readonly key: 'annotationSyncFailed' | 'locationAttachmentFailed' | 'viewerStartupFailed' | 'modelExportFailed';
+  readonly key:
+    | 'annotationSyncFailed'
+    | 'annotationDeliveryFailed'
+    | 'locationAttachmentFailed'
+    | 'viewerStartupFailed'
+    | 'modelExportFailed'
+    | 'measurementDeliveryFailed';
   readonly detail: string;
 }
 

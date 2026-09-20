@@ -11,7 +11,7 @@ import {
   type ModelHeader,
   type ViewerModelFrame,
 } from '../packages/protocol/src/wire/model.js';
-import { createAnnotationsMessage } from '../packages/protocol/src/wire/annotations.js';
+import { ANNOTATIONS_PROTOCOL_VERSION, createAnnotationsMessage } from '../packages/protocol/src/wire/annotations.js';
 import { createHostActionInvocation } from '../packages/protocol/src/wire/host-actions.js';
 import type * as PreviewModuleNs from '../apps/manifold3d-mcp/src/server/preview/preview-server.js';
 
@@ -285,7 +285,7 @@ describe.skipIf(skipUnlessBuilt)('preview server', () => {
       ws.send(
         JSON.stringify({
           kind: 'annotations',
-          protocolVersion: 1,
+          protocolVersion: ANNOTATIONS_PROTOCOL_VERSION,
           revision: 1,
           modelVersion: 'v-stale-12345',
           items: [

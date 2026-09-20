@@ -5,13 +5,18 @@ import { enUi } from '../packages/viewer/src/i18n/ui.js';
 import { enMarks } from '../packages/viewer/src/i18n/marks.js';
 import { enActions } from '../packages/viewer/src/i18n/actions.js';
 import { enXr } from '../packages/viewer/src/i18n/xr.js';
+import { enMeasurements } from '../packages/viewer/src/i18n/measurements.js';
 import { createViewerStore } from '../packages/viewer/src/store.js';
 import { AnnotationStore } from '../packages/viewer/src/marks/annotation-store.js';
+import { createMarksRuntime } from './fixtures/marks-runtime.js';
 
 describe('Viewer localization', () => {
   it('keeps complete catalogs with matching static and parameterized messages', () => {
     expect(Object.keys(catalogs.en)).toHaveLength(
-      [enUi, enMarks, enActions, enXr].reduce((count, messages) => count + Object.keys(messages).length, 0),
+      [enUi, enMarks, enActions, enXr, enMeasurements].reduce(
+        (count, messages) => count + Object.keys(messages).length,
+        0,
+      ),
     );
     expect(Object.keys(catalogs.en).sort()).toEqual(Object.keys(catalogs['zh-CN']).sort());
     for (const key of Object.keys(catalogs.en) as Array<keyof typeof catalogs.en>) {
@@ -118,7 +123,7 @@ describe('Viewer localization', () => {
       triIds: [],
       note: 'Unsent 26mm 草稿',
     });
-    const runtime = { store: annotations, commitOpenDraft: vi.fn(), flushAnnotations: () => true };
+    const runtime = createMarksRuntime(annotations);
     first.setMarksRuntime(runtime);
     first.setModelVersion('unchanged-version');
     first.setMarkMode('annotate');
@@ -137,6 +142,7 @@ describe('Viewer localization', () => {
     expect(second.i18n.getLocale()).toBe('en');
     expect(stateListener).not.toHaveBeenCalled();
     expect(otherLocaleListener).not.toHaveBeenCalled();
+    runtime.ruler.dispose();
   });
 });
 

@@ -45,6 +45,40 @@ describe('FlyoutController', () => {
     controller = new FlyoutController(store, bridge.bridge);
   });
 
+  it('uses the same draft, commit and cancel lifecycle for measurements without deleting their geometry', () => {
+    const measurement = store.addMeasurement(
+      {
+        kind: 'edge-length',
+        operands: [{ kind: 'edge', edgeId: 'edge', start: [0, 0, 0], end: [10, 0, 0] }],
+        distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+      },
+      [5, 0, 0],
+    );
+    controller.open(measurement.id);
+    controller.setDraft(measurement.id, 'not yet saved');
+    expect(store.get(measurement.id)?.note).toBe('');
+    expect(store.getDraftBatch().annotationIds).toEqual([]);
+    controller.cancel(measurement.id);
+    expect(store.get(measurement.id)).toBe(measurement);
+    controller.open(measurement.id);
+    controller.setDraft(measurement.id, 'make this 12 mm');
+    controller.commit(measurement.id);
+    expect(store.get(measurement.id)?.note).toBe('make this 12 mm');
+    expect(store.getDraftBatch().annotationIds).toEqual([measurement.id]);
+    store.setMeasurementState(measurement.id, 'draft', 'pending');
+    store.completeMeasurementDelivery(measurement.id, 'attach');
+    expect(store.getDraftBatch().annotationIds).toEqual([]);
+    controller.open(measurement.id);
+    controller.setDraft(measurement.id, 'discard this');
+    controller.cancel(measurement.id);
+    expect(store.get(measurement.id)).toMatchObject({ note: 'make this 12 mm', attachedNote: 'make this 12 mm' });
+    controller.open(measurement.id);
+    controller.setDraft(measurement.id, '');
+    controller.dismissAll();
+    expect(store.get(measurement.id)).toMatchObject({ note: '', attachedNote: 'make this 12 mm' });
+    expect(store.list()).toHaveLength(1);
+  });
+
   it('open() seeds a draft from the saved note and marks the annotation expanded', () => {
     const id = seed(store, 'hello');
     controller.open(id);

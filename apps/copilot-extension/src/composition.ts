@@ -28,10 +28,15 @@ const MANIFOLD_CANVAS_DISPLAY_NAME = 'Manifold 3D Viewer';
 export const ATTACH_ANNOTATION_BATCH_ACTION_ID = 'attach-annotation-batch';
 export const FIX_ANNOTATION_BATCH_ACTION_ID = 'fix-annotation-batch';
 export const ATTACH_LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
+export const ATTACH_MEASUREMENT_ACTION_ID = 'attach-measurement';
+export const FIX_MEASUREMENT_ACTION_ID = 'fix-measurement';
 export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
 export const OPEN_IN_MANIFOLDCAD_ACTION_ID = 'open-in-manifoldcad';
 export const FIX_ANNOTATION_BATCH_PROMPT =
   'Revise the current manifold-3d model using the following static annotation batch snapshot.';
+export const FIX_MEASUREMENT_PROMPT =
+  'Revise the current manifold-3d model following the user instruction in this static measurement snapshot. ' +
+  'Use the structured measurement as evidence and preserve unrelated geometry.';
 const DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS = 500;
 const DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS = 250;
 
@@ -359,6 +364,28 @@ class ExtensionController {
         ),
         room.registerAction(
           {
+            id: ATTACH_MEASUREMENT_ACTION_ID,
+            label: 'Attach measurement',
+            icon: 'message',
+            slot: 'measurement-result',
+            tone: 'default',
+            requires: ['model', 'annotations'],
+          },
+          context => this.attachMeasurement(binding, context),
+        ),
+        room.registerAction(
+          {
+            id: FIX_MEASUREMENT_ACTION_ID,
+            label: 'Send modification',
+            icon: 'wand',
+            slot: 'measurement-result',
+            tone: 'primary',
+            requires: ['model', 'annotations'],
+          },
+          context => this.fixMeasurement(binding, context),
+        ),
+        room.registerAction(
+          {
             id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
             label: 'Open in ManifoldCAD',
             icon: 'external-link',
@@ -427,25 +454,54 @@ class ExtensionController {
 
   private fixAnnotationBatch(binding: RoomBinding, context: HostActionHandlerContext): HostActionHandlerResult {
     const attachment = this.buildBatchAttachment(context);
+    return this.enqueueFix(
+      binding,
+      context,
+      `${FIX_ANNOTATION_BATCH_PROMPT}\n\n${JSON.stringify(attachment)}`,
+      `Fix ${attachment.annotations.length} Manifold annotation${attachment.annotations.length === 1 ? '' : 's'} · ${attachment.batchId}`,
+      'Annotation fix',
+    );
+  }
+
+  private fixMeasurement(binding: RoomBinding, context: HostActionHandlerContext): HostActionHandlerResult {
+    const attachment = this.buildMeasurementAttachment(context);
+    const measurement = attachment.annotations[0];
+    if (!measurement.note?.trim()) {
+      throw new Error('Sending a measurement modification requires a non-empty instruction.');
+    }
+    return this.enqueueFix(
+      binding,
+      context,
+      `${FIX_MEASUREMENT_PROMPT}\n\n${JSON.stringify(attachment)}`,
+      `Modify Manifold measurement · #${measurement.displayNumber}`,
+      'Measurement modification',
+    );
+  }
+
+  private enqueueFix(
+    binding: RoomBinding,
+    context: HostActionHandlerContext,
+    prompt: string,
+    displayPrompt: string,
+    subject: 'Annotation fix' | 'Measurement modification',
+  ): HostActionHandlerResult {
     if (!this.canPublishTo(binding)) {
       throw new Error('Canvas room is no longer available.');
     }
     const session = this.getSession();
+    const description = subject.toLowerCase();
+    const sendingMessage = `Sending ${description} to Copilot.`;
     const operation = (async () => {
       try {
-        context.publish.running('Sending annotation fix to Copilot.');
-        await session.send({
-          mode: 'enqueue',
-          prompt: `${FIX_ANNOTATION_BATCH_PROMPT}\n\n${JSON.stringify(attachment)}`,
-          displayPrompt: `Fix ${attachment.annotations.length} Manifold annotation${attachment.annotations.length === 1 ? '' : 's'} · ${attachment.batchId}`,
-        });
+        context.publish.running(sendingMessage);
+        await session.send({ mode: 'enqueue', prompt, displayPrompt });
         if (this.canPublishTo(binding)) {
-          context.publish.succeeded('Annotation fix was accepted by Copilot for enqueueing.');
+          context.publish.succeeded(`${subject} was accepted by Copilot for enqueueing.`);
         }
       } catch (error) {
         if (this.canPublishTo(binding)) {
-          context.publish.failed(`Could not send annotation fix: ${truncateStatusMessage(errorMessage(error))}`);
-          void this.logBestEffort(`Could not send Manifold annotation fix: ${errorMessage(error)}`, {
+          context.publish.failed(truncateStatusMessage(`Could not send ${description}: ${errorMessage(error)}`));
+          void this.logBestEffort(`Could not send Manifold ${description}: ${errorMessage(error)}`, {
             level: 'warning',
           });
         }
@@ -456,7 +512,7 @@ class ExtensionController {
     return {
       status: 'accepted',
       operationId: context.requestId,
-      message: 'Sending annotation fix to Copilot.',
+      message: sendingMessage,
     };
   }
 
@@ -475,6 +531,37 @@ class ExtensionController {
     });
     await this.pushAttachment(binding, locationSelectionTitle(attachment.annotations[0].displayNumber), attachment);
     return { status: 'succeeded', message: 'Attached selected location.' };
+  }
+
+  private async attachMeasurement(
+    binding: RoomBinding,
+    context: HostActionHandlerContext,
+  ): Promise<HostActionHandlerResult> {
+    const attachment = this.buildMeasurementAttachment(context);
+    await this.pushAttachment(binding, `Measurement · #${attachment.annotations[0].displayNumber}`, attachment);
+    return {
+      status: 'succeeded',
+      message: 'Attached measurement.',
+      resultDetails: { kind: 'annotations-attached', count: 1 },
+    };
+  }
+
+  private buildMeasurementAttachment(context: HostActionHandlerContext) {
+    requireExplicitAnnotationCount(context, 1, 'Measurement');
+    if (context.annotations.length !== 1 || context.annotations[0]?.id !== context.annotationIds?.[0]) {
+      throw new Error('Measurement annotationIds must identify the selected measurement.');
+    }
+    const markerNumbers = parseMarkerNumbers(context.input, 1, 'Measurement');
+    if (Object.keys(context.input as object).length !== 1) {
+      throw new Error('Measurement input must contain only markerNumbers.');
+    }
+    return buildAnnotationAttachment({
+      mode: 'measurement',
+      modelVersion: context.modelVersion,
+      annotationRevision: context.annotationRevision,
+      annotations: context.annotations,
+      markerNumbers,
+    });
   }
 
   private async exportModel(context: HostActionHandlerContext): Promise<HostActionHandlerResult> {

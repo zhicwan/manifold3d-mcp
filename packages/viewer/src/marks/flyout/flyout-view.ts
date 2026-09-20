@@ -11,6 +11,7 @@ export interface FlyoutViewModel {
   number: number;
   intent: Annotation['intent'];
   state: Annotation['state'];
+  sendAction?: { disabledReason?: string };
 }
 
 export interface FlyoutViewCallbacks {
@@ -19,10 +20,12 @@ export interface FlyoutViewCallbacks {
   onCommit(): void;
   onCancel(): void;
   onLayout(): void;
+  onSend?(): void;
 }
 
 const CLOSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>';
 const CHECK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+const SEND_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v14"/></svg>';
 
 /** DOM presentation only; drafts and transaction ownership stay in the controller. */
 export class FlyoutView {
@@ -35,6 +38,7 @@ export class FlyoutView {
   private readonly readOnlyNote: HTMLElement;
   private readonly cancel: HTMLButtonElement;
   private readonly save: HTMLButtonElement;
+  private readonly send: HTMLButtonElement;
   private readonly observer: ResizeObserver;
   private readonly unsubscribeLocale: () => void;
   private vm: FlyoutViewModel;
@@ -59,6 +63,7 @@ export class FlyoutView {
         <textarea class="marks-flyout-textarea" rows="1"></textarea>
         <p class="marks-readonly-note"></p>
         <div class="marks-flyout-actions">
+          <button class="marks-flyout-send marks-flyout-btn" type="button">${SEND_ICON}</button>
           <button class="marks-flyout-cancel marks-flyout-btn" type="button">${CLOSE_ICON}</button>
           <button class="marks-flyout-save marks-flyout-btn" type="button">${CHECK_ICON}</button>
         </div>
@@ -71,6 +76,7 @@ export class FlyoutView {
     this.readOnlyNote = wrap.querySelector<HTMLElement>('.marks-readonly-note')!;
     this.cancel = wrap.querySelector<HTMLButtonElement>('.marks-flyout-cancel')!;
     this.save = wrap.querySelector<HTMLButtonElement>('.marks-flyout-save')!;
+    this.send = wrap.querySelector<HTMLButtonElement>('.marks-flyout-send')!;
     this.textarea.maxLength = MAX_ANNOTATION_NOTE_LENGTH;
     this.textarea.addEventListener('input', () => {
       callbacks.onInput(this.textarea.value);
@@ -104,6 +110,11 @@ export class FlyoutView {
     });
     this.cancel.addEventListener('click', () => callbacks.onCancel());
     this.save.addEventListener('click', () => callbacks.onCommit());
+    this.send.addEventListener('click', () => {
+      if (!this.send.disabled) {
+        callbacks.onSend?.();
+      }
+    });
     this.observer = new ResizeObserver(entries => {
       const entry = entries[0];
       if (entry && entry.contentRect.width > 0) {
@@ -179,12 +190,16 @@ export class FlyoutView {
     this.element.dataset.kind = vm.kind;
     this.applyLocale();
     this.pill.setAttribute('aria-expanded', String(vm.expanded));
+    this.pill.hidden = vm.intent === 'measurement';
+    this.previewEl.hidden = vm.intent === 'measurement';
     this.previewEl.textContent = vm.note.trim() || vm.partLabel;
     this.textarea.readOnly = vm.readOnly;
     this.textarea.hidden = vm.readOnly;
     this.readOnlyNote.hidden = !vm.readOnly;
     this.readOnlyNote.textContent = vm.note || vm.partLabel;
     this.save.hidden = vm.readOnly;
+    this.send.hidden = vm.sendAction === undefined;
+    this.send.disabled = vm.readOnly || !vm.note.trim() || vm.sendAction?.disabledReason !== undefined;
     if (!this.textareaHasFocus() && this.textarea.value !== vm.note) {
       this.textarea.value = vm.note;
     }
@@ -199,6 +214,8 @@ export class FlyoutView {
     this.save.title = this.i18n.t('markSaveShortcut');
     this.cancel.setAttribute('aria-label', this.i18n.t(vm.readOnly ? 'markCloseNote' : 'markCancelEdit'));
     this.cancel.title = this.i18n.t(vm.readOnly ? 'markCloseShortcut' : 'markCancelShortcut');
+    this.send.setAttribute('aria-label', this.i18n.t('measureSend'));
+    this.send.title = vm.sendAction?.disabledReason ?? this.i18n.t('measureSend');
     this.pill.querySelector('.marks-flyout-number')!.textContent = this.i18n.number(vm.number);
     this.pill.setAttribute(
       'aria-label',

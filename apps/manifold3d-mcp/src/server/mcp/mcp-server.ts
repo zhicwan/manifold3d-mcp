@@ -129,7 +129,13 @@ export async function startMcpServer(opts: McpServerOptions): Promise<McpServerH
           'model as a YAML document. Each annotation has a partLabel (e.g., ' +
           '"point#1" or "bowl#1"), a worldCoord indicating where on the ' +
           'model the user pointed, and a free-form note with their ' +
-          'feedback. Use this whenever the user references their marks ' +
+          'feedback. Completed ruler measurements have kind "measurement" and structured ' +
+          'measurement operands, methods, mm distances with witnesses, and/or angles in degrees ' +
+          '(edge-corner: 0-180 at a shared endpoint; other direction angles: smaller 0-90); ' +
+          'their note may be empty. Saved nonempty measurement notes share the ordinary notes batch; ' +
+          'pure dimensions do not. Plane distances refer to supporting planes, not finite faces. ' +
+          'MCP exposes these snapshots here; it does not provide Copilot composer attachments. ' +
+          'Use this whenever the user references their marks ' +
           '(examples: "apply my notes", "fix what I marked", "改一下我标记的"), ' +
           'or proactively before regenerating the model so you can ' +
           'incorporate their feedback. Annotations are automatically cleared ' +
@@ -170,7 +176,9 @@ export async function startMcpServer(opts: McpServerOptions): Promise<McpServerH
             includeAnnotations: {
               type: 'boolean',
               default: false,
-              description: 'When true, overlays current point, region, and sketch annotations on the captured PNG.',
+              description:
+                'When true, overlays current annotations, including measurement distance witnesses and value/method ' +
+                'labels. Smaller angles are labels only, not intersection arcs.',
             },
           },
           additionalProperties: false,

@@ -10,6 +10,7 @@ import { MarkTool } from './mark-tool.js';
 import type { MarkMode } from './types.js';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
 import type { ViewerI18n } from '../i18n/index.js';
+import { RulerController } from '../measurements/controller.js';
 
 export interface MarksDeps {
   i18n?: ViewerI18n;
@@ -52,6 +53,23 @@ export function installMarks(deps: MarksDeps): MarksHandle {
   );
   const markers = new MarkerRenderer(deps.scene, store, deps.getMesh, deps.requestRender);
   let resolver: FeatureResolver | null = null;
+  const ruler = new RulerController(
+    deps.canvas,
+    deps.camera,
+    deps.scene,
+    store,
+    deps.getMesh,
+    deps.requestRender,
+    () => {
+      tool.setMode('orbit');
+      deps.canvas.focus({ preventScroll: true });
+    },
+  );
+  flyouts.onMeasurementExpansion = id => {
+    if (ruler.getSnapshot().expandedId !== id) {
+      ruler.expand(id);
+    }
+  };
   const tool = new MarkTool(
     deps.overlayHost,
     deps.canvas,
@@ -61,8 +79,14 @@ export function installMarks(deps: MarksDeps): MarksHandle {
     flyouts,
     deps.getMesh,
     () => resolver,
-    deps.onModeChange,
+    mode => {
+      flyouts.dismissAll();
+      ruler.setActive(mode === 'measure');
+      hover.setEnabled(mode !== 'measure' && !immersive);
+      deps.onModeChange?.(mode);
+    },
     deps.onSelectionCreated,
+    ruler,
   );
   const hover = new HoverHighlight(
     deps.scene,
@@ -72,31 +96,52 @@ export function installMarks(deps: MarksDeps): MarksHandle {
     () => resolver,
     deps.requestRender,
   );
+  let immersive = false;
 
   return {
     store,
+    ruler,
+    openMeasurementComment(id: string): void {
+      flyouts.toggleMeasurement(id);
+    },
+    setMeasurementAnchor(id: string, element: HTMLElement | null): void {
+      flyouts.setMeasurementAnchor(id, element);
+    },
+    setMeasurementAction(action: { disabledReason?: string; send(id: string): void } | null): void {
+      flyouts.setMeasurementAction(action);
+    },
     setMode(mode: MarkMode): void {
       tool.setMode(mode);
     },
     commitOpenDraft(): void {
       flyouts.dismissAll();
     },
+    cancelOpenDraft(): void {
+      flyouts.cancelOpenDraft();
+    },
     frame(): void {
       flyouts.updatePositions();
+      ruler.frame();
     },
     setModelVersion(v: string): void {
+      if (store.getModelVersion() !== v) {
+        ruler.modelChanging();
+      }
       store.setModelVersion(v);
     },
     setPayload(payload: ViewerModel): void {
       // Build a fresh resolver per model so old per-feature AABBs are
       // discarded along with the old mesh.
       resolver = payload.features.length > 0 && payload.triFeatureIds.length > 0 ? new FeatureResolver(payload) : null;
+      ruler.setPayload(payload);
       hover.reset();
     },
     setImmersivePresenting(presenting: boolean): void {
+      immersive = presenting;
       tool.setEnabled(!presenting);
       hover.setEnabled(!presenting);
       markers.setVisible(!presenting);
+      ruler.setImmersivePresenting(presenting);
       deps.overlayHost.style.display = presenting ? 'none' : '';
     },
     dispose(): void {
@@ -104,14 +149,20 @@ export function installMarks(deps: MarksDeps): MarksHandle {
       tool.dispose();
       markers.dispose();
       flyouts.dispose();
+      ruler.dispose();
     },
   };
 }
 
 export interface MarksHandle {
   store: AnnotationStore;
+  ruler: RulerController;
+  openMeasurementComment(id: string): void;
+  setMeasurementAnchor(id: string, element: HTMLElement | null): void;
+  setMeasurementAction(action: { disabledReason?: string; send(id: string): void } | null): void;
   setMode(mode: MarkMode): void;
   commitOpenDraft(): void;
+  cancelOpenDraft(): void;
   frame(): void;
   setModelVersion(v: string): void;
   setPayload(payload: ViewerModel): void;

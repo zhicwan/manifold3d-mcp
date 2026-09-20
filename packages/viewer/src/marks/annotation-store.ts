@@ -1,4 +1,9 @@
 import { MAX_ANNOTATION_NOTE_LENGTH } from '@manifold3d/protocol/wire/annotations.js';
+import {
+  parseMeasurementEvidence,
+  type MeasurementEvidence,
+  type MeasurementVec3,
+} from '@manifold3d/protocol/wire/measurements.js';
 
 import type {
   Annotation,
@@ -8,22 +13,24 @@ import type {
   CommentBatchSnapshot,
   SelectionAnnotation,
   SelectionAnnotationInput,
+  MeasurementAnnotation,
 } from './types.js';
 
 type Listener = (annotations: readonly Annotation[]) => void;
+type BatchNote = CommentAnnotation | MeasurementAnnotation;
 
 /**
  * In-memory transactional store for the viewer's active annotations.
  *
  * Comment annotations accumulate in one active draft batch. Freezing the
  * batch commits every draft atomically and rotates to a fresh batch; cancel
- * removes only the active drafts. Selection annotations use a separate
- * pending -> committed/failed lifecycle.
+ * removes ordinary drafts and restores measurement notes without deleting
+ * dimensions. Direct measurement delivery and selections own their requests.
  */
 export class AnnotationStore {
   private readonly items = new Map<string, Annotation>();
   private readonly listeners = new Set<Listener>();
-  private seqByKind: Record<AnnotationKind, number> = { point: 0, region: 0 };
+  private seqByKind: Record<AnnotationKind, number> = { point: 0, region: 0, measurement: 0 };
   private idSequence = 0;
   private displaySequence = 0;
   private batchSequence = 0;
@@ -34,20 +41,25 @@ export class AnnotationStore {
 
   /** Immutable snapshot of the active draft comment transaction. */
   getDraftBatch(): CommentBatchSnapshot {
-    return makeBatchSnapshot(this.currentCommentBatchId, this.getDraftComments(this.currentCommentBatchId));
+    return makeBatchSnapshot(this.currentCommentBatchId, this.getDraftNotes(this.currentCommentBatchId));
   }
 
   /**
    * Commit every draft comment in the active (or explicitly captured) batch.
    * A non-empty successful freeze rotates the active batch.
    */
-  freezeBatch(batchId: string): boolean {
-    const comments = this.getBatchComments(batchId, new Set(['draft', 'pending']));
+  freezeBatch(batchId: string, delivery?: 'attach' | 'send'): boolean {
+    const comments = this.getBatchNotes(batchId, new Set(['draft', 'pending']));
     if (comments.length === 0) {
       return false;
     }
     for (const comment of comments) {
-      this.items.set(comment.id, freezeAnnotation({ ...comment, state: 'committed' }));
+      this.items.set(
+        comment.id,
+        comment.intent === 'measurement'
+          ? finishMeasurementNote(comment, delivery)
+          : freezeAnnotation({ ...comment, state: 'committed' }),
+      );
     }
     if (batchId === this.currentCommentBatchId) {
       this.rotateCommentBatch();
@@ -58,12 +70,19 @@ export class AnnotationStore {
 
   /** Seal the current batch while a host action is in flight and rotate writes. */
   sealBatch(batchId: string): boolean {
-    const drafts = this.getDraftComments(batchId);
+    const drafts = this.getDraftNotes(batchId);
     if (drafts.length === 0) {
       return false;
     }
     for (const draft of drafts) {
-      this.items.set(draft.id, freezeAnnotation({ ...draft, state: 'pending' }));
+      this.items.set(
+        draft.id,
+        freezeAnnotation({
+          ...draft,
+          state: 'pending',
+          ...(draft.intent === 'measurement' ? { pendingDelivery: 'batch' as const } : {}),
+        }),
+      );
     }
     if (batchId === this.currentCommentBatchId) {
       this.rotateCommentBatch();
@@ -74,15 +93,16 @@ export class AnnotationStore {
 
   /** Merge a failed sealed batch back into the active editable transaction. */
   restoreBatch(batchId: string): boolean {
-    const pending = this.getBatchComments(batchId, new Set(['pending']));
+    const pending = this.getBatchNotes(batchId, new Set(['pending']));
     if (pending.length === 0) {
       return false;
     }
     for (const comment of pending) {
+      const restored = comment.intent === 'measurement' ? withoutPendingDelivery(comment) : comment;
       this.items.set(
         comment.id,
         freezeAnnotation({
-          ...comment,
+          ...restored,
           state: 'draft',
           batchId: this.currentCommentBatchId,
         }),
@@ -99,7 +119,13 @@ export class AnnotationStore {
     }
     const ids = this.getDraftBatch().annotationIds;
     for (const id of ids) {
-      this.items.delete(id);
+      const annotation = this.items.get(id);
+      if (annotation?.intent === 'measurement' && annotation.commentBase) {
+        const { commentBase, ...retained } = annotation;
+        this.items.set(id, freezeAnnotation({ ...retained, ...commentBase }));
+      } else {
+        this.items.delete(id);
+      }
     }
     this.rotateCommentBatch();
     if (ids.length > 0) {
@@ -138,7 +164,7 @@ export class AnnotationStore {
     }
     this.modelVersion = v;
     this.items.clear();
-    this.seqByKind = { point: 0, region: 0 };
+    this.seqByKind = { point: 0, region: 0, measurement: 0 };
     this.idSequence = 0;
     this.displaySequence = 0;
     this.rotateCommentBatch();
@@ -169,6 +195,7 @@ export class AnnotationStore {
     assertNoteLength(input.note);
     const ann: CommentAnnotation = freezeAnnotation({
       ...this.createBase(input),
+      kind: input.kind,
       intent: 'comment',
       state: 'draft',
       batchId: this.currentCommentBatchId,
@@ -183,6 +210,7 @@ export class AnnotationStore {
   addSelection(input: SelectionAnnotationInput): SelectionAnnotation {
     const ann: SelectionAnnotation = freezeAnnotation({
       ...this.createBase(input),
+      kind: input.kind,
       intent: 'selection',
       state: 'pending',
       batchId: this.createBatchId('selection'),
@@ -223,6 +251,144 @@ export class AnnotationStore {
     return this.items.get(id);
   }
 
+  addMeasurement(measurement: MeasurementEvidence, anchor: MeasurementVec3): MeasurementAnnotation {
+    const evidence = deepFreeze(parseMeasurementEvidence(measurement));
+    const ann: MeasurementAnnotation = freezeAnnotation({
+      ...this.createBase({
+        kind: 'measurement',
+        anchorWorld: anchor,
+        worldCoord: anchor,
+        triIds: [],
+      }),
+      kind: 'measurement',
+      intent: 'measurement',
+      state: 'draft',
+      batchId: this.createBatchId('measurement'),
+      note: '',
+      measurement: evidence,
+    });
+    this.items.set(ann.id, ann);
+    this.commit();
+    return ann;
+  }
+
+  updateMeasurementNote(id: string, note: string): boolean {
+    const current = this.items.get(id);
+    if (current?.intent !== 'measurement' || current.state === 'pending') {
+      return false;
+    }
+    assertNoteLength(note);
+    if (current.note === note) {
+      return true;
+    }
+    if (note.trim() === '') {
+      const { commentBase, ...retained } = current;
+      this.items.set(
+        id,
+        freezeAnnotation({
+          ...retained,
+          note,
+          state: 'draft',
+          batchId: commentBase?.batchId ?? current.batchId,
+        }),
+      );
+    } else {
+      this.items.set(
+        id,
+        freezeAnnotation({
+          ...current,
+          note,
+          state: 'draft',
+          batchId: this.currentCommentBatchId,
+          commentBase:
+            current.commentBase ??
+            Object.freeze({
+              note: current.note,
+              state: current.state,
+              batchId: current.batchId,
+            }),
+        }),
+      );
+    }
+    this.commit();
+    return true;
+  }
+
+  replaceMeasurement(id: string, measurement: MeasurementEvidence, anchor: MeasurementVec3): boolean {
+    const current = this.items.get(id);
+    if (
+      current?.intent !== 'measurement' ||
+      current.state !== 'draft' ||
+      current.note !== '' ||
+      current.attachedNote !== undefined ||
+      current.sentNote !== undefined
+    ) {
+      return false;
+    }
+    this.items.set(
+      id,
+      freezeAnnotation({
+        ...current,
+        measurement: deepFreeze(parseMeasurementEvidence(measurement)),
+        anchorWorld: frozenTuple3(anchor),
+        worldCoord: frozenTuple3(anchor),
+      }),
+    );
+    this.commit();
+    return true;
+  }
+
+  setMeasurementState(
+    id: string,
+    expected: MeasurementAnnotation['state'],
+    state: MeasurementAnnotation['state'],
+  ): boolean {
+    const current = this.items.get(id);
+    const validTransition =
+      ((expected === 'draft' || expected === 'committed') && state === 'pending') ||
+      (expected === 'pending' && (state === 'draft' || state === 'committed'));
+    if (
+      !validTransition ||
+      current?.intent !== 'measurement' ||
+      current.state !== expected ||
+      (expected === 'pending' && current.pendingDelivery !== 'direct')
+    ) {
+      return false;
+    }
+    const next = withoutPendingDelivery(current);
+    this.items.set(
+      id,
+      freezeAnnotation({
+        ...next,
+        state,
+        ...(state === 'pending' ? { pendingDelivery: 'direct' as const } : {}),
+        ...(state === 'draft' && current.commentBase ? { batchId: this.currentCommentBatchId } : {}),
+      }),
+    );
+    this.commit();
+    return true;
+  }
+
+  removeMeasurement(id: string): boolean {
+    const current = this.items.get(id);
+    if (current?.intent !== 'measurement' || current.state === 'pending') {
+      return false;
+    }
+    this.items.delete(id);
+    this.commit();
+    return true;
+  }
+
+  completeMeasurementDelivery(id: string, kind: 'attach' | 'send'): boolean {
+    const current = this.items.get(id);
+    if (current?.intent !== 'measurement' || current.state !== 'pending' || current.pendingDelivery !== 'direct') {
+      return false;
+    }
+    this.items.set(id, finishMeasurementNote(current, kind));
+    this.commit();
+    return true;
+  }
+
   list(): readonly Annotation[] {
     return this.snapshot;
   }
@@ -245,7 +411,7 @@ export class AnnotationStore {
     }
   }
 
-  private createBase(input: SelectionAnnotationInput): Omit<Annotation, 'intent' | 'state' | 'batchId' | 'note'> {
+  private createBase(input: Omit<SelectionAnnotationInput, 'kind'> & { kind: AnnotationKind }) {
     const seq = ++this.seqByKind[input.kind];
     return {
       id: `ann_${Date.now().toString(36)}_${(++this.idSequence).toString(36)}`,
@@ -260,14 +426,20 @@ export class AnnotationStore {
     };
   }
 
-  private getDraftComments(batchId: string): CommentAnnotation[] {
-    return this.getBatchComments(batchId, new Set(['draft']));
+  private getDraftNotes(batchId: string): BatchNote[] {
+    return this.getBatchNotes(batchId, new Set(['draft']));
   }
 
-  private getBatchComments(batchId: string, states: ReadonlySet<CommentAnnotation['state']>): CommentAnnotation[] {
+  private getBatchNotes(batchId: string, states: ReadonlySet<CommentAnnotation['state']>): BatchNote[] {
     return this.snapshot.filter(
-      (annotation): annotation is CommentAnnotation =>
-        annotation.intent === 'comment' && states.has(annotation.state) && annotation.batchId === batchId,
+      (annotation): annotation is BatchNote =>
+        (annotation.intent === 'comment' ||
+          (annotation.intent === 'measurement' &&
+            annotation.commentBase !== undefined &&
+            (annotation.state !== 'pending' || annotation.pendingDelivery === 'batch') &&
+            annotation.note.trim() !== '')) &&
+        states.has(annotation.state) &&
+        annotation.batchId === batchId,
     );
   }
 
@@ -275,10 +447,20 @@ export class AnnotationStore {
     this.currentCommentBatchId = this.createBatchId('comments');
   }
 
-  private createBatchId(intent: 'comments' | 'selection'): string {
+  private createBatchId(intent: 'comments' | 'selection' | 'measurement'): string {
     this.batchSequence += 1;
     return `batch_${intent}_${Date.now().toString(36)}_${this.batchSequence.toString(36)}`;
   }
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) {
+      deepFreeze(child);
+    }
+    Object.freeze(value);
+  }
+  return value;
 }
 
 function assertNoteLength(note: string): void {
@@ -287,7 +469,7 @@ function assertNoteLength(note: string): void {
   }
 }
 
-function makeBatchSnapshot(batchId: string, annotations: readonly CommentAnnotation[]): CommentBatchSnapshot {
+function makeBatchSnapshot(batchId: string, annotations: readonly BatchNote[]): CommentBatchSnapshot {
   const annotationIds = annotations.map(annotation => annotation.id);
   Object.freeze(annotationIds);
   const snapshot = {
@@ -296,6 +478,24 @@ function makeBatchSnapshot(batchId: string, annotations: readonly CommentAnnotat
   };
   Object.freeze(snapshot);
   return snapshot;
+}
+
+function finishMeasurementNote(annotation: MeasurementAnnotation, delivery?: 'attach' | 'send'): MeasurementAnnotation {
+  const { commentBase: _base, ...retained } = withoutPendingDelivery(annotation);
+  return freezeAnnotation({
+    ...retained,
+    state: 'committed',
+    ...(delivery === 'attach'
+      ? { attachedNote: annotation.note }
+      : delivery === 'send'
+        ? { sentNote: annotation.note }
+        : {}),
+  });
+}
+
+function withoutPendingDelivery(annotation: MeasurementAnnotation): MeasurementAnnotation {
+  const { pendingDelivery: _pending, ...retained } = annotation;
+  return retained;
 }
 
 function freezeAnnotation<T extends Annotation>(annotation: T): T {

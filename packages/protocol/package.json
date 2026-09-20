@@ -7,6 +7,10 @@
     "dist"
   ],
   "exports": {
+    "./wire/measurements.js": {
+      "types": "./dist/wire/measurements.d.ts",
+      "default": "./dist/wire/measurements.js"
+    },
     "./wire/model.js": {
       "types": "./dist/wire/model.d.ts",
       "default": "./dist/wire/model.js"

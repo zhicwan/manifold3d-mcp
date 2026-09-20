@@ -5,13 +5,15 @@ rendered model:
 
 - **Click** drops a point pin and opens its comment editor.
 - **Drag** highlights a region and opens its comment editor.
-- **Done** commits the current batch for `get_annotations`; **Cancel** discards
-  the current draft batch.
+- **Done** commits the current batch locally for `get_annotations`, without
+  sending a message; **Cancel** discards new ordinary comments and restores
+  measurement notes without deleting their dimensions.
 
 Markers use compact display numbers; open one to read or edit its note.
 The check button or Enter saves the current note, the cross or Escape cancels
 that edit, and Shift+Enter adds a line. These actions are separate from Done /
-Cancel for the whole batch. Committed notes can be inspected but not edited.
+Cancel for the whole batch. Committed ordinary comments can be inspected but
+not edited; measurement notes remain editable in Annotate.
 Use the returned `id`, `partLabel` and coordinates to identify a location, not
 the marker's display number.
 
@@ -20,7 +22,38 @@ and holding **Space** temporarily restores camera navigation. Middle/right drag
 and wheel zoom remain available; **F** fits the model and **?** opens help.
 The MCP browser does not offer the Extension-only location attachment tool.
 
-Each annotation has:
+## Ruler measurements
+
+Measure creates and manages dimension labels without opening an editor. Choose
+Annotate and click a measurement label to add or edit a note. Saving the note
+does not actively send a message; ask the assistant in chat to apply it.
+
+Pure ruler results appear in `get_annotations` as `kind: "measurement"` even
+without a note, but do not enter the notes batch. Saving a nonempty measurement
+note joins the ordinary batch and count alongside point and region comments.
+Done commits that shared batch; Cancel restores the measurement's pre-batch
+note while retaining its geometry. Clearing the note exits the batch without
+deleting the dimension. Read the
+structured `measurement` field rather than treating `worldCoord` as the measured
+quantity. It contains canonical point, finite straight-edge or planar-patch
+operands, method names, mm distances with witness endpoints, and/or angles.
+`edge-corner` measures rays leaving a unique shared endpoint (0-180 degrees).
+Other methods, including historical `line-line` evidence, retain smaller
+unoriented angles (0-90 degrees). Supporting-plane distances are not shortest
+distances to finite faces; `extended: true` identifies witnesses outside a patch.
+Mesh edges are tessellation evidence, not guaranteed nominal CAD features.
+Point operands may include `faceCenter: { patchId, onSurface }`: the area centroid
+of a connected planar face. The Viewer offers only centers on the actual surface.
+In historical snapshots, `onSurface: false` identifies a reference in a hole or
+beyond the face boundary, not a point on the printable surface.
+
+MCP has no composer attachment or active Send modification action. Retrieve retained measurements here
+before replacing the model; replacement clears them and requires remeasurement.
+With `includeAnnotations`, captures draw distance witnesses and method/value
+labels; angles are labeled, not drawn as fictitious intersection arcs.
+A measured value alone is not an instruction to change the model.
+
+Comment annotations have:
 
 - a **partLabel** — automatically derived from which primitive the
   user clicked. Examples: `sphere#1`, `cube#2`, `extrude#1 (8/47 tris)
@@ -71,7 +104,8 @@ Response content is YAML. Its equivalent data structure is:
 ```
 
 If the user has no active annotations the body still has the same
-shape (with `count: 0`) and a leading `# no active annotations` comment.
+shape (with `count: 0`) and a `note` explaining that no annotations are active.
+Reading annotations does not start the preview.
 
 ## When to call it
 
@@ -97,7 +131,8 @@ edit to see whether the user has left feedback. The call is cheap
 - Annotations live in the viewer's memory only — they are not
   persisted across browser refresh.
 - Draft notes can be edited from their on-model flyouts. Cancelling a new empty
-  edit removes that mark; batch Cancel discards the current draft batch.
+  ordinary comment removes that mark. Measurement edit Cancel restores its saved
+  note; batch Cancel restores its pre-batch note. Neither deletes the dimension.
 
 ## Recommended workflow when responding to marks
 

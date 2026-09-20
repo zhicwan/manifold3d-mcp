@@ -24,6 +24,45 @@ const action: HostActionDescriptor = {
 };
 
 describe('HostActionsClient', () => {
+  it('scopes pending and visible statuses to the model without losing old request completion', async () => {
+    let modelVersion = 'v1';
+    let sequence = 0;
+    const sent: unknown[] = [];
+    const client = new HostActionsClient({
+      send: message => sent.push(message),
+      isOpen: () => true,
+      flushAnnotations: () => true,
+      getInvocationContext: () => ({ modelVersion, annotationRevision: 1 }),
+      createRequestId: () => `model-request-${++sequence}`,
+    });
+    client.receiveManifest(createHostActionsManifest([action]));
+    const old = client.invokeAndWait(action.id);
+    const oldStatus = client.getSnapshot().latestStatus!;
+    expect(hasPendingHostActionRequest(client.getSnapshot(), action.id)).toBe(true);
+    modelVersion = 'v2';
+    client.setModelVersion(modelVersion);
+    expect(hasPendingHostActionRequest(client.getSnapshot(), action.id)).toBe(false);
+    expect(getLatestHostActionStatus(client.getSnapshot(), action.id)).toBeUndefined();
+    expect(client.getSnapshot().latestStatus).toBeNull();
+    const current = client.invokeAndWait(action.id);
+    const currentStatus = client.getSnapshot().latestStatus!;
+    client.receiveStatus(createHostActionStatus({ ...oldStatus, state: 'failed', message: 'obsolete failure' }));
+    await expect(old).resolves.toMatchObject({ state: 'failed' });
+    expect(hasPendingHostActionRequest(client.getSnapshot(), action.id)).toBe(true);
+    expect(client.getSnapshot().latestStatus).toBe(currentStatus);
+    client.receiveStatus(createHostActionStatus({ ...oldStatus, state: 'failed', message: 'obsolete failure' }));
+    expect(client.getSnapshot().latestStatus).toBe(currentStatus);
+    client.receiveStatus(createHostActionStatus({ ...currentStatus, state: 'succeeded' }));
+    await expect(current).resolves.toMatchObject({ state: 'succeeded' });
+    expect(hasPendingHostActionRequest(client.getSnapshot(), action.id)).toBe(false);
+    expect(client.getSnapshot().requestModels).toEqual({
+      [oldStatus.requestId]: 'v1',
+      [currentStatus.requestId]: 'v2',
+    });
+    expect(sent[0]).not.toHaveProperty('requestModels');
+    client.dispose();
+  });
+
   it('flushes the revisioned annotation snapshot before sending an invocation', () => {
     const sent: unknown[] = [];
     const annotations = createAnnotationsMessage('v1', 7, []);

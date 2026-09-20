@@ -67,6 +67,59 @@ describe('viewer annotation revisions', () => {
     expect(() => store.rebaseRevision(-1)).toThrow(/nonnegative safe integer/);
   });
 
+  it('uplinks detached measurement evidence without browser-local note baselines or delivery receipts', () => {
+    const store = new AnnotationStore();
+    store.setModelVersion('v1');
+    const measurement = store.addMeasurement(
+      {
+        kind: 'edge-length',
+        operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+        distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+      },
+      [5, 0, 0],
+    );
+    store.updateMeasurementNote(measurement.id, 'first note');
+    store.setMeasurementState(measurement.id, 'draft', 'pending');
+    store.completeMeasurementDelivery(measurement.id, 'attach');
+    store.setMeasurementState(measurement.id, 'committed', 'pending');
+    store.completeMeasurementDelivery(measurement.id, 'send');
+    store.updateMeasurementNote(measurement.id, 'new local draft');
+    store.setMeasurementState(measurement.id, 'draft', 'pending');
+    expect(store.get(measurement.id)).toMatchObject({
+      attachedNote: 'first note',
+      sentNote: 'first note',
+      commentBase: expect.any(Object),
+      pendingDelivery: 'direct',
+    });
+    const sent: unknown[] = [];
+    const uplink = installAnnotationsUplink(store, { send: message => sent.push(message), isOpen: () => true });
+    try {
+      expect(uplink.flushNow()).toBe(true);
+      expect(sent[0]).toEqual({
+        kind: 'annotations',
+        protocolVersion: ANNOTATIONS_PROTOCOL_VERSION,
+        modelVersion: 'v1',
+        revision: store.getRevision(),
+        items: [
+          {
+            id: measurement.id,
+            modelVersion: 'v1',
+            kind: 'measurement',
+            partLabel: measurement.partLabel,
+            note: 'new local draft',
+            worldCoord: [5, 0, 0],
+            measurement: measurement.measurement,
+          },
+        ],
+      });
+      store.completeMeasurementDelivery(measurement.id, 'attach');
+      store.updateMeasurementNote(measurement.id, 'edited after snapshot');
+      expect(sent[0]).toMatchObject({ items: [{ note: 'new local draft' }] });
+    } finally {
+      uplink.dispose();
+    }
+  });
+
   it('rejects overlong notes at add and update boundaries', () => {
     const store = new AnnotationStore();
     const input = {

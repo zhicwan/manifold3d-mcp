@@ -1,6 +1,6 @@
 {
   "name": "manifold3d-mcp-workspace",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "private": true,
   "description": "Design, validate and preview 3D-printable models with shared Manifold tooling.",
   "author": {
@@ -32,6 +32,8 @@
     "build:extension": "npm run build --workspace @manifold3d/copilot-extension",
     "verify:viewer-flat": "npm run verify:flat --workspace @manifold3d/viewer",
     "test:extension": "npm run test --workspace @manifold3d/copilot-extension",
+    "pretest:e2e": "npm run build:viewer --workspace @manifold3d/copilot-extension && node scripts/prepare-e2e-viewer.mjs",
+    "test:e2e": "playwright test",
     "verify:extension": "npm run build:extension && npm run test:extension && npm run verify --workspace @manifold3d/copilot-extension",
     "extension:install": "npm run build:extension && npm run install:local --workspace @manifold3d/copilot-extension",
     "build:sandbox-types": "node scripts/emit-sandbox-types.mjs",
@@ -46,11 +48,11 @@
     "start": "node apps/manifold3d-mcp/dist/manifold.mjs",
     "test": "npm run -s build:plugins -- --check && npm run -s test:unit:built && npm run -s test:extension && npm run -s test:smoke:built",
     "test:unit": "npm run -s build && npm run -s test:unit:built",
-    "test:unit:built": "node scripts/run-vitest.mjs --dir tests --exclude=**/smoke.test.ts",
+    "test:unit:built": "node scripts/run-vitest.mjs --dir tests --exclude=**/smoke.test.ts --exclude=**/e2e/**",
     "test:smoke": "npm run -s build && npm run -s test:smoke:built",
     "test:smoke:built": "node scripts/run-vitest.mjs tests/smoke.test.ts && node scripts/test-installed-plugin.mjs",
     "test:distribution": "node scripts/test-installed-plugin.mjs",
-    "test:watch": "npm run -s build && node scripts/run-vitest.mjs --watch --dir tests --exclude=**/smoke.test.ts",
+    "test:watch": "npm run -s build && node scripts/run-vitest.mjs --watch --dir tests --exclude=**/smoke.test.ts --exclude=**/e2e/**",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -60,6 +62,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.1",
     "@types/three": "^0.186.0",
     "@types/ws": "^8.18.1",

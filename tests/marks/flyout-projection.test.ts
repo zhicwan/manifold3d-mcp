@@ -24,6 +24,51 @@ function makeCamera(): THREE.PerspectiveCamera {
 }
 
 describe('updatePositions', () => {
+  it('anchors a measurement editor to its rendered dimension label rather than its world-space midpoint', () => {
+    const store = new AnnotationStore();
+    const ann = store.addMeasurement(
+      {
+        kind: 'edge-length',
+        operands: [{ kind: 'edge', edgeId: 'e', start: [0, 0, 0], end: [10, 0, 0] }],
+        distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+      },
+      [5, 0, 0],
+    );
+    const properties = new Map<string, string>();
+    const el = {
+      style: { ...fakeElement().style, setProperty: (key: string, value: string) => properties.set(key, value) },
+      dataset: {},
+      classList: { contains: () => true },
+      querySelector: () => null,
+    };
+    const anchors = new Map([[ann.id, { x: 220, y: 180 }]]);
+    updatePositions(
+      makeCamera(),
+      store,
+      new Map([[ann.id, el as unknown as HTMLElement]]),
+      { x: 800, y: 600 },
+      new THREE.Vector3(),
+      {
+        mesh: null,
+        obstacles: [],
+        editorSizes: new Map([[ann.id, { width: 320, height: 48 }]]),
+        screenAnchors: anchors,
+      },
+    );
+    expect(el.style.transform).toBe('translate(220px, 180px)');
+    expect(properties.has('--editor-x')).toBe(true);
+    anchors.clear();
+    updatePositions(
+      makeCamera(),
+      store,
+      new Map([[ann.id, el as unknown as HTMLElement]]),
+      { x: 800, y: 600 },
+      new THREE.Vector3(),
+      { mesh: null, obstacles: [], editorSizes: new Map(), screenAnchors: anchors },
+    );
+    expect(el.style.display).toBe('none');
+  });
+
   it('slides past a nearby rail instead of sending the editor to the bottom edge', () => {
     const result = placeEditor({ x: 819, y: 420 }, { width: 320, height: 44 }, { x: 1280, y: 798 }, [
       { x: 1164, y: 256, width: 100, height: 264 },

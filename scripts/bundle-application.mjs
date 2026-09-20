@@ -102,7 +102,7 @@ export async function bundleApplication({ entryFile, outputFile, viewerRoot, sdk
   return { bytes: (await stat(outputFile)).size, assets: assets.length };
 }
 
-async function completeViewerLicenses(viewerRoot) {
+export async function completeViewerLicenses(viewerRoot) {
   const licensePath = resolve(viewerRoot, 'third-party-licenses.txt');
   let contents = await readFile(licensePath, 'utf8');
   for (const [name, overridePath] of dependencyLicenseOverrides) {

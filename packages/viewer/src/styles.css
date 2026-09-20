@@ -17,6 +17,179 @@
   cursor: grabbing;
 }
 
+#view[data-mark-mode='measure'] {
+  cursor: crosshair;
+}
+
+.measurement-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.measurement-dimension {
+  display: contents;
+  color: var(--spatial);
+}
+
+.measurement-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  white-space: nowrap;
+  padding: 2px 4px;
+  min-height: 22px;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--spatial) 65%, white);
+  background: color-mix(in srgb, var(--color-background) 86%, transparent);
+  color: var(--spatial);
+  font: 500 12px/20px var(--font-sans, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 6px #0002;
+}
+
+.measurement-label::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+
+.measurement-label-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.measurement-label-number {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.measurement-dimension[data-pending] > .measurement-label,
+.measurement-dimension[data-attachment-changed] > .measurement-label {
+  border-style: dashed;
+}
+
+.measurement-preview-label {
+  pointer-events: none;
+}
+
+.measurement-label:disabled {
+  pointer-events: none;
+}
+
+.measurement-label:hover,
+.measurement-dimension[data-selected] > .measurement-label {
+  background: var(--spatial);
+  color: var(--spatial-foreground);
+}
+
+.measurement-remove {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--muted-foreground);
+  pointer-events: auto;
+  visibility: hidden;
+}
+
+.measurement-dimension:hover > .measurement-remove,
+.measurement-dimension:focus-within > .measurement-remove,
+.measurement-dimension[data-selected] > .measurement-remove {
+  visibility: visible;
+}
+
+.measurement-remove:disabled {
+  visibility: hidden !important;
+}
+
+.measurement-remove:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.measurement-hud {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 6px 4px 12px;
+  font-size: 12px;
+}
+
+.measurement-hint-text {
+  min-width: 0;
+  margin-right: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.measurement-icon-button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-xl);
+  color: var(--muted-foreground);
+}
+
+.measurement-icon-button:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.measurement-icon-button[aria-pressed='true'] {
+  color: var(--spatial);
+  background: var(--accent);
+}
+
+.measurement-icon-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.measurement-notice {
+  width: 100%;
+  max-height: min(24vh, 160px);
+  overflow: auto;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .measurement-icon-button,
+  .measurement-hud button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .measurement-label::before {
+    inset: -12px -8px;
+  }
+
+  .measurement-remove {
+    visibility: visible;
+    width: 32px;
+    height: 32px;
+  }
+}
+
 #view[data-mark-mode='annotate'] {
   cursor:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M9 2v14M2 9h14m3 7 6-6 3 3-6 6-4 1z'/%3E%3C/g%3E%3Cg fill='none' stroke='%232e67c2' stroke-width='1.5'%3E%3Cpath d='M9 2v14M2 9h14m3 7 6-6 3 3-6 6-4 1z'/%3E%3C/g%3E%3C/svg%3E")
@@ -40,6 +213,10 @@
 
 #marks-overlay {
   z-index: 10;
+}
+
+#marks-overlay:has(.marks-flyout.expanded) {
+  z-index: 32;
 }
 
 .marks-rubber-band {
@@ -178,6 +355,12 @@
   box-shadow: 0 3px 12px #0002;
 }
 
+.measurement-comment-preview {
+  display: block;
+  position: static;
+  max-width: min(220px, 55vw, var(--available-width));
+}
+
 .marks-flyout:not(.expanded):has(.marks-flyout-pill:hover, .marks-flyout-pill:focus-visible) .marks-flyout-preview {
   display: block;
 }
@@ -188,14 +371,6 @@
 }
 
 .marks-flyout-body {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform: translate(var(--editor-x), var(--editor-y));
-  align-items: flex-end;
-  gap: 6px;
-  width: min(320px, calc(100vw - 24px));
   box-sizing: border-box;
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
@@ -207,6 +382,17 @@
     0 1px 3px #0001;
   backdrop-filter: blur(24px) saturate(130%);
   pointer-events: auto;
+}
+
+.marks-flyout-body {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(var(--editor-x), var(--editor-y));
+  align-items: flex-end;
+  gap: 6px;
+  width: min(320px, calc(100vw - 24px));
 }
 
 .marks-flyout.expanded .marks-flyout-body {
@@ -274,6 +460,11 @@
 .marks-flyout-btn:hover {
   background: var(--color-accent);
   color: var(--color-foreground);
+}
+
+.marks-flyout-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .marks-flyout-save {

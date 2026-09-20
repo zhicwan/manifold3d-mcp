@@ -35,6 +35,7 @@ affected consumers and appropriate behavioral evidence.
 | `npm run verify:extension`         | Verify the Extension can run its self-test without sibling resources      |
 | `npm run verify:viewer-flat`       | Verify the flat Viewer does not include XR                                |
 | `npm run dev:viewer`               | Run the demo Viewer                                                       |
+| `npm run test:e2e`                 | Run isolated Chromium tests against production Viewer assets              |
 
 The root `.mcp.json` starts `apps/manifold3d-mcp/dist/manifold.mjs`. Build first.
 For local plugin development, load the assembled plugin with the host's
@@ -50,6 +51,53 @@ platforms. If npm produces an incomplete lock from an existing platform-specific
 installation, regenerate it with no workspace `node_modules` directories or
 old lockfile, then rebuild the plugins. Do not repair CI with extra
 platform-specific install commands.
+
+### Browser E2E
+
+```sh
+npm ci
+npx playwright install chromium
+npm run build:extension
+npm run test:e2e
+```
+
+On Linux, use `npx playwright install --with-deps chromium` to install Chromium's
+system dependencies as well. The browser revision comes from the npm lockfile;
+no system Chrome, personal browser profile, or running development server is used.
+After changing Viewer sources, rebuild the Extension before testing. Packaging
+removes the intermediate Viewer directory, so `test:e2e` first recreates it using
+the existing production Viewer build and shared license-completion helper.
+The fixture compares every asset's SHA-256
+against the bundled Extension's self-test manifest before opening the browser.
+Missing or stale artifacts fail explicitly; CI checks the same bytes it packages.
+CI runs `verify:viewer-flat` before the production build because that proof cleans
+shared application asset directories.
+
+The suite starts a random-port loopback Viewer Host per test. Extension cases use
+the production Extension composition, real modeling runner and WebSocket path,
+capturing only SDK attachment/enqueue side effects. The local Done case uses a
+real Viewer Host with no composer actions. Tests never install/reload an extension
+or send a real Copilot message. Geometry-assisted pointer coordinates are for the
+fixed union fixture and default camera, not injected measurement-store state.
+
+Run a focused case with `npm run test:e2e -- -g "mixed batch"` or inspect the HTML
+report using `npx playwright show-report`. Failures retain screenshots and traces
+in ignored `test-results/e2e/` and `playwright-report/`; CI uploads both. These
+paths are explicitly separate from `.test-tmp/`, which the Vitest runner deletes
+before and after each invocation, so later unit/Extension/smoke runs preserve
+browser evidence. Playwright fixture workspaces also use their test output path.
+The measurement test also attaches a representative screenshot. Blue GPU strokes
+and witness balls are checked with tolerant semantic pixel sampling, not
+cross-platform screenshot equality. WebGL initialization failure fails the test.
+Vitest excludes `tests/e2e/`; these tests have their own Playwright runner.
+The unit/watch commands also explicitly exclude the browser directory alongside
+their smoke-test filter.
+
+The lifecycle smoke performs 20 full-page navigations with real measurement
+and editor creation. It checks unique scene/editor DOM, one new WebSocket per
+navigation, no page errors, and no annotation traffic during 16-frame windows
+after publication settles. This is bounded lifecycle behavior evidence, not
+browser heap measurement or a count of same-document observer/frame-hook disposal.
 
 ## Skills
 

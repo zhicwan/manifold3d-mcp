@@ -1,4 +1,4 @@
-export const HOST_ACTION_PROTOCOL_VERSION = 2 as const;
+export const HOST_ACTION_PROTOCOL_VERSION = 3 as const;
 
 export const MAX_HOST_ACTIONS = 32;
 const MAX_HOST_ACTION_ID_LENGTH = 64;
@@ -11,7 +11,13 @@ const MAX_HOST_ACTION_JSON_DEPTH = 8;
 export type HostActionProtocolVersion = typeof HOST_ACTION_PROTOCOL_VERSION;
 export type HostActionIcon = 'bot' | 'check' | 'download' | 'external-link' | 'message' | 'play' | 'sparkles' | 'wand';
 export type HostActionSlot =
-  'toolbar' | 'annotation-footer' | 'export-menu' | 'export-handler' | 'annotation-batch' | 'selection-gesture';
+  | 'toolbar'
+  | 'annotation-footer'
+  | 'export-menu'
+  | 'export-handler'
+  | 'annotation-batch'
+  | 'selection-gesture'
+  | 'measurement-result';
 export type HostActionTone = 'default' | 'primary' | 'danger';
 export type HostActionRequirement = 'model' | 'annotations';
 export type HostActionState = 'accepted' | 'running' | 'succeeded' | 'failed';
@@ -478,7 +484,8 @@ function isHostActionSlot(value: unknown): value is HostActionSlot {
     value === 'export-menu' ||
     value === 'export-handler' ||
     value === 'annotation-batch' ||
-    value === 'selection-gesture'
+    value === 'selection-gesture' ||
+    value === 'measurement-result'
   );
 }
 

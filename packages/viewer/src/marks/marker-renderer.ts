@@ -48,7 +48,7 @@ export class MarkerRenderer {
       }
     }
     for (const ann of items) {
-      if (ann.kind === 'point') {
+      if (ann.kind !== 'region') {
         continue;
       }
       const existing = this.perAnnotation.get(ann.id);

@@ -2,13 +2,14 @@ import { enUi, zhUi } from './ui.js';
 import { enMarks, zhMarks } from './marks.js';
 import { enActions, zhActions } from './actions.js';
 import { enXr, zhXr } from './xr.js';
+import { enMeasurements, zhMeasurements } from './measurements.js';
 import type { LanguagePreference, Locale } from './types.js';
 
 export type { LanguagePreference, Locale } from './types.js';
 
 export const catalogs = {
-  en: { ...enUi, ...enMarks, ...enActions, ...enXr },
-  'zh-CN': { ...zhUi, ...zhMarks, ...zhActions, ...zhXr },
+  en: { ...enUi, ...enMarks, ...enActions, ...enXr, ...enMeasurements },
+  'zh-CN': { ...zhUi, ...zhMarks, ...zhActions, ...zhXr, ...zhMeasurements },
 };
 type Messages = typeof catalogs.en;
 export type MessageKey = keyof Messages;

@@ -1,133 +1,72 @@
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import Module, { type Manifold, type Vec3 } from 'manifold-3d';
 import type { ViewerFeature, ViewerModel } from '@manifold3d/protocol/wire/model.js';
 
-/**
- * Programmatically-built demo model shown when no MCP preview server is
- * reachable (e.g. running the Viewer UI standalone). A small
- * mounting-bracket-style part: base plate + upright wall + cylindrical
- * boss, with per-part feature ids so hover-highlight and semantic
- * partLabels work exactly like they do against a live server.
- *
- * Geometry stats (volume / surface area) are computed numerically from
- * the triangle soup — parts slightly interpenetrate, so treat the
- * numbers as demo-grade approximations.
- */
-export function buildDemoPayload(): ViewerModel {
-  const IDENTITY_3X4 = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
-
-  // Part definitions in Z-up world space (Manifold convention).
-  const parts: Array<{ label: string; kind: ViewerFeature['kind']; geom: THREE.BufferGeometry }> = [];
-
-  // 1. Base plate: 80 x 50 x 8 mm sitting on the ground plane.
-  {
-    const g = new THREE.BoxGeometry(80, 50, 8);
-    g.translate(0, 0, 4);
-    parts.push({ label: 'plate#1', kind: 'cube', geom: g });
-  }
-
-  // 2. Upright wall along the back edge: 80 x 8 x 42 mm.
-  {
-    const g = new THREE.BoxGeometry(80, 8, 42);
-    g.translate(0, 21, 8 + 21 - 4);
-    parts.push({ label: 'wall#1', kind: 'cube', geom: g });
-  }
-
-  // 3. Cylindrical boss on the plate. CylinderGeometry is Y-up; rotate to Z-up.
-  {
-    const g = new THREE.CylinderGeometry(12, 12, 18, 48);
-    g.rotateX(Math.PI / 2);
-    g.translate(-18, -8, 8 + 9 - 2);
-    parts.push({ label: 'boss#1', kind: 'cylinder', geom: g });
-  }
-
-  // 4. Small guide pin next to the boss.
-  {
-    const g = new THREE.CylinderGeometry(4, 4, 26, 32);
-    g.rotateX(Math.PI / 2);
-    g.translate(22, -10, 8 + 13 - 2);
-    parts.push({ label: 'pin#1', kind: 'cylinder', geom: g });
-  }
-
-  // Flatten everything to non-indexed triangle soup and tag each
-  // triangle with the index of the part that produced it.
-  const nonIndexed = parts.map(p => p.geom.toNonIndexed());
-  const merged = mergeGeometries(nonIndexed, false);
-  if (!merged) {
-    throw new Error('demo payload: geometry merge failed');
-  }
-
-  const positions = merged.getAttribute('position').array as Float32Array;
-  const vertexCount = positions.length / 3;
-  const triangleCount = vertexCount / 3;
-
-  const triVerts = new Uint32Array(vertexCount);
-  for (let i = 0; i < vertexCount; i++) {
-    triVerts[i] = i;
-  }
-
-  const triFeatureIds = new Uint32Array(triangleCount);
-  let triCursor = 0;
-  nonIndexed.forEach((g, partIdx) => {
-    const tris = g.getAttribute('position').count / 3;
-    triFeatureIds.fill(partIdx, triCursor, triCursor + tris);
-    triCursor += tris;
-  });
-
-  // Numeric stats from the triangle soup.
-  let surfaceArea = 0;
-  let signedVolume = 0;
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  const ab = new THREE.Vector3();
-  const ac = new THREE.Vector3();
-  for (let t = 0; t < triangleCount; t++) {
-    a.fromArray(positions, t * 9);
-    b.fromArray(positions, t * 9 + 3);
-    c.fromArray(positions, t * 9 + 6);
-    ab.subVectors(b, a);
-    ac.subVectors(c, a);
-    surfaceArea += ab.clone().cross(ac).length() / 2;
-    signedVolume += a.dot(ab.clone().cross(ac)) / 6;
-  }
-
-  merged.computeBoundingBox();
-  const box = merged.boundingBox;
-  if (!box) {
-    throw new Error('demo payload: merged geometry has no bounding box');
-  }
-
-  const features: ViewerFeature[] = parts.map(p => ({
-    label: p.label,
-    kind: p.kind,
-    params: {},
-    transform: IDENTITY_3X4,
-  }));
-
-  for (const g of nonIndexed) {
-    g.dispose();
-  }
-  for (const p of parts) {
-    p.geom.dispose();
-  }
-  merged.dispose();
-
-  return {
-    description: 'Demo bracket (offline)',
-    numProp: 3,
-    triangles: triangleCount,
-    vertices: vertexCount,
-    vertProperties: positions,
-    triVerts,
-    mergeFromVert: new Uint32Array(),
-    mergeToVert: new Uint32Array(),
-    features,
-    triFeatureIds,
-    volume: Math.abs(signedVolume),
-    surfaceArea,
-    genus: 0,
-    bboxMin: [box.min.x, box.min.y, box.min.z],
-    bboxMax: [box.max.x, box.max.y, box.max.z],
+/** The offline fixture is a real boolean union, so intersections are measurement boundaries. */
+export async function buildDemoPayload(locateFile?: () => string): Promise<ViewerModel> {
+  const wasm = await Module(locateFile ? { locateFile } : undefined);
+  wasm.setup();
+  const owned: Manifold[] = [];
+  const features: ViewerFeature[] = [];
+  const originalFeatures = new Map<number, number>();
+  const part = (solid: Manifold, translation: Vec3, label: string, kind: ViewerFeature['kind']): Manifold => {
+    owned.push(solid);
+    originalFeatures.set(solid.originalID(), features.length);
+    features.push({
+      label,
+      kind,
+      params: {},
+      transform: [1, 0, 0, 0, 1, 0, 0, 0, 1, ...translation],
+    });
+    const placed = solid.translate(translation);
+    owned.push(placed);
+    return placed;
   };
+
+  try {
+    const parts = [
+      part(wasm.Manifold.cube([80, 50, 8], true), [0, 0, 4], 'plate#1', 'cube'),
+      part(wasm.Manifold.cube([80, 8, 42], true), [0, 21, 25], 'wall#1', 'cube'),
+      part(wasm.Manifold.cylinder(18, 12, 12, 48, true), [-18, -8, 15], 'boss#1', 'cylinder'),
+      part(wasm.Manifold.cylinder(26, 4, 4, 32, true), [22, -10, 19], 'pin#1', 'cylinder'),
+    ];
+    const solid = wasm.Manifold.union(parts);
+    owned.push(solid);
+    if (solid.status() !== 'NoError') {
+      throw new Error(`Demo bracket union failed: ${solid.status()}.`);
+    }
+    const mesh = solid.getMesh();
+    const triFeatureIds = new Uint32Array(mesh.triVerts.length / 3);
+    for (let run = 0; run < mesh.runOriginalID.length; run++) {
+      const source = mesh.runOriginalID[run];
+      const start = mesh.runIndex[run];
+      const end = mesh.runIndex[run + 1];
+      const feature = source === undefined ? undefined : originalFeatures.get(source);
+      if (feature === undefined || start === undefined || end === undefined) {
+        throw new Error('Demo union lost its source feature mapping.');
+      }
+      triFeatureIds.fill(feature, start / 3, end / 3);
+    }
+    const bounds = solid.boundingBox();
+    return {
+      description: 'Demo bracket (union)',
+      numProp: mesh.numProp,
+      triangles: mesh.triVerts.length / 3,
+      vertices: mesh.vertProperties.length / mesh.numProp,
+      vertProperties: mesh.vertProperties.slice(),
+      triVerts: mesh.triVerts.slice(),
+      mergeFromVert: mesh.mergeFromVert.slice(),
+      mergeToVert: mesh.mergeToVert.slice(),
+      features,
+      triFeatureIds,
+      volume: solid.volume(),
+      surfaceArea: solid.surfaceArea(),
+      genus: solid.genus(),
+      bboxMin: [...bounds.min],
+      bboxMax: [...bounds.max],
+    };
+  } finally {
+    for (const solid of owned.reverse()) {
+      solid.delete();
+    }
+  }
 }
