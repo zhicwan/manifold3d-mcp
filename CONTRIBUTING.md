@@ -80,7 +80,8 @@ The fixture compares every asset's SHA-256
 against the bundled Extension's self-test manifest before opening the browser.
 Missing or stale artifacts fail explicitly; CI checks the same bytes it packages.
 CI runs `verify:viewer-flat` before the production build because that proof cleans
-shared application asset directories.
+shared application asset directories. The proof builds the protocol package first,
+so its public runtime exports resolve even in a clean checkout.
 
 The suite starts a random-port loopback Viewer Host per test. Extension cases use
 the production Extension composition, real modeling runner and WebSocket path,
