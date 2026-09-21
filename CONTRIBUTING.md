@@ -27,6 +27,7 @@ affected consumers and appropriate behavioral evidence.
 | `npm run build:mcp`                | Build the standalone MCP runtime and its browser/XR Viewer                |
 | `npm run build:extension`          | Build the single-file native Extension and flat Viewer                    |
 | `npm run build:sandbox-types`      | Regenerate canonical declarations and sample types                        |
+| `npm run build:demo-payload`       | Regenerate the data-only offline Viewer union fixture                     |
 | `npm run check:sync`               | Check authored skill tool lists against application tools                 |
 | `npm run typecheck`                | Type-check the workspace                                                  |
 | `npm run lint`                     | Lint authored code                                                        |
@@ -45,6 +46,14 @@ of a build.
 
 `clean` removes temporary build output, not the committed `plugins` directories.
 Generated JavaScript and copied references should change only through the build.
+
+The offline bracket is authored in `scripts/emit-demo-payload.mjs`, executed
+through the public modeling Runner, and projected into the committed data-only
+`packages/viewer/src/demo-payload.ts`. After changing its geometry or the modeling
+runtime, run `npm run build:demo-payload`. The measurement-demo unit test runs the
+generator with `--check` against fresh modeling build output and fails on drift
+without overwriting the fixture. Demo mode lazy-loads this data without initializing
+modeling WASM; canonical model export retains its separate on-demand SDK use.
 
 Keep the complete lockfile, including optional native packages for other
 platforms. If npm produces an incomplete lock from an existing platform-specific

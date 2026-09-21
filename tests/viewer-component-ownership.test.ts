@@ -105,7 +105,7 @@ vi.mock('@/exporters/model', async () => {
   await harness.exportReady;
   return import('../packages/viewer/src/exporters/model.js');
 });
-vi.mock('@/demo-payload', () => ({}));
+vi.mock('@/demo-payload', () => import('../packages/viewer/src/demo-payload.js'));
 
 // Keep Viewer, MarkTool, their stores and HostActionsClient real; only replace
 // WebGL and visual decorations that require a browser DOM.
@@ -244,16 +244,19 @@ afterEach(async () => {
   await settle();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
-async function mount(identity = 'first'): Promise<void> {
+async function mount(identity = 'first', withModel = true): Promise<void> {
   harness.refIndex = 0;
   ViewerCanvas({ resumeIdentity: identity });
   unmount = harness.effect?.() || undefined;
   await settle();
   expect(store.getState().viewerApi).not.toBeNull();
-  harness.feed!.onMesh(model('Original model', 10));
-  harness.feed!.onModelVersion?.('model-v1');
+  if (withModel) {
+    harness.feed!.onMesh(model('Original model', 10));
+    harness.feed!.onModelVersion?.('model-v1');
+  }
   harness.feed!.onHostActionsManifest?.(createHostActionsManifest([fixAction, attachAction]));
 }
 
@@ -320,6 +323,56 @@ function model(description: string, width: number): ViewerModel {
 }
 
 describe('Viewer component ownership', () => {
+  it('lazy-loads the data-only union in offline demo mode', async () => {
+    vi.stubEnv('MODE', 'demo');
+    await mount('demo', false);
+    const timer = vi.mocked(window.setTimeout).mock.calls.find(([, delay]) => delay === 600)!;
+    expect(timer).toBeDefined();
+    (timer[0] as () => void)();
+    await vi.dynamicImportSettled();
+    expect(store.getState().payload?.description).toBe('Demo bracket (union)');
+    expect(store.getState().payload?.triangles).toBe(350);
+    expect(store.getState().modelVersion).toBe('demo');
+    expect(store.getState().marksRuntime!.store.getModelVersion()).toBe('demo');
+    expect(store.getState().status).toBe('connected');
+    expect(store.getState().viewerError).toBeNull();
+  });
+
+  it('does not replace a server model while the demo import is pending', async () => {
+    vi.stubEnv('MODE', 'demo');
+    await mount('demo', false);
+    const timer = vi.mocked(window.setTimeout).mock.calls.find(([, delay]) => delay === 600)!;
+    (timer[0] as () => void)();
+    const remote = model('Remote model', 20);
+    harness.feed!.onMesh(remote);
+    harness.feed!.onModelVersion?.('remote-v1');
+    await vi.dynamicImportSettled();
+    expect(store.getState().payload).toBe(remote);
+    expect(store.getState().modelVersion).toBe('remote-v1');
+  });
+
+  it('does not publish a pending demo import after unmount', async () => {
+    vi.stubEnv('MODE', 'demo');
+    await mount('demo', false);
+    const setPayload = vi.spyOn(store, 'setPayload');
+    const timer = vi.mocked(window.setTimeout).mock.calls.find(([, delay]) => delay === 600)!;
+    (timer[0] as () => void)();
+    unmount!();
+    unmount = undefined;
+    await vi.dynamicImportSettled();
+    await settle();
+    expect(setPayload.mock.calls.every(([payload]) => payload === null)).toBe(true);
+    expect(store.getState().payload).toBeNull();
+    expect(store.getState().viewerApi).toBeNull();
+  });
+
+  it('does not schedule an offline fixture outside demo mode', async () => {
+    vi.stubEnv('MODE', 'production');
+    await mount('production', false);
+    expect(vi.mocked(window.setTimeout).mock.calls.some(([, delay]) => delay === 600)).toBe(false);
+    expect(store.getState().payload).toBeNull();
+  });
+
   it.each(['viewerStartupFailed', 'modelExportFailed', 'locationAttachmentFailed'] as const)(
     'preserves %s when annotation synchronization succeeds',
     async key => {

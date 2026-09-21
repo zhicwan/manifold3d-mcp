@@ -37,6 +37,7 @@
     "verify:extension": "npm run build:extension && npm run test:extension && npm run verify --workspace @manifold3d/copilot-extension",
     "extension:install": "npm run build:extension && npm run install:local --workspace @manifold3d/copilot-extension",
     "build:sandbox-types": "node scripts/emit-sandbox-types.mjs",
+    "build:demo-payload": "npm run build:server && node scripts/emit-demo-payload.mjs",
     "check:sync": "node scripts/check-sync.mjs",
     "release:check": "npm run check:sync && npm run lint && npm run typecheck && npm test",
     "plugin:build": "npm run build:plugins",

@@ -1,10 +1,35 @@
 import { describe, expect, it } from 'vitest';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { buildDemoPayload } from '../packages/viewer/src/demo-payload.js';
 import { MeasurementGeometry } from '../packages/viewer/src/measurements/geometry.js';
 
 describe('boolean-unioned measurement fixture', () => {
-  it('offers boss and pin top centers but no centers for their cylindrical side facets', async () => {
-    const geometry = new MeasurementGeometry(await buildDemoPayload());
+  it('matches the deterministic public modeling build without rewriting the fixture', async () => {
+    await promisify(execFile)(process.execPath, ['scripts/emit-demo-payload.mjs', '--check'], {
+      cwd: new URL('..', import.meta.url),
+    });
+  });
+
+  it('returns independent data-only models with the original union statistics and feature labels', () => {
+    const payload = buildDemoPayload();
+    expect(payload).not.toBeInstanceOf(Promise);
+    expect(payload.triangles).toBe(350);
+    expect(payload.vertices).toBe(177);
+    expect(payload.volume).toBeCloseTo(64736.21126346706);
+    expect(payload.surfaceArea).toBeCloseTo(18575.727788154818);
+    expect(payload.genus).toBe(0);
+    expect(payload.features.map(feature => feature.label)).toEqual(['plate#1', 'wall#1', 'boss#1', 'pin#1']);
+    const other = buildDemoPayload();
+    expect(other).toEqual(payload);
+    expect(other.vertProperties).not.toBe(payload.vertProperties);
+    expect(other.triVerts).not.toBe(payload.triVerts);
+    expect(other.triFeatureIds).not.toBe(payload.triFeatureIds);
+    expect(other.features[0]).not.toBe(payload.features[0]);
+  });
+
+  it('offers boss and pin top centers but no centers for their cylindrical side facets', () => {
+    const geometry = new MeasurementGeometry(buildDemoPayload());
     for (const z of [24, 32]) {
       expect(geometry.centers.some(center => Math.abs(center.anchor[2] - z) < 1e-5)).toBe(true);
     }
@@ -24,8 +49,8 @@ describe('boolean-unioned measurement fixture', () => {
     }
   });
 
-  it('places the base-to-boss height at the boss, not a remote base corner', async () => {
-    const geometry = new MeasurementGeometry(await buildDemoPayload());
+  it('places the base-to-boss height at the boss, not a remote base corner', () => {
+    const geometry = new MeasurementGeometry(buildDemoPayload());
     const planeAt = (z: number) =>
       geometry.planes.find(
         candidate =>
@@ -43,8 +68,8 @@ describe('boolean-unioned measurement fixture', () => {
     expect(geometry.measure(boss, base)?.distance?.value).toBeCloseTo(16);
   });
 
-  it('measures the exposed wall edge to the union intersection, not its buried primitive endpoint', async () => {
-    const payload = await buildDemoPayload();
+  it('measures the exposed wall edge to the union intersection, not its buried primitive endpoint', () => {
+    const payload = buildDemoPayload();
     const geometry = new MeasurementGeometry(payload);
     const edges = geometry.edges.filter(candidate => {
       const edge = candidate.operand;

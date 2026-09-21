@@ -314,15 +314,12 @@ async function startViewerGeneration(
         if (!mounted || viewerStore.getState().payload) {
           return;
         }
-        void Promise.all([import('@/demo-payload'), import('manifold-3d/manifold.wasm?url')])
-          .then(async ([{ buildDemoPayload }, { default: wasmUrl }]) => {
+        void import('@/demo-payload')
+          .then(({ buildDemoPayload }) => {
             if (!mounted || viewerStore.getState().payload) {
               return;
             }
-            const demo = await buildDemoPayload(() => wasmUrl);
-            if (!mounted || viewerStore.getState().payload) {
-              return;
-            }
+            const demo = buildDemoPayload();
             viewerStore.setStatus('connected');
             viewerStore.setPayload(demo);
             viewer.setMesh(demo);
@@ -332,7 +329,7 @@ async function startViewerGeneration(
           })
           .catch(error => {
             if (mounted && !viewerStore.getState().payload) {
-              console.error('Failed to build the offline demo model.', error);
+              console.error('Failed to load the offline demo model.', error);
               viewerStore.setViewerError({ key: 'viewerStartupFailed', detail: errorMessage(error) });
             }
           });
