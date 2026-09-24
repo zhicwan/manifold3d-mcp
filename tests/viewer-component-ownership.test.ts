@@ -141,7 +141,6 @@ vi.mock('../packages/viewer/src/marks/flyout/index.js', () => ({
     cancelOpenDraft = vi.fn();
     updatePositions = vi.fn();
     dispose = vi.fn();
-    setMeasurementAction = vi.fn();
     setMeasurementAnchor = vi.fn();
     toggleMeasurement = vi.fn();
   },

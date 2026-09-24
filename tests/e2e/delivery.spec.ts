@@ -15,7 +15,7 @@ import {
   saveMeasurementComment,
 } from './viewer-helpers.js';
 
-test('Select Attach and editor Send capture immutable snapshots without duplicate SDK effects', async ({
+test('Select Attach captures immutable snapshots while measurement comments use batch delivery', async ({
   page,
   extension,
 }) => {
@@ -40,8 +40,10 @@ test('Select Attach and editor Send capture immutable snapshots without duplicat
   const input = await openMeasurementComment(page);
   await expect(batch(page)).toHaveCount(0);
   await input.fill('Send this draft as 92 mm');
-  await editor(page).getByRole('button', { name: 'Send changes', exact: true }).click();
-  await expect(dimension(page)).not.toHaveAttribute('data-pending');
+  await expect(editor(page).getByRole('button', { name: 'Send changes', exact: true })).toHaveCount(0);
+  await editor(page).getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(batch(page)).toContainText('1 note');
+  await batch(page).getByRole('button', { name: 'Fix', exact: true }).click();
   await expect.poll(() => extension.messages.length).toBe(1);
   expect(extension.messages[0]).toMatchObject({ mode: 'enqueue' });
   expect(extension.messages[0]?.prompt).toContain('Send this draft as 92 mm');

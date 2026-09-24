@@ -1,12 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import {
-  HostActionsClient,
-  hostActionDisabledReason,
-  LOCATION_SELECTION_ACTION_ID,
-  MODEL_EXPORT_ACTION_ID,
-} from '@/host-actions/client';
-import { SEND_MEASUREMENT, submitMeasurement } from '@/measurements/submission';
+import { HostActionsClient, LOCATION_SELECTION_ACTION_ID, MODEL_EXPORT_ACTION_ID } from '@/host-actions/client';
 import { installMarks } from '@/marks';
 import type { MarkMode } from '@/marks/types';
 import { installAnnotationsUplink } from '@/marks/ws-uplink';
@@ -178,55 +172,6 @@ async function startViewerGeneration(
         annotationRevision: marks.store.getRevision(),
       }),
     });
-    const refreshMeasurementAction = () => {
-      const snapshot = hostActions.getSnapshot();
-      const action = snapshot.actions.find(item => item.id === SEND_MEASUREMENT);
-      if (!action) {
-        marks.setMeasurementAction(null);
-        return;
-      }
-      const disabledReason = hostActionDisabledReason(
-        action,
-        {
-          connected: snapshot.connected,
-          protocolReady: snapshot.protocolState === 'ready',
-          hasModel: viewerStore.getState().payload !== null,
-          annotationCount: 1,
-          pending: false,
-        },
-        viewerStore.i18n,
-      );
-      marks.setMeasurementAction({
-        ...(disabledReason ? { disabledReason } : {}),
-        send(id) {
-          const modelVersion = marks.store.getModelVersion();
-          const isCurrent = () =>
-            mounted &&
-            viewerStore.getState().marksRuntime?.store === marks.store &&
-            viewerStore.getState().hostActionsClient === hostActions &&
-            marks.store.getModelVersion() === modelVersion;
-          if (viewerStore.getState().viewerError?.key === 'measurementDeliveryFailed') {
-            viewerStore.setViewerError(null);
-          }
-          void submitMeasurement({
-            id,
-            kind: 'send',
-            store: marks.store,
-            client: hostActions,
-            i18n: viewerStore.i18n,
-            isCurrent,
-            flush: () => uplink.flushNow(),
-          }).catch(error => {
-            if (isCurrent() && marks.store.get(id)) {
-              viewerStore.setViewerError({ key: 'measurementDeliveryFailed', detail: errorMessage(error) });
-            }
-          });
-        },
-      });
-    };
-    const removeMeasurementActionSubscription = hostActions.subscribe(refreshMeasurementAction);
-    const removeMeasurementLocaleSubscription = viewerStore.i18n.subscribe(refreshMeasurementAction);
-    partialCleanup.push(removeMeasurementActionSubscription, removeMeasurementLocaleSubscription);
     attachSelection = id => {
       const selection = marks.store.get(id);
       if (!selection) {
@@ -270,7 +215,6 @@ async function startViewerGeneration(
         viewerStore.setPayload(payload);
         viewer.setMesh(payload);
         marks.setPayload(payload);
-        refreshMeasurementAction();
       },
       onModelVersion: version => {
         viewerStore.setModelVersion(version);
@@ -428,8 +372,6 @@ async function startViewerGeneration(
         viewer.stop();
       },
       beforeContributions: [
-        removeMeasurementActionSubscription,
-        removeMeasurementLocaleSubscription,
         () => {
           if (demoTimer !== undefined) {
             window.clearTimeout(demoTimer);

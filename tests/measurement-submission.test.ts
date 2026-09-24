@@ -11,11 +11,7 @@ import { HostActionsClient } from '../packages/viewer/src/host-actions/client.js
 import { createViewerI18n } from '../packages/viewer/src/i18n/index.js';
 import { AnnotationStore } from '../packages/viewer/src/marks/annotation-store.js';
 import { measurementBadges, measurementLabelAction } from '../packages/viewer/src/measurements/presentation.js';
-import {
-  ATTACH_MEASUREMENT,
-  SEND_MEASUREMENT,
-  submitMeasurement,
-} from '../packages/viewer/src/measurements/submission.js';
+import { ATTACH_MEASUREMENT, submitMeasurement } from '../packages/viewer/src/measurements/submission.js';
 
 const evidence: MeasurementEvidence = {
   kind: 'edge-length',
@@ -42,21 +38,20 @@ function setup() {
     createRequestId: () => `request-${requests.length}`,
   });
   client.receiveManifest(
-    createHostActionsManifest(
-      [ATTACH_MEASUREMENT, SEND_MEASUREMENT].map(id => ({
-        id,
-        label: id,
+    createHostActionsManifest([
+      {
+        id: ATTACH_MEASUREMENT,
+        label: ATTACH_MEASUREMENT,
         slot: 'measurement-result',
         icon: 'message',
         tone: 'default',
         requires: ['model', 'annotations'],
-      })),
-    ),
+      },
+    ]),
   );
-  const submit = (kind: 'attach' | 'send') =>
+  const submit = () =>
     submitMeasurement({
       id: measurement.id,
-      kind,
       store,
       client,
       i18n: createViewerI18n('en'),
@@ -94,7 +89,7 @@ describe('measurement mode and delivery separation', () => {
 
   it('records attachment separately from comments, and permits edits without mutating prior snapshots', async () => {
     const { store, measurement, requests, snapshots, submit, complete, current } = setup();
-    const operation = submit('attach');
+    const operation = submit();
     expect(measurementBadges(current())).toMatchObject({ pending: true, attached: false, commented: false });
     complete('succeeded');
     await expect(operation).resolves.toBe('succeeded');
@@ -103,7 +98,7 @@ describe('measurement mode and delivery separation', () => {
     expect(measurementBadges(current())).toMatchObject({ attached: true, commented: true, attachmentChanged: true });
     expect(snapshots[0]).toMatchObject({ note: '' });
     expect(requests).toHaveLength(1);
-    const updated = submit('attach');
+    const updated = submit();
     complete('succeeded');
     await updated;
     expect(requests).toHaveLength(2);
@@ -112,45 +107,33 @@ describe('measurement mode and delivery separation', () => {
     expect(snapshots[0]).toMatchObject({ note: '' });
   });
 
-  it('does not label sending a modification as attachment and rejects empty modification requests', async () => {
-    const { store, measurement, requests, submit, complete, current } = setup();
-    await expect(submit('send')).rejects.toThrow(/instruction/);
-    expect(requests).toEqual([]);
-    store.updateMeasurementNote(measurement.id, 'Make it longer');
-    const operation = submit('send');
-    complete('succeeded');
-    await operation;
-    expect(measurementBadges(current())).toMatchObject({ sent: true, attached: false, commented: true });
-  });
-
   it('rejects concurrent delivery and ignores duplicate terminal statuses during the next operation', async () => {
     const { store, measurement, client, requests, submit, complete, current } = setup();
     store.updateMeasurementNote(measurement.id, 'first note');
-    const first = submit('attach');
+    const first = submit();
     expect(requests[0]).toMatchObject({
       modelVersion: 'v1',
       annotationRevision: store.getRevision(),
       annotationIds: [measurement.id],
       input: { markerNumbers: [measurement.displayNumber] },
     });
-    await expect(submit('attach')).rejects.toThrow(/already/);
-    await expect(submit('send')).rejects.toThrow(/already/);
+    await expect(submit()).rejects.toThrow(/already/);
     expect(requests).toHaveLength(1);
     complete('succeeded');
     await first;
     const oldStatus = client.getSnapshot().latestStatus!;
     store.updateMeasurementNote(measurement.id, 'second note');
-    const second = submit('send');
+    const second = submit();
     client.receiveStatus(oldStatus);
     await Promise.resolve();
     expect(current()).toMatchObject({ state: 'pending', note: 'second note', attachedNote: 'first note' });
-    expect(current()).not.toHaveProperty('sentNote');
+    expect(current()).not.toHaveProperty('attachedNote', 'second note');
     complete('succeeded');
     await second;
     const finished = current();
     client.receiveStatus(oldStatus);
     expect(current()).toBe(finished);
-    expect(current()).toMatchObject({ state: 'committed', sentNote: 'second note', attachedNote: 'first note' });
+    expect(current()).toMatchObject({ state: 'committed', attachedNote: 'second note' });
     expect(requests).toHaveLength(2);
   });
 
@@ -158,12 +141,12 @@ describe('measurement mode and delivery separation', () => {
     const { store, measurement, client, requests, transport, submit, current } = setup();
     store.updateMeasurementNote(measurement.id, 'keep for retry');
     transport.canFlush = false;
-    await expect(submit('attach')).resolves.toBe('failed');
+    await expect(submit()).resolves.toBe('failed');
     expect(current()).toMatchObject({ state: 'draft', note: 'keep for retry' });
     expect(requests).toEqual([]);
     expect(client.getSnapshot().latestStatus).toMatchObject({ state: 'failed', localFailure: 'annotation-sync' });
     transport.canFlush = true;
-    const operation = submit('send');
+    const operation = submit();
     const rejected = expect(operation).rejects.toThrow(/identity changed/);
     transport.connected = false;
     client.setConnectionStatus('disconnected');
@@ -171,105 +154,36 @@ describe('measurement mode and delivery separation', () => {
     client.receiveHello(createHelloMessage('replacement-client', 'new-token', false));
     await rejected;
     expect(current()).toMatchObject({ state: 'draft', note: 'keep for retry' });
-    expect(current()).not.toHaveProperty('sentNote');
-    await expect(submit('attach')).rejects.toThrow(/connect/i);
+    await expect(submit()).rejects.toThrow(/connect/i);
     expect(requests).toHaveLength(1);
   });
 
   it('preserves prior receipts and editable notes after failure without falsely adding an attachment badge', async () => {
     const { store, measurement, client, submit, complete, current } = setup();
     store.updateMeasurementNote(measurement.id, 'Keep this note');
-    const first = submit('attach');
+    const first = submit();
     const rejected = expect(first).resolves.toBe('failed');
     complete('failed');
     await rejected;
     expect(client.getSnapshot().latestStatus).toMatchObject({ state: 'failed', message: 'Retry this request' });
     expect(current()).toMatchObject({ state: 'draft', note: 'Keep this note' });
     expect(measurementBadges(current()).attached).toBe(false);
-    const retry = submit('attach');
+    const retry = submit();
     complete('succeeded');
     await retry;
-    const repeated = submit('attach');
+    const repeated = submit();
     const rejectedAgain = expect(repeated).resolves.toBe('failed');
     complete('failed');
     await rejectedAgain;
     expect(current()).toMatchObject({ state: 'committed', attachedNote: 'Keep this note' });
   });
 
-  it.each(['done', 'cancel', 'attach', 'fix'] as const)(
-    'keeps pending direct delivery owned through concurrent batch %s',
-    async batchAction => {
-      for (const result of ['succeeded', 'failed'] as const) {
-        const { store, measurement, submit, complete, current } = setup();
-        store.updateMeasurementNote(measurement.id, 'previously attached');
-        const initial = submit('attach');
-        complete('succeeded');
-        await initial;
-        store.updateMeasurementNote(measurement.id, 'new direct instruction');
-        const ordinary = store.addComment({
-          kind: 'point',
-          anchorWorld: [0, 0, 0],
-          worldCoord: [0, 0, 0],
-          triIds: [],
-          note: 'ordinary batch note',
-        });
-        const batched = store.addMeasurement(evidence, [5, 0, 0]);
-        store.updateMeasurementNote(batched.id, 'batched instruction');
-        const oldBatch = store.getDraftBatch();
-        const direct = submit('send');
-        const owned = current();
-        expect(owned).toMatchObject({
-          state: 'pending',
-          pendingDelivery: 'direct',
-          commentBase: { note: 'previously attached' },
-        });
-        expect(store.getDraftBatch().annotationIds).toEqual([ordinary.id, batched.id]);
-        expect(store.updateMeasurementNote(measurement.id, 'must not edit')).toBe(false);
-        expect(store.removeMeasurement(measurement.id)).toBe(false);
-        if (batchAction === 'cancel') {
-          store.cancelBatch(oldBatch.batchId);
-        } else {
-          if (batchAction !== 'done') {
-            store.sealBatch(oldBatch.batchId);
-            expect(current()).toBe(owned);
-          }
-          store.freezeBatch(
-            oldBatch.batchId,
-            batchAction === 'done' ? undefined : batchAction === 'attach' ? 'attach' : 'send',
-          );
-        }
-        expect(current()).toBe(owned);
-        expect(current()).not.toHaveProperty('sentNote');
-        complete(result);
-        await expect(direct).resolves.toBe(result);
-        expect(current()).toMatchObject({ note: 'new direct instruction', attachedNote: 'previously attached' });
-        expect(current()).not.toHaveProperty('pendingDelivery');
-        if (result === 'succeeded') {
-          expect(current()).toMatchObject({ state: 'committed', sentNote: 'new direct instruction' });
-          expect(current()).not.toHaveProperty('commentBase');
-          expect(store.getDraftBatch().annotationIds).toEqual([]);
-        } else {
-          expect(current()).toMatchObject({ state: 'draft' });
-          expect(current()).not.toHaveProperty('sentNote');
-          expect(store.getDraftBatch().annotationIds).toEqual([measurement.id]);
-          store.cancelBatch(store.getDraftBatch().batchId);
-          expect(current()).toMatchObject({
-            state: 'committed',
-            note: 'previously attached',
-            attachedNote: 'previously attached',
-            measurement: evidence,
-          });
-        }
-      }
-    },
-  );
-
   it.each(['succeeded', 'failed'] as const)(
     'does not apply late %s delivery to a replaced model or runtime',
     async state => {
       for (const replacement of ['model', 'runtime']) {
         const { store, owner, submit, complete, measurement } = setup();
-        const operation = submit('attach');
+        const operation = submit();
         if (replacement === 'model') {
           store.setModelVersion('v2');
         } else {

@@ -3,19 +3,17 @@ import type { ViewerI18n } from '../i18n/index.js';
 import type { AnnotationStore } from '../marks/annotation-store.js';
 
 export const ATTACH_MEASUREMENT = 'attach-measurement';
-export const SEND_MEASUREMENT = 'fix-measurement';
 
 /** Terminal failures stay in client status; preflight and interrupted requests throw. */
 export async function submitMeasurement(options: {
   id: string;
-  kind: 'attach' | 'send';
   store: AnnotationStore;
   client: HostActionsClient;
   i18n: ViewerI18n;
   isCurrent(): boolean;
   flush(): boolean;
 }): Promise<'succeeded' | 'failed' | 'stale'> {
-  const { id, kind, store, client, i18n, isCurrent, flush } = options;
+  const { id, store, client, i18n, isCurrent, flush } = options;
   if (!isCurrent()) {
     return 'stale';
   }
@@ -24,7 +22,7 @@ export async function submitMeasurement(options: {
     throw new Error(i18n.t('actionRequiresAnnotations'));
   }
   const snapshot = client.getSnapshot();
-  const actionId = kind === 'attach' ? ATTACH_MEASUREMENT : SEND_MEASUREMENT;
+  const actionId = ATTACH_MEASUREMENT;
   const action = snapshot.actions.find(item => item.id === actionId);
   if (!action) {
     throw new Error(i18n.t('actionNotReady'));
@@ -42,9 +40,6 @@ export async function submitMeasurement(options: {
   );
   if (reason) {
     throw new Error(reason);
-  }
-  if (kind === 'send' && !annotation.note.trim()) {
-    throw new Error(i18n.t('measureInstructionRequired'));
   }
   const previousState = annotation.state;
   if (!store.setMeasurementState(id, previousState, 'pending')) {
@@ -68,7 +63,7 @@ export async function submitMeasurement(options: {
     if (status.state !== 'succeeded') {
       throw new Error(status.message ?? i18n.t('measureSubmitFailed'));
     }
-    store.completeMeasurementDelivery(id, kind);
+    store.completeMeasurementDelivery(id, 'attach');
     flush();
     return 'succeeded';
   } catch (error) {

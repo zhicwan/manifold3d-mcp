@@ -19,8 +19,6 @@ import {
   ATTACH_MEASUREMENT_ACTION_ID,
   FIX_ANNOTATION_BATCH_ACTION_ID,
   FIX_ANNOTATION_BATCH_PROMPT,
-  FIX_MEASUREMENT_ACTION_ID,
-  FIX_MEASUREMENT_PROMPT,
   MANIFOLD_CANVAS_ID,
   startCopilotExtension,
   type CopilotExtensionApplication,
@@ -254,47 +252,6 @@ describe('Fix and Attach delivery (source composition)', () => {
     expect(sent.prompt).toContain('"end":[10,0,0]');
   });
 
-  it('sends an immutable measurement instruction snapshot only on explicit modification, never as a pill', async () => {
-    const harness = createHarness();
-    const enqueue = deferred<string>();
-    harness.send.mockReturnValueOnce(enqueue.promise);
-    application = await harness.start();
-    await harness.canvas().open(canvasContext());
-    const context = actionContext(FIX_MEASUREMENT_ACTION_ID);
-    expect(await actionHandler(FIX_MEASUREMENT_ACTION_ID)(context)).toMatchObject({
-      status: 'accepted',
-      operationId: context.requestId,
-      message: 'Sending measurement modification to Copilot.',
-    });
-    expect(context.publish.running).toHaveBeenCalledOnce();
-    expect(context.publish.succeeded).not.toHaveBeenCalled();
-    const sent = harness.send.mock.calls[0]![0];
-    expect(sent).toMatchObject({
-      mode: 'enqueue',
-      displayPrompt: 'Modify Manifold measurement · #1',
-      prompt: expect.stringContaining(FIX_MEASUREMENT_PROMPT),
-    });
-    const serialized = sent.prompt.slice(`${FIX_MEASUREMENT_PROMPT}\n\n`.length);
-    expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(MAX_ANNOTATION_ATTACHMENT_BYTES);
-    expect(parseAnnotationAttachment(JSON.parse(serialized))).toMatchObject({
-      mode: 'measurement',
-      modelVersion: 'model-7',
-      annotationRevision: 9,
-      annotations: [{ id: 'measurement-1', note: 'Make this 12 mm', measurement: context.annotations[0]!.measurement }],
-    });
-    context.annotations[0]!.note = 'edited later';
-    context.annotations[0]!.measurement!.distance!.end[0] = 99;
-    expect(sent.prompt).not.toContain('edited later');
-    expect(sent.prompt).toContain('"end":[10,0,0]');
-    enqueue.resolve('queued-measurement');
-    await enqueue.promise;
-    expect(context.publish.succeeded).toHaveBeenCalledWith(
-      'Measurement modification was accepted by Copilot for enqueueing.',
-    );
-    expect(harness.send).toHaveBeenCalledTimes(1);
-    expect(harness.sendAttachments).not.toHaveBeenCalled();
-  });
-
   it('still attaches a measurement with an empty instruction without sending', async () => {
     const harness = createHarness();
     application = await harness.start();
@@ -316,87 +273,6 @@ describe('Fix and Attach delivery (source composition)', () => {
     });
   });
 
-  it.each([
-    'empty instruction',
-    'whitespace instruction',
-    'oversize instruction',
-    'comment kind',
-    'missing ids',
-    'multiple ids',
-    'unrelated id',
-    'missing markers',
-    'multiple markers',
-    'extra input',
-  ])('rejects measurement modification with %s before any external effect', async invalid => {
-    const harness = createHarness();
-    application = await harness.start();
-    await harness.canvas().open(canvasContext());
-    const context = actionContext(FIX_MEASUREMENT_ACTION_ID);
-    if (invalid === 'empty instruction') {
-      context.annotations[0]!.note = '';
-    }
-    if (invalid === 'whitespace instruction') {
-      context.annotations[0]!.note = ' \n\t ';
-    }
-    if (invalid === 'oversize instruction') {
-      context.annotations[0]!.note = 'x'.repeat(4097);
-    }
-    if (invalid === 'comment kind') {
-      context.annotations = [batchAnnotations()[0]!];
-      context.annotationIds = ['point'];
-    }
-    if (invalid === 'missing ids') {
-      delete context.annotationIds;
-    }
-    if (invalid === 'multiple ids') {
-      context.annotationIds = ['measurement-1', 'other'];
-    }
-    if (invalid === 'unrelated id') {
-      context.annotationIds = ['other'];
-    }
-    if (invalid === 'missing markers') {
-      context.input = {};
-    }
-    if (invalid === 'multiple markers') {
-      context.input = { markerNumbers: [1, 2] };
-    }
-    if (invalid === 'extra input') {
-      context.input = { markerNumbers: [1], batchId: 'not-a-batch' };
-    }
-    expect(() => actionHandler(FIX_MEASUREMENT_ACTION_ID)(context)).toThrow();
-    expect(harness.send).not.toHaveBeenCalled();
-    expect(harness.sendAttachments).not.toHaveBeenCalled();
-  });
-
-  it.each(['rejection', 'synchronous throw', 'long rejection'])(
-    'recovers measurement modification after SDK %s',
-    async failure => {
-      const harness = createHarness();
-      harness.send.mockImplementationOnce(() => {
-        if (failure === 'synchronous throw') {
-          throw new Error('SDK unavailable');
-        }
-        return Promise.reject(new Error(failure === 'long rejection' ? 'x'.repeat(600) : 'SDK unavailable'));
-      });
-      application = await harness.start();
-      await harness.canvas().open(canvasContext());
-      const context = actionContext(FIX_MEASUREMENT_ACTION_ID);
-      await actionHandler(FIX_MEASUREMENT_ACTION_ID)(context);
-      expect(context.publish.failed).toHaveBeenCalledWith(
-        `Could not send measurement modification: ${failure === 'long rejection' ? 'x'.repeat(600) : 'SDK unavailable'}`.slice(
-          0,
-          512,
-        ),
-      );
-      expect(context.publish.succeeded).not.toHaveBeenCalled();
-      const retry = actionContext(FIX_MEASUREMENT_ACTION_ID);
-      retry.requestId = 'measurement-retry';
-      await actionHandler(FIX_MEASUREMENT_ACTION_ID)(retry);
-      expect(retry.publish.succeeded).toHaveBeenCalledOnce();
-      expect(harness.send).toHaveBeenCalledTimes(2);
-      expect(harness.sendAttachments).not.toHaveBeenCalled();
-    },
-  );
   it.each(['rejection', 'synchronous throw'] as const)(
     'reports SDK %s and allows a new manual batch request without adding any pill',
     async failure => {
@@ -447,27 +323,23 @@ describe('Fix and Attach delivery (source composition)', () => {
     expect(harness.sendAttachments).not.toHaveBeenCalled();
   });
 
-  it.each([FIX_ANNOTATION_BATCH_ACTION_ID, FIX_MEASUREMENT_ACTION_ID])(
-    'rejects a closed %s handler even after the same canvas instance is reopened',
-    async actionId => {
-      const harness = createHarness();
-      application = await harness.start();
-      await harness.canvas().open(canvasContext());
-      const oldHandler = actionHandler(actionId);
-      await harness.canvas().onClose?.(canvasContext());
-      expect(() => oldHandler(actionContext(actionId))).toThrow('Canvas room is no longer available.');
-      await harness.canvas().open(canvasContext());
-      expect(() => oldHandler(actionContext(actionId))).toThrow('Canvas room is no longer available.');
-      expect(harness.send).not.toHaveBeenCalled();
-      expect(harness.sendAttachments).not.toHaveBeenCalled();
-    },
-  );
+  it('rejects a closed batch Fix handler even after the same canvas instance is reopened', async () => {
+    const actionId = FIX_ANNOTATION_BATCH_ACTION_ID;
+    const harness = createHarness();
+    application = await harness.start();
+    await harness.canvas().open(canvasContext());
+    const oldHandler = actionHandler(actionId);
+    await harness.canvas().onClose?.(canvasContext());
+    expect(() => oldHandler(actionContext(actionId))).toThrow('Canvas room is no longer available.');
+    await harness.canvas().open(canvasContext());
+    expect(() => oldHandler(actionContext(actionId))).toThrow('Canvas room is no longer available.');
+    expect(harness.send).not.toHaveBeenCalled();
+    expect(harness.sendAttachments).not.toHaveBeenCalled();
+  });
 
   it.each([
     [FIX_ANNOTATION_BATCH_ACTION_ID, 'resolve'],
     [FIX_ANNOTATION_BATCH_ACTION_ID, 'reject'],
-    [FIX_MEASUREMENT_ACTION_ID, 'resolve'],
-    [FIX_MEASUREMENT_ACTION_ID, 'reject'],
   ])('ignores a late %s send %s after its room closes and reopens', async (actionId, outcome) => {
     const harness = createHarness();
     const enqueue = deferred<string>();
@@ -600,9 +472,7 @@ function actionHandler(id: string): HostActionHandler {
 
 function actionContext(
   actionId: string,
-  annotations = actionId === FIX_MEASUREMENT_ACTION_ID || actionId === ATTACH_MEASUREMENT_ACTION_ID
-    ? [measurementAnnotation()]
-    : batchAnnotations(),
+  annotations = actionId === ATTACH_MEASUREMENT_ACTION_ID ? [measurementAnnotation()] : batchAnnotations(),
 ): HostActionHandlerContext {
   return {
     requestId: 'request-1',
@@ -612,9 +482,7 @@ function actionContext(
     annotationIds: annotations.map(annotation => annotation.id),
     annotations,
     input: {
-      ...(actionId === FIX_MEASUREMENT_ACTION_ID || actionId === ATTACH_MEASUREMENT_ACTION_ID
-        ? {}
-        : { batchId: 'batch-1' }),
+      ...(actionId === ATTACH_MEASUREMENT_ACTION_ID ? {} : { batchId: 'batch-1' }),
       markerNumbers: annotations.map((_annotation, index) => index + 1),
     },
     publish: { running: vi.fn(), failed: vi.fn(), succeeded: vi.fn() },

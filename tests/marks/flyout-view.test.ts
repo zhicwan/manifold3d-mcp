@@ -110,25 +110,19 @@ describe('Compact annotation editor', () => {
     expect(disconnect).toHaveBeenCalledOnce();
   });
 
-  it('reuses the comment editor for measurement drafts and adds only the advertised send action', () => {
+  it('reuses the same comment editor actions for measurement drafts', () => {
     const { view, root, body, textarea, callbacks } = setup({
       ...draft,
       kind: 'measurement',
       intent: 'measurement',
-      sendAction: {},
       note: 'change this',
     });
     expect(root.querySelector('.marks-flyout-pill').hidden).toBe(true);
     expect(root.querySelector('.marks-flyout-preview').hidden).toBe(true);
-    expect(root.querySelector('.marks-flyout-send').hidden).toBe(false);
+    expect(root.innerHTML).not.toContain('marks-flyout-send');
     expect(textarea.placeholder).toBe('Add a note...');
     body.events.get('keydown')!({ target: textarea, key: 'Enter', preventDefault: vi.fn(), stopPropagation: vi.fn() });
     expect(callbacks.onCommit).toHaveBeenCalledOnce();
-    expect(callbacks.onSend).not.toHaveBeenCalled();
-    root.querySelector('.marks-flyout-send').events.get('click')!({});
-    expect(callbacks.onSend).toHaveBeenCalledOnce();
-    view.setView({ ...draft, kind: 'measurement', intent: 'measurement', sendAction: { disabledReason: 'offline' } });
-    expect(root.querySelector('.marks-flyout-send').title).toBe('offline');
     view.dispose();
   });
 

@@ -31,11 +31,10 @@ model. Done only saves locally; it does not attach context or send a message.
 Use **Select to chat** and click a ruler to attach the complete measurement
 directly. This dedicated measurement attachment adds one static pill without
 sending; its instruction may be empty. It is not a point/region location-selection
-attachment. The dedicated **Send modification** host action, when offered, still
-requires a nonempty instruction and enqueues the complete structured measurement
-snapshot without a pill. Ordinary batch **Fix** also accepts measurement comments;
-batch notes must always be nonempty. Saving or editing a field alone does not
-send. SDK enqueue acceptance is not confirmation that the model edit is finished.
+attachment. Measurement comments join the ordinary note batch; use batch
+**Attach** or **Fix** according to the user's explicit intent. Batch notes must
+always be nonempty. Saving or editing a field alone does not send. SDK enqueue
+acceptance is not confirmation that the model edit is finished.
 Previously attached measurements remain editable in Annotate. New edits do not
 change old composer pills; Select to chat explicitly creates another snapshot.
 Numbered measurement labels preview their note on hover; a paperclip marks an

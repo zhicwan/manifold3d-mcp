@@ -50,7 +50,6 @@ function RulerLayer({ marks, ruler }: { marks: MarksRuntime; ruler: RulerControl
         marks.store.getModelVersion() === annotation.modelVersion;
       const operation = submitMeasurement({
         id: annotation.id,
-        kind: 'attach',
         store: marks.store,
         client,
         i18n,
@@ -67,6 +66,8 @@ function RulerLayer({ marks, ruler }: { marks: MarksRuntime; ruler: RulerControl
           });
         }
       });
+    } else if (action === 'inspect') {
+      ruler.expand(state.expandedId === annotation.id ? null : annotation.id);
     } else {
       ruler.inspect(annotation.id);
     }
@@ -117,7 +118,7 @@ function RulerLayer({ marks, ruler }: { marks: MarksRuntime; ruler: RulerControl
               title={[measurementHint(annotation.measurement, i18n), ...statuses, attachReason ?? '']
                 .filter(Boolean)
                 .join(' · ')}
-              selected={label.id === state.expandedId}
+              selected={mode !== 'orbit' && label.id === state.expandedId}
               badges={badges}
               {...(badges.commented || badges.attached ? { displayNumber: annotation.displayNumber } : {})}
               comment={editing && label.id === state.expandedId ? undefined : annotation.note}

@@ -43,16 +43,20 @@ Hover previews do not send messages. Selecting an edge immediately retains its
 length; selecting another object updates that same result into a relationship.
 Measure creates and manages labels without opening comment editors. Annotate
 opens a label's comment editor, and Select attaches its structured measurement
-directly when the host supports it. Orbit inspects without editing or delivery.
+directly when the host supports it. Orbit labels provide hover/focus feedback;
+clicking toggles geometry-only inspection so angle operands remain legible without
+giving the label an editing/selection state. Clicking the model clears inspection.
 The ruler sits directly above zoom in the view-tools group, separated from
 annotation controls.
 Results remain on the current model. Values sit inline within projected
 dimension lines, including during hover. A short hint replaces the measurement
 panel; its only action is Exit. Candidate ranking drives direct picking, without
-a separate candidate-choice menu. Clicking a dimension in Annotate opens a direct instruction field. No technical
-information panel or per-result restart tool is shown. Supported hosts offer
-explicit Select-to-attach and comment Send changes actions; measurement alone never requests a
-change. Comment edits remain local drafts until explicitly delivered to chat.
+a separate candidate-choice menu. Clicking a dimension in Annotate opens the
+shared note editor. No technical information panel or per-result restart tool is
+shown. Measurement notes join the ordinary bottom Attach/Fix batch; there is no
+per-measurement Send changes action. Select-to-attach remains a separate direct
+evidence action. Measurement alone never requests a change. Comment edits remain
+local drafts until explicitly delivered to chat.
 An attached label remains editable; past attachments are immutable snapshots.
 Only measurements with a nonempty comment or a successful attachment show the
 shared annotation number; plain measurements show the value alone.

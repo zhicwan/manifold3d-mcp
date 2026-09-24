@@ -1,5 +1,20 @@
 import { test, expect } from './extension-fixture.js';
-import { createMeasurement, dimension, label, openViewer } from './viewer-helpers.js';
+import { attachMeasurement, createMeasurement, dimension, label, openViewer } from './viewer-helpers.js';
+
+test('a status-only tip shares the ViewCube vertical center', async ({ page, extension }) => {
+  await openViewer(page, extension);
+  await createMeasurement(page);
+  await attachMeasurement(page);
+  const status = page.locator('.viewer-action-status');
+  await expect(status).toBeVisible();
+  const viewport = page.viewportSize()!;
+  await expect
+    .poll(async () => {
+      const box = await status.boundingBox();
+      return box ? Math.abs(box.y + box.height / 2 - (viewport.height - 68)) : Infinity;
+    })
+    .toBeLessThanOrEqual(1);
+});
 
 test('measurement hint and a single delivery error share non-overlapping bottom islands', async ({
   page,

@@ -15,6 +15,7 @@ export interface MeasurementTool {
   clearHover(): void;
   setNavigating?(navigating: boolean): void;
   trackPointer?(event: Pick<PointerEvent, 'clientX' | 'clientY'>): void;
+  clearInspection?(): void;
 }
 
 /**
@@ -211,6 +212,9 @@ export class MarkTool {
       return;
     }
     if (this.mode === 'orbit' || this.spacePressed || event.button !== 0) {
+      if (this.mode === 'orbit' && event.button === 0) {
+        this.measurement?.clearInspection?.();
+      }
       this.cameraGesture = true;
       this.updateNavigation();
       return;

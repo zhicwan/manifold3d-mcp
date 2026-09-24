@@ -27,8 +27,6 @@ import {
   ATTACH_MEASUREMENT_ACTION_ID,
   FIX_ANNOTATION_BATCH_ACTION_ID,
   FIX_ANNOTATION_BATCH_PROMPT,
-  FIX_MEASUREMENT_ACTION_ID,
-  FIX_MEASUREMENT_PROMPT,
   MANIFOLD_CANVAS_ID,
   MODEL_EXPORT_ACTION_ID,
   OPEN_IN_MANIFOLDCAD_ACTION_ID,
@@ -100,13 +98,6 @@ describe('production Copilot Extension composition', () => {
           expect.objectContaining({
             id: ATTACH_MEASUREMENT_ACTION_ID,
             slot: 'measurement-result',
-          }),
-          expect.objectContaining({
-            id: FIX_MEASUREMENT_ACTION_ID,
-            slot: 'measurement-result',
-            icon: 'wand',
-            tone: 'primary',
-            requires: ['model', 'annotations'],
           }),
           expect.objectContaining({
             id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
@@ -406,132 +397,108 @@ describe('production Copilot Extension composition', () => {
     }
   });
 
-  it.each([FIX_ANNOTATION_BATCH_ACTION_ID, FIX_MEASUREMENT_ACTION_ID])(
-    'enqueues %s snapshot without a pill and replays idempotent statuses',
-    async actionId => {
-      const sendResult = deferred<string>();
-      const harness = createHarness({
-        send: () => sendResult.promise,
+  it('enqueues a batch snapshot without a pill and replays idempotent statuses', async () => {
+    const actionId = FIX_ANNOTATION_BATCH_ACTION_ID;
+    const sendResult = deferred<string>();
+    const harness = createHarness({
+      send: () => sendResult.promise,
+    });
+    application = await startCopilotExtension(harness.startOptions);
+    const opened = await harness.canvas().open(openContext('canvas-fix'));
+    const client = await openRoom(requiredUrl(opened.url));
+    try {
+      await harness
+        .tool('manifold_execute_script')
+        .handler?.({ code: 'result = Manifold.cube(1);', description: 'first' }, invocation('manifold_execute_script'));
+      const version = requiredString(
+        (await client.messages.waitFor(message => message.kind === 'model_version' && message.modelVersion !== 'none'))
+          .modelVersion,
+      );
+      const measurement: WireAnnotation = {
+        id: 'fix-me',
+        modelVersion: version,
+        kind: 'measurement',
+        partLabel: 'Measurement',
+        note: 'Make this 12 mm',
+        worldCoord: [5, 0, 0],
+        measurement: {
+          kind: 'edge-length',
+          operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+          distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+        },
+      };
+      const annotations: WireAnnotation[] = [
+        pointAnnotation('point', version, 'make it taller'),
+        { ...pointAnnotation('region', version, 'round this region'), kind: 'region', triCount: 12 },
+        measurement,
+      ];
+      const markerNumbers = annotations.map((_annotation, index) => index + 1);
+      client.socket.send(JSON.stringify(createAnnotationsMessage(version, 1, annotations)));
+      await new Promise<void>(resolvePromise => setTimeout(resolvePromise, 10));
+      const request = createHostActionInvocation({
+        requestId: 'fix-request',
+        actionId,
+        modelVersion: version,
+        annotationRevision: 1,
+        annotationIds: annotations.map(annotation => annotation.id),
+        input: { batchId: 'fix-batch', markerNumbers },
       });
-      application = await startCopilotExtension(harness.startOptions);
-      const opened = await harness.canvas().open(openContext('canvas-fix'));
-      const client = await openRoom(requiredUrl(opened.url));
-      try {
-        await harness
-          .tool('manifold_execute_script')
-          .handler?.(
-            { code: 'result = Manifold.cube(1);', description: 'first' },
-            invocation('manifold_execute_script'),
-          );
-        const version = requiredString(
-          (
-            await client.messages.waitFor(
-              message => message.kind === 'model_version' && message.modelVersion !== 'none',
-            )
-          ).modelVersion,
-        );
-        const measurement: WireAnnotation = {
-          id: 'fix-me',
-          modelVersion: version,
-          kind: 'measurement',
-          partLabel: 'Measurement',
-          note: 'Make this 12 mm',
-          worldCoord: [5, 0, 0],
-          measurement: {
-            kind: 'edge-length',
-            operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
-            distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
-          },
-        };
-        const annotations: WireAnnotation[] =
-          actionId === FIX_MEASUREMENT_ACTION_ID
-            ? [measurement]
-            : [
-                pointAnnotation('point', version, 'make it taller'),
-                { ...pointAnnotation('region', version, 'round this region'), kind: 'region', triCount: 12 },
-                measurement,
-              ];
-        const markerNumbers = annotations.map((_annotation, index) => index + 1);
-        client.socket.send(JSON.stringify(createAnnotationsMessage(version, 1, annotations)));
-        await new Promise<void>(resolvePromise => setTimeout(resolvePromise, 10));
-        if (actionId === FIX_MEASUREMENT_ACTION_ID) {
-          await expectFailedAction(client, {
-            requestId: 'unrelated-measurement',
-            actionId,
-            modelVersion: version,
-            annotationRevision: 1,
-            annotationIds: ['unrelated'],
-            input: { markerNumbers: [1] },
-          });
-          expect(harness.send).not.toHaveBeenCalled();
-        }
-        const request = createHostActionInvocation({
-          requestId: 'fix-request',
-          actionId,
-          modelVersion: version,
-          annotationRevision: 1,
-          annotationIds: annotations.map(annotation => annotation.id),
-          input: { ...(actionId === FIX_MEASUREMENT_ACTION_ID ? {} : { batchId: 'fix-batch' }), markerNumbers },
-        });
-        client.socket.send(JSON.stringify(request));
-        await client.messages.waitFor(
-          message =>
-            message.kind === 'host_action_status' &&
-            message.requestId === request.requestId &&
-            message.state === 'running' &&
-            message.operationId === request.requestId,
-        );
-        await eventually(() => harness.send.mock.calls.length === 1);
-        const attachmentInput = {
-          modelVersion: version,
-          annotationRevision: 1,
-          annotations,
-          markerNumbers,
-        };
-        const expectedAttachment =
-          actionId === FIX_MEASUREMENT_ACTION_ID
-            ? buildAnnotationAttachment({ ...attachmentInput, mode: 'measurement' })
-            : buildAnnotationAttachment({ ...attachmentInput, mode: 'annotation-batch', batchId: 'fix-batch' });
-        expect(harness.send).toHaveBeenLastCalledWith({
-          mode: 'enqueue',
-          prompt: `${actionId === FIX_MEASUREMENT_ACTION_ID ? FIX_MEASUREMENT_PROMPT : FIX_ANNOTATION_BATCH_PROMPT}\n\n${JSON.stringify(expectedAttachment)}`,
-          displayPrompt:
-            actionId === FIX_MEASUREMENT_ACTION_ID
-              ? 'Modify Manifold measurement · #1'
-              : 'Fix 3 Manifold annotations · fix-batch',
-        });
-        expect(harness.sendAttachments).not.toHaveBeenCalled();
+      client.socket.send(JSON.stringify(request));
+      await client.messages.waitFor(
+        message =>
+          message.kind === 'host_action_status' &&
+          message.requestId === request.requestId &&
+          message.state === 'running' &&
+          message.operationId === request.requestId,
+      );
+      await eventually(() => harness.send.mock.calls.length === 1);
+      const attachmentInput = {
+        modelVersion: version,
+        annotationRevision: 1,
+        annotations,
+        markerNumbers,
+      };
+      const expectedAttachment = buildAnnotationAttachment({
+        ...attachmentInput,
+        mode: 'annotation-batch',
+        batchId: 'fix-batch',
+      });
+      expect(harness.send).toHaveBeenLastCalledWith({
+        mode: 'enqueue',
+        prompt: `${FIX_ANNOTATION_BATCH_PROMPT}\n\n${JSON.stringify(expectedAttachment)}`,
+        displayPrompt: 'Fix 3 Manifold annotations · fix-batch',
+      });
+      expect(harness.sendAttachments).not.toHaveBeenCalled();
 
-        client.socket.send(JSON.stringify(request));
-        await client.messages.waitForCount(
-          message => message.kind === 'host_action_status' && message.requestId === request.requestId,
-          4,
-        );
-        expect(harness.sendAttachments).not.toHaveBeenCalled();
-        expect(harness.send).toHaveBeenCalledTimes(1);
+      client.socket.send(JSON.stringify(request));
+      await client.messages.waitForCount(
+        message => message.kind === 'host_action_status' && message.requestId === request.requestId,
+        4,
+      );
+      expect(harness.sendAttachments).not.toHaveBeenCalled();
+      expect(harness.send).toHaveBeenCalledTimes(1);
 
-        sendResult.resolve('assistant-message');
-        await client.messages.waitFor(
-          message =>
-            message.kind === 'host_action_status' &&
-            message.requestId === request.requestId &&
-            message.state === 'succeeded',
-        );
-        client.socket.send(JSON.stringify(request));
-        await client.messages.waitForCount(
-          message =>
-            message.kind === 'host_action_status' &&
-            message.requestId === request.requestId &&
-            message.state === 'succeeded',
-          2,
-        );
-        expect(harness.sendAttachments).not.toHaveBeenCalled();
-        expect(harness.send).toHaveBeenCalledTimes(1);
-      } finally {
-        client.socket.terminate();
-      }
-    },
-  );
+      sendResult.resolve('assistant-message');
+      await client.messages.waitFor(
+        message =>
+          message.kind === 'host_action_status' &&
+          message.requestId === request.requestId &&
+          message.state === 'succeeded',
+      );
+      client.socket.send(JSON.stringify(request));
+      await client.messages.waitForCount(
+        message =>
+          message.kind === 'host_action_status' &&
+          message.requestId === request.requestId &&
+          message.state === 'succeeded',
+        2,
+      );
+      expect(harness.sendAttachments).not.toHaveBeenCalled();
+      expect(harness.send).toHaveBeenCalledTimes(1);
+    } finally {
+      client.socket.terminate();
+    }
+  });
 
   it('attaches one static measurement without sending and rejects stale, location and empty-note batch requests', async () => {
     const delivery = deferred<void>();

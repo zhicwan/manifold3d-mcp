@@ -49,6 +49,8 @@ test('real pointer measurement preserves baseline appearance and mode routing', 
   await page.keyboard.press('Escape');
   await expect(page.locator('#view')).toHaveAttribute('data-mark-mode', 'orbit');
   await label(page).click();
+  await expect(dimension(page)).not.toHaveAttribute('data-selected');
+  await label(page).click();
   await expect(editor(page)).toHaveCount(0);
   await expect(dimension(page)).toHaveCount(1);
   expect(extension.attachments).toHaveLength(0);

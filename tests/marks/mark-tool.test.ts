@@ -112,6 +112,7 @@ describe('MarkTool annotate/select gestures', () => {
     click: ReturnType<typeof vi.fn<(event: Pick<PointerEvent, 'clientX' | 'clientY'>) => void>>;
     escape: ReturnType<typeof vi.fn<() => boolean>>;
     clearHover: ReturnType<typeof vi.fn<() => void>>;
+    clearInspection: ReturnType<typeof vi.fn<() => void>>;
   };
   let tool: MarkTool;
 
@@ -135,7 +136,13 @@ describe('MarkTool annotate/select gestures', () => {
     };
     modeChanged = vi.fn();
     selectionCreated = vi.fn();
-    measurement = { hover: vi.fn(), click: vi.fn(), escape: vi.fn(() => false), clearHover: vi.fn() };
+    measurement = {
+      hover: vi.fn(),
+      click: vi.fn(),
+      escape: vi.fn(() => false),
+      clearHover: vi.fn(),
+      clearInspection: vi.fn(),
+    };
     vi.stubGlobal('window', fakeWindow);
     vi.stubGlobal('HTMLElement', FakeElement);
     vi.stubGlobal('Node', FakeElement);
@@ -301,6 +308,13 @@ describe('MarkTool annotate/select gestures', () => {
     fakeDocument.emit('pointerup', { ...mouse(10, 10), ctrlKey: true });
 
     expect(store.list()).toEqual([]);
+  });
+
+  it('clears measurement inspection when primary Orbit interaction returns to the model', () => {
+    canvas.emit('pointerdown', mouse(10, 10));
+    expect(measurement.clearInspection).toHaveBeenCalledOnce();
+    canvas.emit('pointerdown', { ...mouse(10, 10), button: 2 });
+    expect(measurement.clearInspection).toHaveBeenCalledOnce();
     expect(controls.enabled).toBe(true);
   });
 

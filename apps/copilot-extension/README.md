@@ -81,7 +81,6 @@ Each Viewer room exposes these host actions:
 - `fix-annotation-batch` in `annotation-batch`
 - `attach-location-selection` in `selection-gesture`
 - `attach-measurement` in `measurement-result`
-- `fix-measurement` (Send modification) in `measurement-result`
 - `open-in-manifoldcad` in the toolbar
 - `export-model-file` as the export handler
 
@@ -137,20 +136,15 @@ are preserved separately from prose. `edge-corner` is the angle between rays
 leaving the unique shared endpoint of two edges (0-180 degrees); other methods
 remain smaller unoriented angles (0-90 degrees). The
 snapshot is validated, detached and bounded to 128 KiB. Attach adds a composer
-pill without sending a message. `fix-measurement` uses the same explicit single-id
-and marker-number input, but requires a non-whitespace instruction in the
-measurement note. Its **Send modification** action enqueues the complete static
-snapshot and a measurement-specific revision prompt via `session.send`; it never
-adds a composer pill. Success means SDK enqueue acceptance, not completion of
-the model edit. Failed sends remain failed actions for an explicit manual retry.
-Saving or editing the instruction alone never sends anything. This dedicated
-mode remains separate from commented measurement selections in ordinary batches.
+pill without sending a message. Measurement comments join ordinary annotation
+batches, whose Attach and Fix actions preserve the same structured evidence.
+Saving or editing a comment alone never sends anything.
 Location-selection attachments still reject measurements: clicking a ruler with
 Select to chat invokes the dedicated measurement attachment action instead.
 Replacing the model clears live
 measurements but cannot rewrite already attached historical snapshots.
 The MCP browser exposes completed measurements through `get_annotations` YAML;
-it does not offer composer pills or active Send modification. These actions are
+it does not offer composer pills or active Fix delivery. These actions are
 available only when the host advertises them. Software capture supports witness lines and
 method/value labels; angle labels do not imply a physical intersection arc.
 

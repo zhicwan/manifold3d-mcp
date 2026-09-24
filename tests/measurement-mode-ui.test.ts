@@ -47,6 +47,7 @@ interface ElementProps {
   badges?: { commented: boolean; attached: boolean };
   comment?: string;
   displayNumber?: number;
+  selected?: boolean;
 }
 function nodes(tree: React.ReactNode): Array<React.ReactElement<ElementProps>> {
   const result: Array<React.ReactElement<ElementProps>> = [];
@@ -180,6 +181,12 @@ describe('measurement label mode routing', () => {
       expect(openComment).not.toHaveBeenCalled();
       expect(sent).toEqual([]);
       expect(harness.store!.getState().markMode).toBe(mode);
+      if (mode === 'orbit') {
+        expect(label.props.selected).toBe(false);
+        expect(ruler.getSnapshot().expandedId).toBe(id);
+        render().find(node => node.props.text === '10 mm')!.props.onClick!();
+        expect(ruler.getSnapshot().expandedId).toBeNull();
+      }
     },
   );
 

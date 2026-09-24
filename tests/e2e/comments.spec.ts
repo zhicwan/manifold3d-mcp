@@ -19,7 +19,7 @@ test('shared editor handles keyboard, real IME composition, cancel and condition
   await createMeasurement(page);
   const input = await openMeasurementComment(page);
   await expect(input).toHaveAttribute('placeholder', 'Add a note...');
-  await expect(editor(page).getByRole('button', { name: 'Send changes', exact: true })).toBeDisabled();
+  await expect(editor(page).getByRole('button', { name: 'Send changes', exact: true })).toHaveCount(0);
   await input.fill('unsaved draft');
   await expect(label(page)).not.toContainText('#');
   await expect(batch(page)).toHaveCount(0);

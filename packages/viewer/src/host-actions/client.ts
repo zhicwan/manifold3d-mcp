@@ -370,8 +370,6 @@ export function hostActionDisabledReason(
 
 export function hostActionLabel(action: HostActionDescriptor, i18n: ViewerI18n): string {
   switch (action.id) {
-    case 'fix-measurement':
-      return i18n.t('measureSend');
     case 'attach-measurement':
       return i18n.t('measureAttach');
     case 'attach-annotation-batch':
@@ -397,9 +395,6 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
     return status.message ? i18n.t('actionFailureDetail', status.message) : i18n.t('actionFailed');
   }
   if (status.state === 'succeeded') {
-    if (status.actionId === 'fix-measurement') {
-      return i18n.t('measureSent');
-    }
     if (status.actionId === 'attach-measurement') {
       return i18n.t('measureAttached');
     }
@@ -426,8 +421,6 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
     }
   }
   switch (status.actionId) {
-    case 'fix-measurement':
-      return i18n.t('measureSubmitting');
     case 'attach-measurement':
       return i18n.t('measureAttaching');
     case 'attach-annotation-batch':

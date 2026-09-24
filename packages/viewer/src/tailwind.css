@@ -157,6 +157,7 @@ body,
   --viewer-rail-inset: 80px;
   --viewer-bottom-clearance: 104px;
   --viewer-bottom-inset: 24px;
+  --viewer-view-cube-center: 68px;
 }
 
 .viewer-glass {
@@ -316,6 +317,12 @@ body,
   align-items: center;
   gap: 8px;
   pointer-events: none;
+}
+
+.viewer-bottom-islands:has(.viewer-action-status):not(:has(.viewer-batch-bar, .measurement-hud, .measurement-notice)) {
+  top: calc(100% - var(--viewer-view-cube-center));
+  bottom: auto;
+  transform: translate(-50%, -50%);
 }
 
 .viewer-batch-bar {

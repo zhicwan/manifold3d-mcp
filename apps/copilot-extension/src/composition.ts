@@ -29,14 +29,10 @@ export const ATTACH_ANNOTATION_BATCH_ACTION_ID = 'attach-annotation-batch';
 export const FIX_ANNOTATION_BATCH_ACTION_ID = 'fix-annotation-batch';
 export const ATTACH_LOCATION_SELECTION_ACTION_ID = 'attach-location-selection';
 export const ATTACH_MEASUREMENT_ACTION_ID = 'attach-measurement';
-export const FIX_MEASUREMENT_ACTION_ID = 'fix-measurement';
 export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
 export const OPEN_IN_MANIFOLDCAD_ACTION_ID = 'open-in-manifoldcad';
 export const FIX_ANNOTATION_BATCH_PROMPT =
   'Revise the current manifold-3d model using the following static annotation batch snapshot.';
-export const FIX_MEASUREMENT_PROMPT =
-  'Revise the current manifold-3d model following the user instruction in this static measurement snapshot. ' +
-  'Use the structured measurement as evidence and preserve unrelated geometry.';
 const DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS = 500;
 const DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS = 250;
 
@@ -375,17 +371,6 @@ class ExtensionController {
         ),
         room.registerAction(
           {
-            id: FIX_MEASUREMENT_ACTION_ID,
-            label: 'Send modification',
-            icon: 'wand',
-            slot: 'measurement-result',
-            tone: 'primary',
-            requires: ['model', 'annotations'],
-          },
-          context => this.fixMeasurement(binding, context),
-        ),
-        room.registerAction(
-          {
             id: OPEN_IN_MANIFOLDCAD_ACTION_ID,
             label: 'Open in ManifoldCAD',
             icon: 'external-link',
@@ -463,27 +448,12 @@ class ExtensionController {
     );
   }
 
-  private fixMeasurement(binding: RoomBinding, context: HostActionHandlerContext): HostActionHandlerResult {
-    const attachment = this.buildMeasurementAttachment(context);
-    const measurement = attachment.annotations[0];
-    if (!measurement.note?.trim()) {
-      throw new Error('Sending a measurement modification requires a non-empty instruction.');
-    }
-    return this.enqueueFix(
-      binding,
-      context,
-      `${FIX_MEASUREMENT_PROMPT}\n\n${JSON.stringify(attachment)}`,
-      `Modify Manifold measurement · #${measurement.displayNumber}`,
-      'Measurement modification',
-    );
-  }
-
   private enqueueFix(
     binding: RoomBinding,
     context: HostActionHandlerContext,
     prompt: string,
     displayPrompt: string,
-    subject: 'Annotation fix' | 'Measurement modification',
+    subject: 'Annotation fix',
   ): HostActionHandlerResult {
     if (!this.canPublishTo(binding)) {
       throw new Error('Canvas room is no longer available.');

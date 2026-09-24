@@ -115,14 +115,13 @@ The displayed mesh owns an indirect BVH for picking and anchor occlusion,
 released with its geometry; acceleration does not reorder canonical triangle ids
 or patch Three.js prototypes globally.
 
-| Action                                  | External effect                                                              |
-| --------------------------------------- | ---------------------------------------------------------------------------- |
-| Extension Fix                           | Send the complete bounded snapshot in an enqueued message; no composer pill  |
-| Extension Attach                        | Append a static batch pill; do not send a message                            |
-| Extension location selection            | Append a location pill without a comment                                     |
-| Extension measurement Attach            | Append one static structured measurement pill; optional note, no message     |
-| Extension measurement Send modification | Enqueue one static measurement snapshot with a required instruction; no pill |
-| MCP Done / Cancel                       | Commit or discard the local draft batch for the MCP annotation workflow      |
+| Action                       | External effect                                                             |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| Extension Fix                | Send the complete bounded snapshot in an enqueued message; no composer pill |
+| Extension Attach             | Append a static batch pill; do not send a message                           |
+| Extension location selection | Append a location pill without a comment                                    |
+| Extension measurement Attach | Append one static structured measurement pill; optional note, no message    |
+| MCP Done / Cancel            | Commit or discard the local draft batch for the MCP annotation workflow     |
 
 Completed ruler measurements share annotation identity, revision and model-version
 ownership. Pure dimensions do not enter notes batches; saving a nonempty measurement
@@ -173,7 +172,8 @@ replaces that untouched result with their relationship instead of accumulating
 a redundant length and requiring a separate save step.
 Label clicks follow the existing active tool: Measure manages labels, Annotate
 opens the comment-style single-line editor, Select invokes the dedicated
-measurement attachment capability, and Orbit inspects without editing or delivery.
+measurement attachment capability, and Orbit toggles geometry-only inspection
+without styling the label as selected.
 Only Measure exposes measurement removal. Comment editing can save or explicitly
 send a modification; attachment is handled by Select, without opening an editor
 or creating another point annotation.
@@ -215,13 +215,10 @@ measurement notes in mixed batches as
 `selection: { kind: "measurement", measurement, worldCoord }`. Each batch item
 requires a non-whitespace note; pure dimensions cannot be submitted in a batch.
 Location-selection still accepts only points and regions, never measurements.
-The dedicated `fix-measurement` action uses
-the same single-id/marker-number invocation and bounded snapshot, but requires
-a non-whitespace note as the modification instruction. It shares existing Fix
-send lifecycle ownership and enqueues a measurement-specific prompt without a
-composer pill. Only explicit Send modification sends; instruction edits do not.
-These measurement actions are host-advertised capabilities, not portable MCP
-features. MCP preserves the same structured evidence in
+Measurement comments use the same batch Attach/Fix actions and lifecycle as
+point and region comments. The direct measurement action is Select-to-attach
+only. These actions are host-advertised capabilities, not portable MCP features.
+MCP preserves the same structured evidence in
 `get_annotations` YAML, without a composer action. Model replacement clears
 current measurements; an already attached snapshot remains historical evidence.
 Local measurement receipts retain the last attached and sent note independently.

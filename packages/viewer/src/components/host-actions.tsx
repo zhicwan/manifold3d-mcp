@@ -165,8 +165,7 @@ export function HostActionStatusRegion() {
   const showStatus =
     !protocolError &&
     !(
-      (viewerError?.key === 'measurementDeliveryFailed' &&
-        (status?.actionId === 'attach-measurement' || status?.actionId === 'fix-measurement')) ||
+      (viewerError?.key === 'measurementDeliveryFailed' && status?.actionId === 'attach-measurement') ||
       (viewerError?.key === 'annotationDeliveryFailed' &&
         (status?.actionId === 'attach-annotation-batch' || status?.actionId === 'fix-annotation-batch'))
     );

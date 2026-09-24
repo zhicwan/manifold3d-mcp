@@ -107,9 +107,6 @@ export function installMarks(deps: MarksDeps): MarksHandle {
     setMeasurementAnchor(id: string, element: HTMLElement | null): void {
       flyouts.setMeasurementAnchor(id, element);
     },
-    setMeasurementAction(action: { disabledReason?: string; send(id: string): void } | null): void {
-      flyouts.setMeasurementAction(action);
-    },
     setMode(mode: MarkMode): void {
       tool.setMode(mode);
     },
@@ -159,7 +156,6 @@ export interface MarksHandle {
   ruler: RulerController;
   openMeasurementComment(id: string): void;
   setMeasurementAnchor(id: string, element: HTMLElement | null): void;
-  setMeasurementAction(action: { disabledReason?: string; send(id: string): void } | null): void;
   setMode(mode: MarkMode): void;
   commitOpenDraft(): void;
   cancelOpenDraft(): void;

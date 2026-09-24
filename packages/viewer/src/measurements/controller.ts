@@ -306,6 +306,12 @@ export class RulerController {
     this.expand(id);
   }
 
+  clearInspection(): void {
+    if (this.snapshot.expandedId !== null) {
+      this.expand(null);
+    }
+  }
+
   setDimension(id: string, strokes: readonly DimensionStroke[], width: number, height: number, color: string): void {
     if (!this.disposed) {
       this.renderer.setDimension(id, strokes, this.camera, width, height, color);

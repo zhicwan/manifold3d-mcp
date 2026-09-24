@@ -42,7 +42,6 @@ export class FlyoutLayer {
   private readonly controller: FlyoutController;
   private unsubscribe: (() => void) | null = null;
   private readonly measurementAnchors = new Map<string, HTMLElement>();
-  private measurementAction: { disabledReason?: string; send(id: string): void } | null = null;
   onMeasurementExpansion?: (id: string | null) => void;
 
   /** Cached CSS-pixel dimensions, invalidated by canvas resizing rather than every frame. */
@@ -183,15 +182,6 @@ export class FlyoutLayer {
     this.invalidateLayout();
   }
 
-  setMeasurementAction(action: { disabledReason?: string; send(id: string): void } | null): void {
-    this.measurementAction = action;
-    for (const annotation of this.store.list()) {
-      if (annotation.intent === 'measurement') {
-        this.refreshView(annotation.id);
-      }
-    }
-  }
-
   toggleMeasurement(id: string): void {
     if (this.store.get(id)?.intent !== 'measurement') {
       return;
@@ -282,11 +272,6 @@ export class FlyoutLayer {
               this.canvas.focus({ preventScroll: true });
             },
             onLayout: () => this.invalidateLayout(),
-            onSend: () => {
-              this.controller.commit(ann.id);
-              this.measurementAction?.send(ann.id);
-              this.canvas.focus({ preventScroll: true });
-            },
           },
           this.i18n,
         );
@@ -340,14 +325,6 @@ export class FlyoutLayer {
       number: ann.displayNumber,
       intent: ann.intent,
       state: ann.state,
-      ...(ann.intent === 'measurement' && this.measurementAction
-        ? {
-            sendAction:
-              this.measurementAction.disabledReason === undefined
-                ? {}
-                : { disabledReason: this.measurementAction.disabledReason },
-          }
-        : {}),
     };
   }
 
