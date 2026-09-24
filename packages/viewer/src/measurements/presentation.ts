@@ -17,6 +17,14 @@ export function measurementBadges(annotation: MeasurementAnnotation) {
 }
 
 export function formatMeasurement(evidence: MeasurementEvidence, i18n: ViewerI18n): string {
+  const values = [formatMeasurementReading(evidence, i18n)];
+  if (evidence.distance?.extended) {
+    values.push(i18n.t('measureExtendedShort'));
+  }
+  return values.join(' · ');
+}
+
+export function formatMeasurementReading(evidence: MeasurementEvidence, i18n: ViewerI18n): string {
   const angle = evidence.kind === 'relation' ? evidence.angle : undefined;
   const values: string[] = [];
   if (evidence.distance && !(evidence.distance.value === 0 && angle && angle.value > 0)) {
@@ -24,9 +32,6 @@ export function formatMeasurement(evidence: MeasurementEvidence, i18n: ViewerI18
   }
   if (angle && (!evidence.distance || angle.value > 0)) {
     values.push(`${formatQuantity(angle.value < 0.05 ? 0 : angle.value, 1, i18n)}°`);
-  }
-  if (evidence.distance?.extended) {
-    values.push(i18n.t('measureExtendedShort'));
   }
   return values.join(' · ');
 }

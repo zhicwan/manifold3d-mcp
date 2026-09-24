@@ -1,6 +1,7 @@
 import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
 import { parseMeasurementEvidence, type MeasurementEvidence } from '@manifold3d/protocol/wire/measurements.js';
 
+// Version 6 carries annotation protocol 4 measurement evidence through the strict attachment schema.
 export const ANNOTATION_ATTACHMENT_VERSION = 6 as const;
 export const MAX_ATTACHMENT_ANNOTATIONS = 128;
 const MAX_ATTACHMENT_NOTE_LENGTH = 4_096;

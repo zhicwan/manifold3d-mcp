@@ -70,7 +70,7 @@ describe('AnnotationAttachment', () => {
     expect(parseAnnotationAttachment({ ...attachment, annotations: [withoutNote] }).annotations[0]).not.toHaveProperty(
       'note',
     );
-    expect(() => parseAnnotationAttachment({ ...attachment, version: 3 })).toThrow(/version/);
+    expect(() => parseAnnotationAttachment({ ...attachment, version: 5 })).toThrow(/version/);
     expect(() => parseAnnotationAttachment({ ...attachment, batchId: 'batch' })).toThrow(/batchId/);
     expect(() => buildAnnotationAttachment({ ...input, mode: 'measurement', modelVersion: 'other' })).toThrow(/model/);
     expect(() =>
@@ -110,7 +110,7 @@ describe('AnnotationAttachment', () => {
     expect(attachment.annotations[0].measurement.distance!.end).toEqual([10, 0, 0]);
   });
 
-  it('builds a version 4 annotation batch with notes and semantic selection data', () => {
+  it('builds a version 6 annotation batch with notes and semantic selection data', () => {
     const attachment = buildAnnotationAttachment({
       mode: 'annotation-batch',
       batchId: 'batch-7',

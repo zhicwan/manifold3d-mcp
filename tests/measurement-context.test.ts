@@ -73,4 +73,30 @@ describe('measurement evidence context', () => {
       summary: 'Distance 38 mm between plate#1 top face and wall#1 top face using supporting planes.',
     });
   });
+
+  it('preserves tiny nonzero readings with the same significant formatting as the Viewer', () => {
+    const candidate = edge('a', [0, 0, 0], [0.000001, 0, 0]);
+    if (candidate.operand.kind !== 'edge') {
+      throw new Error('Expected an edge fixture.');
+    }
+    const contextual = contextualizeMeasurement(
+      {
+        kind: 'edge-length',
+        operands: [candidate.operand],
+        distance: {
+          method: 'segment-length',
+          unit: 'mm',
+          value: 0.000001,
+          start: [0, 0, 0],
+          end: [0.000001, 0, 0],
+        },
+      },
+      [candidate],
+      () => 'detail#1 edge',
+    );
+    expect(contextual.evidence).toMatchObject({
+      display: { text: '1E-6 mm', primary: 'distance' },
+      summary: 'Length 1E-6 mm of detail#1 edge.',
+    });
+  });
 });

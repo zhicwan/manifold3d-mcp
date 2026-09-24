@@ -1,5 +1,9 @@
 import type { MeasurementEvidence, MeasurementOperand } from '@manifold3d/protocol/wire/measurements.js';
+import { createViewerI18n } from '../i18n/index.js';
 import type { MeasurementCandidate } from './geometry.js';
+import { formatMeasurementReading } from './presentation.js';
+
+const detachedDisplayI18n = createViewerI18n('en');
 
 export function contextualizeMeasurement(
   evidence: MeasurementEvidence,
@@ -34,22 +38,10 @@ export function contextualizeMeasurement(
 function measurementDisplay(evidence: MeasurementEvidence) {
   const angle = evidence.kind === 'relation' ? evidence.angle : undefined;
   const showDistance = evidence.distance && !(evidence.distance.value === 0 && angle && angle.value > 0);
-  const showAngle = angle && (!evidence.distance || angle.value > 0);
-  const values: string[] = [];
-  if (showDistance) {
-    values.push(`${quantity(evidence.distance!.value, 2)} mm`);
-  }
-  if (showAngle) {
-    values.push(`${quantity(angle!.value < 0.05 ? 0 : angle!.value, 1)}°`);
-  }
   return {
-    text: values.join(' · '),
+    text: formatMeasurementReading(evidence, detachedDisplayI18n),
     primary: showDistance ? ('distance' as const) : ('angle' as const),
   };
-}
-
-function quantity(value: number, decimals: number): string {
-  return Number(value.toFixed(decimals)).toString();
 }
 
 function describeOperand(operand: MeasurementOperand): string {

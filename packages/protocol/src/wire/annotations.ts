@@ -43,6 +43,7 @@ export interface WireAnnotation {
   clientId?: string;
 }
 
+// Version 4 adds bounded optional measurement feature, display, and summary fields to the strict closed schema.
 export const ANNOTATIONS_PROTOCOL_VERSION = 4 as const;
 export const MAX_ANNOTATIONS = 500;
 const MAX_ANNOTATION_ID_LENGTH = 64;
