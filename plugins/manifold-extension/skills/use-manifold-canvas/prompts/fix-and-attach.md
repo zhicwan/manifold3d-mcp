@@ -44,13 +44,11 @@ after editing means the current comment is newer than its attached snapshot.
 Use its structured operands, methods, mm distances/witnesses and angles, not just
 its label or note. `edge-corner` is the angle between rays leaving the shared
 endpoint (0-180 degrees); reversing endpoint or selection order does not change it.
-Other methods, including historical `line-line` evidence, remain smaller
-unoriented angles (0-90 degrees), not solid interior angles. Supporting-plane distances do not
+Other direction methods remain smaller unoriented angles (0-90 degrees), not
+solid interior angles. Supporting-plane distances do not
 claim finite-face clearance, and `extended` witnesses may lie outside a patch.
 Point operands with `faceCenter` refer to a connected planar face's area centroid.
-The Viewer offers only actual surface centers. Historical `onSurface: false`
-references lie in a hole or outside a concave boundary; do not interpret those
-coordinates as a point on the printable surface.
+The Viewer offers only actual surface centers.
 Replacing the model clears live results; attached snapshots remain historical
 evidence and must not be reassociated with a new model. A measurement alone is
 not an edit request. MCP instead exposes results through `get_annotations`;

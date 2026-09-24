@@ -15,16 +15,11 @@ interface MeasurementPickInput {
   width: number;
   height: number;
   previousKey?: string;
-  surfacePoint?: boolean;
 }
 
 export interface MeasurementPickResult {
   candidates: MeasurementCandidate[];
   faceCenter: MeasurementCandidate | null;
-}
-
-export function pickMeasurementCandidates(input: MeasurementPickInput): MeasurementCandidate[] {
-  return pickMeasurement(input).candidates;
 }
 
 export function pickMeasurement(input: MeasurementPickInput): MeasurementPickResult {
@@ -181,15 +176,6 @@ export function pickMeasurement(input: MeasurementPickInput): MeasurementPickRes
     if (plane) {
       scored.push({ candidate: plane, pixels: 0, depth: hit.distance, rank: 2 });
     }
-    const position: [number, number, number] = [hit.point.x, hit.point.y, hit.point.z];
-    const candidate: MeasurementCandidate = {
-      // Available as an explicit alternative, without defeating normal snapping.
-      key: `surface:${hit.faceIndex}:${position.map(n => n.toPrecision(12)).join(':')}`,
-      operand: { kind: 'point', position, triangleId: hit.faceIndex },
-      anchor: position,
-      triIds: plane?.triIds ?? [hit.faceIndex],
-    };
-    scored.push({ candidate, pixels: 0, depth: hit.distance, rank: input.surfacePoint ? 0 : 3 });
   }
   const nearestVertex = scored.reduce(
     (nearest, item) =>

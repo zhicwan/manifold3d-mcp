@@ -6,7 +6,7 @@ import { AnnotationStore } from '../packages/viewer/src/marks/annotation-store.j
 import { SCENE_PALETTE } from '../packages/viewer/src/scene/palette.js';
 
 describe('measurement result rendering', () => {
-  it('uses the same small spheres for points and surface centers and omits off-surface centers', () => {
+  it('uses the same small spheres for points and surface centers', () => {
     const scene = new THREE.Scene();
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshBasicMaterial());
     mesh.scale.set(2, 3, 1);
@@ -23,7 +23,7 @@ describe('measurement result rendering', () => {
     };
     const center: MeasurementCandidate = {
       key: 'face-center:8',
-      operand: { kind: 'point', position: [0, 0, 1], faceCenter: { patchId: 8, onSurface: false } },
+      operand: { kind: 'point', position: [0, 0, 1], faceCenter: { patchId: 8 } },
       anchor: [0, 0, 1],
       triIds: [8, 9],
     };
@@ -49,14 +49,7 @@ describe('measurement result rendering', () => {
       .add(new THREE.Vector3(scale.x, 0, 0))
       .project(camera);
     expect((sideScreen.x - centerScreen.x) * 200).toBeCloseTo(3.5, 4);
-    renderer.setPreview(
-      {
-        ...center,
-        operand: { kind: 'point', position: [0, 0, 1], faceCenter: { patchId: 8, onSurface: true } },
-      },
-      null,
-      null,
-    );
+    renderer.setPreview(center, null, null);
     expect(scene.getObjectByName('face-center-marker')).toBeUndefined();
     const surfaceCenter = scene.getObjectByName('measurement-point');
     if (!(surfaceCenter instanceof THREE.Mesh) || !(surfaceCenter.material instanceof THREE.MeshStandardMaterial)) {
@@ -77,7 +70,7 @@ describe('measurement result rendering', () => {
       null,
       {
         ...center,
-        operand: { kind: 'point', position: [0, 0, 1], faceCenter: { patchId: 8, onSurface: true } },
+        operand: { kind: 'point', position: [0, 0, 1], faceCenter: { patchId: 8 } },
       },
     );
     let markerCount = 0;
@@ -123,6 +116,25 @@ describe('measurement result rendering', () => {
     expect(lines.map(line => line.material.depthFunc)).toEqual([THREE.LessEqualDepth, THREE.GreaterDepth]);
     expect(lines.every(line => line.material.depthTest && !line.material.depthWrite)).toBe(true);
     expect(lines[1]!.material).toBeInstanceOf(THREE.LineDashedMaterial);
+    const resources = lines.map(line => ({ geometry: line.geometry, material: line.material }));
+    renderer.setDimension(
+      'test',
+      [
+        {
+          start: { x: 30, y: 110, depth: 0.7 },
+          end: { x: 170, y: 110, depth: 0.7 },
+        },
+      ],
+      camera,
+      200,
+      200,
+      '#123456',
+    );
+    const updated = scene.getObjectByName('dimension:test')!.children as THREE.Line[];
+    expect(updated.map(line => ({ geometry: line.geometry, material: line.material }))).toEqual(resources);
+    expect(updated.every(line => (line.material as THREE.LineBasicMaterial).color.getHexString() === '123456')).toBe(
+      true,
+    );
     let disposed = 0;
     for (const line of lines) {
       line.geometry.addEventListener('dispose', () => {

@@ -100,6 +100,7 @@ describe('MarkTool annotate/select gestures', () => {
   let store: AnnotationStore;
   let flyouts: {
     ownsTarget: ReturnType<typeof vi.fn>;
+    ownsDraftTarget: ReturnType<typeof vi.fn>;
     openExpanded: ReturnType<typeof vi.fn>;
     dismissAll: ReturnType<typeof vi.fn>;
   };
@@ -123,6 +124,7 @@ describe('MarkTool annotate/select gestures', () => {
     store = new AnnotationStore();
     flyouts = {
       ownsTarget: vi.fn(() => false),
+      ownsDraftTarget: vi.fn(() => false),
       openExpanded: vi.fn(),
       dismissAll: vi.fn(),
     };
@@ -243,13 +245,17 @@ describe('MarkTool annotate/select gestures', () => {
     expect(canvas.dataset.markMode).toBe('orbit');
   });
 
-  it('allows Escape from a focused dimension anchor while leaving text and popup ownership to shortcut guards', () => {
+  it('leaves Escape handling to an owned flyout while allowing focused dimension anchors', () => {
     const label = new FakeElement();
     label.tagName = 'BUTTON';
     canvas.appendChild(label);
     label.focus();
-    flyouts.ownsTarget.mockReturnValue(true);
+    flyouts.ownsDraftTarget.mockReturnValue(true);
     tool.setMode('measure');
+    fakeWindow.emit('keydown', { key: 'Escape', target: label, preventDefault: vi.fn() });
+    expect(measurement.escape).not.toHaveBeenCalled();
+    expect(canvas.dataset.markMode).toBe('measure');
+    flyouts.ownsDraftTarget.mockReturnValue(false);
     fakeWindow.emit('keydown', { key: 'Escape', target: label, preventDefault: vi.fn() });
     expect(measurement.escape).toHaveBeenCalledOnce();
     expect(canvas.dataset.markMode).toBe('orbit');

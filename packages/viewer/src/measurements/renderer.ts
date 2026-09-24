@@ -104,9 +104,9 @@ export class MeasurementRenderer {
     height: number,
     color: string,
   ): void {
-    this.removeDimension(id);
     const mesh = this.getMesh();
     if (!mesh || strokes.length === 0 || width <= 0 || height <= 0) {
+      this.removeDimension(id);
       return;
     }
     mesh.updateWorldMatrix(true, false);
@@ -115,8 +115,14 @@ export class MeasurementRenderer {
       new THREE.Vector3((point.x / width) * 2 - 1, 1 - (point.y / height) * 2, point.depth)
         .unproject(camera)
         .applyMatrix4(inverse);
-    const group = new THREE.Group();
-    group.name = `dimension:${id}`;
+    let group = this.dimensions.get(id);
+    if (!group) {
+      group = new THREE.Group();
+      group.name = `dimension:${id}`;
+      this.dimensions.set(id, group);
+      this.root.add(group);
+    }
+    let rendered = 0;
     for (const stroke of strokes) {
       const a = local(stroke.start);
       const b = local(stroke.end);
@@ -127,30 +133,40 @@ export class MeasurementRenderer {
       const unit = a.distanceTo(b) / pixels;
       // Both passes use the model depth buffer, so a single line can switch
       // between solid and dashed at the occluder's exact screen silhouette.
-      const visible = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([a, b]),
-        new THREE.LineBasicMaterial({ color, depthTest: true, depthWrite: false, depthFunc: THREE.LessEqualDepth }),
-      );
-      const hidden = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([a, b]),
-        new THREE.LineDashedMaterial({
-          color,
-          depthTest: true,
-          depthWrite: false,
-          depthFunc: THREE.GreaterDepth,
-          transparent: true,
-          opacity: 0.5,
-          dashSize: unit * 5,
-          gapSize: unit * 4,
-        }),
-      );
+      const visibleIndex = rendered * 2;
+      const hiddenIndex = visibleIndex + 1;
+      const visible: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> =
+        group.children[visibleIndex] instanceof THREE.Line
+          ? (group.children[visibleIndex] as THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>)
+          : createDimensionLine(false);
+      const hidden: THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial> =
+        group.children[hiddenIndex] instanceof THREE.Line
+          ? (group.children[hiddenIndex] as THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial>)
+          : createDimensionLine(true);
+      if (visible.parent !== group) {
+        group.add(visible);
+      }
+      if (hidden.parent !== group) {
+        group.add(hidden);
+      }
+      setLinePoints(visible, a, b);
+      setLinePoints(hidden, a, b);
+      visible.material.color.set(color);
+      hidden.material.color.set(color);
+      hidden.material.dashSize = unit * 5;
+      hidden.material.gapSize = unit * 4;
       hidden.computeLineDistances();
-      visible.renderOrder = 994;
-      hidden.renderOrder = 995;
-      group.add(visible, hidden);
+      rendered++;
     }
-    this.dimensions.set(id, group);
-    this.root.add(group);
+    while (group.children.length > rendered * 2) {
+      const child = group.children.at(-1)!;
+      disposeRenderable(child);
+      child.removeFromParent();
+    }
+    if (rendered === 0) {
+      this.removeDimension(id);
+      return;
+    }
     this.updateTransform();
   }
 
@@ -241,9 +257,7 @@ export class MeasurementRenderer {
     if (operand.kind === 'edge') {
       addSegment(group, operand.start, operand.end, color);
     } else if (operand.kind === 'point') {
-      if (operand.faceCenter?.onSurface !== false) {
-        addPoints(group, [operand.position], color);
-      }
+      addPoints(group, [operand.position], color);
     }
   }
 
@@ -297,6 +311,41 @@ function addPoints(group: THREE.Group, points: MeasurementVec3[], color: number)
   }
 }
 
+function createDimensionLine(dashed: false): THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+function createDimensionLine(dashed: true): THREE.Line<THREE.BufferGeometry, THREE.LineDashedMaterial>;
+function createDimensionLine(
+  dashed: boolean,
+): THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial | THREE.LineDashedMaterial> {
+  const material = dashed
+    ? new THREE.LineDashedMaterial({
+        depthTest: true,
+        depthWrite: false,
+        depthFunc: THREE.GreaterDepth,
+        transparent: true,
+        opacity: 0.5,
+      })
+    : new THREE.LineBasicMaterial({
+        depthTest: true,
+        depthWrite: false,
+        depthFunc: THREE.LessEqualDepth,
+      });
+  const line = new THREE.Line(new THREE.BufferGeometry(), material);
+  line.renderOrder = dashed ? 995 : 994;
+  return line;
+}
+
+function setLinePoints(line: THREE.Line, a: THREE.Vector3, b: THREE.Vector3): void {
+  const positions = line.geometry.getAttribute('position');
+  if (positions instanceof THREE.BufferAttribute && positions.count === 2) {
+    positions.setXYZ(0, a.x, a.y, a.z);
+    positions.setXYZ(1, b.x, b.y, b.z);
+    positions.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+    return;
+  }
+  line.geometry.setFromPoints([a, b]);
+}
+
 class SnapPointMarker extends THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial> {
   private readonly center: THREE.Vector3;
 
@@ -340,14 +389,18 @@ class SnapPointMarker extends THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandar
 function clearGroup(group: THREE.Group): void {
   for (const child of [...group.children]) {
     child.traverse(object => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        for (const material of materials) {
-          material.dispose();
-        }
-      }
+      disposeRenderable(object);
     });
     child.removeFromParent();
+  }
+}
+
+function disposeRenderable(object: THREE.Object3D): void {
+  if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {
+    object.geometry.dispose();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      material.dispose();
+    }
   }
 }

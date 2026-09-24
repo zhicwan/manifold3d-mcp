@@ -221,8 +221,13 @@ function MeasurementDimension({
     }
     const color = getComputedStyle(element).getPropertyValue('--spatial').trim();
     ruler.setDimension(dimensionId, layout.strokes, width, height, color);
-    return () => ruler.removeDimension(dimensionId);
   }, [ruler, dimensionId, layout, width, height, resolvedTheme]);
+  useLayoutEffect(
+    () => () => {
+      ruler.removeDimension(dimensionId);
+    },
+    [ruler, dimensionId],
+  );
   const style = { left: layout.x, top: layout.y, transform: `translate(-50%, -50%) rotate(${layout.rotation}deg)` };
   const radians = (layout.rotation * Math.PI) / 180;
   return (

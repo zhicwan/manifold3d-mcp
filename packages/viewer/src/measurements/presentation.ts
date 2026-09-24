@@ -23,7 +23,7 @@ export function formatMeasurement(evidence: MeasurementEvidence, i18n: ViewerI18
     values.push(`${formatQuantity(evidence.distance.value, 2, i18n)} mm`);
   }
   if (angle && (!evidence.distance || angle.value > 0)) {
-    values.push(`${formatQuantity(angle.value, 1, i18n)}°`);
+    values.push(`${formatQuantity(angle.value < 0.05 ? 0 : angle.value, 1, i18n)}°`);
   }
   if (evidence.distance?.extended) {
     values.push(i18n.t('measureExtendedShort'));

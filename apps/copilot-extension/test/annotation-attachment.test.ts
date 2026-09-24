@@ -18,7 +18,7 @@ describe('AnnotationAttachment', () => {
       measurement: {
         kind: 'relation',
         operands: [
-          { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 8, onSurface: false } },
+          { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 8 } },
           { kind: 'point', position: [0, 0, 5], vertexId: 2 },
         ],
         distance: { method: 'point-point', unit: 'mm', value: 5, start: [0, 0, 0], end: [0, 0, 5] },
@@ -34,7 +34,7 @@ describe('AnnotationAttachment', () => {
     expect(attachment.annotations[0].measurement.operands[0]).toMatchObject({
       kind: 'point',
       position: [0, 0, 0],
-      faceCenter: { patchId: 8, onSurface: false },
+      faceCenter: { patchId: 8 },
     });
     const source = measurement.measurement!.operands[0];
     if (source.kind !== 'point' || !source.faceCenter) {
@@ -231,7 +231,7 @@ describe('AnnotationAttachment', () => {
             measurement: {
               kind: 'relation',
               operands: [
-                { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 8, onSurface: true } },
+                { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 8 } },
                 { kind: 'point', position: [0, 0, 5], vertexId: 2 },
               ],
               distance: { method: 'point-point', unit: 'mm', value: 5, start: [0, 0, 0], end: [0, 0, 5] },
@@ -531,7 +531,7 @@ function measurementAnnotation(): WireAnnotation {
     measurement: {
       kind: 'relation',
       operands: [
-        { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 8, onSurface: true } },
+        { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 8 } },
         { kind: 'point', position: [0, 0, 5], vertexId: 2 },
       ],
       distance: { method: 'point-point', unit: 'mm', value: 5, start: [0, 0, 0], end: [0, 0, 5] },

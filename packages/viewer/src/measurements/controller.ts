@@ -104,7 +104,6 @@ export class RulerController {
     if (this.payload === payload) {
       return;
     }
-    const changed = this.payload !== null && (this.snapshot.locked !== null || this.measurements().length > 0);
     this.payload = payload;
     this.geometry = null;
     this.placementResolver = null;
@@ -116,16 +115,13 @@ export class RulerController {
       faceCenter: null,
       preview: null,
       previewLabel: null,
-      expandedId: null,
       labels: [],
-      notice: changed ? 'changed' : this.snapshot.notice,
       error: null,
     });
     this.renderer.clear();
+    this.renderer.setResults(this.measurements(), this.snapshot.expandedId);
     this.projectionDirty = true;
-    if (this.snapshot.active) {
-      this.finish();
-    }
+    this.requestRender();
   }
 
   modelChanging(): void {
@@ -163,7 +159,7 @@ export class RulerController {
     this.updatePreview();
   }
 
-  hover(event: Pick<PointerEvent, 'clientX' | 'clientY'>, surfacePoint = false): void {
+  hover(event: Pick<PointerEvent, 'clientX' | 'clientY'>): void {
     if (!this.snapshot.active || this.immersive || !this.payload) {
       return;
     }
@@ -183,13 +179,10 @@ export class RulerController {
         ndc: eventToNdc(event, this.canvas),
         width: rect.width,
         height: rect.height,
-        surfacePoint,
         ...(this.snapshot.candidate ? { previousKey: this.snapshot.candidate.key } : {}),
       });
       const { candidates, faceCenter } = picked;
-      const candidate = surfacePoint
-        ? (candidates.find(item => item.key.startsWith('surface:')) ?? null)
-        : (candidates[0] ?? null);
+      const candidate = candidates[0] ?? null;
       if (
         candidate?.key === this.snapshot.candidate?.key &&
         faceCenter?.key === this.snapshot.faceCenter?.key &&

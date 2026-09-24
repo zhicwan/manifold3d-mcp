@@ -3,7 +3,6 @@ import { deflateSync } from 'node:zlib';
 import * as THREE from 'three';
 
 import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
-import { parseMeasurementEvidence } from '@manifold3d/protocol/wire/measurements.js';
 import type { ModelArtifact } from '../runner/protocol.js';
 
 export type CaptureView = 'iso' | 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom';
@@ -523,11 +522,15 @@ function drawAnnotationOverlay(
 ): void {
   for (const annotation of annotations) {
     if (annotation.kind === 'measurement') {
-      const evidence = parseMeasurementEvidence(annotation.measurement);
+      const evidence = annotation.measurement;
+      if (!evidence) {
+        throw new Error('Measurement annotation requires evidence.');
+      }
       const color: [number, number, number] = [14, 116, 144];
       const labels: string[] = [];
       let anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord).sub(origin), camera, vw, vh);
-      if (evidence.distance) {
+      const angle = evidence.kind === 'relation' ? evidence.angle : undefined;
+      if (evidence.distance && !(evidence.distance.value === 0 && angle && angle.value > 0)) {
         const distance = evidence.distance;
         const start = project(new THREE.Vector3().fromArray(distance.start).sub(origin), camera, vw, vh);
         const end = project(new THREE.Vector3().fromArray(distance.end).sub(origin), camera, vw, vh);
@@ -538,9 +541,9 @@ function drawAnnotationOverlay(
         labels.push(`${Number(distance.value.toPrecision(6))} mm`);
         labels.push(distance.method + (distance.extended ? ' (extended plane)' : ''));
       }
-      if (evidence.kind === 'relation' && evidence.angle) {
-        const angleKind = evidence.angle.method === 'edge-corner' ? 'corner' : 'smaller';
-        labels.push(`${angleKind} ${Number(evidence.angle.value.toPrecision(6))} deg (${evidence.angle.method})`);
+      if (angle) {
+        const angleKind = angle.method === 'edge-corner' ? 'corner' : 'smaller';
+        labels.push(`${angleKind} ${Number(angle.value.toPrecision(6))} deg (${angle.method})`);
       }
       labels.forEach((label, index) =>
         drawLabel(ctx, Math.round(anchor.x + 9), Math.round(anchor.y - 10 + index * 16), label.toUpperCase(), color),

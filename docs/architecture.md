@@ -135,16 +135,15 @@ structured evidence for `kind: "measurement"`: canonical point/finite-edge/suppo
 operands, mm distances and witness endpoints, and explicitly classified angles.
 `edge-corner` measures rays leaving a unique shared endpoint (0-180 degrees),
 independent of operand and endpoint ordering. Nearby disjoint endpoints do not
-form a corner. Other angle methods retain smaller unoriented angles (0-90);
-historical `line-line` evidence is not reinterpreted as a corner or solid interior.
+form a corner. Other angle methods retain smaller unoriented angles (0-90).
 Strict parsing checks finite geometry, normalized plane normals,
 method/operand combinations and numerical consistency; it does not authenticate
 mesh provenance. Parallel classification uses a dimensionless sine tolerance of
-`1e-10`, absorbing arithmetic noise rather than rounded display angles.
+`1e-5`, absorbing Float32 payload noise rather than rounded display angles.
 
 Hovering a connected planar patch exposes its triangle-area-weighted centroid
 as a snap candidate. It remains a canonical point operand with optional
-`faceCenter: { patchId, onSurface }` provenance, not a triangle hit or nominal
+`faceCenter: { patchId }` provenance, not a triangle hit or nominal
 primitive center. Strict parsing preserves this reference in attachments and
 MCP snapshots. Only centers lying on the actual finite face are offered;
 centroids in holes or outside concave boundaries are omitted, not moved to a

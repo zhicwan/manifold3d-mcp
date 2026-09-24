@@ -709,7 +709,7 @@ describe('preview renderer', () => {
         })
       ).png,
     );
-    expectMeasurementText(image, 329, 262, 'CORNER 120 DEG (EDGE-CORNER)');
+    expectMeasurementText(image, 329, 230, 'CORNER 120 DEG (EDGE-CORNER)');
     renderer.dispose();
   });
 

@@ -5,8 +5,8 @@ export interface MeasurementPoint {
   position: MeasurementVec3;
   vertexId?: number;
   triangleId?: number;
-  /** Area centroid of a connected planar patch; it may lie in a hole or outside a concave boundary. */
-  faceCenter?: { patchId: number; onSurface: boolean };
+  /** Area centroid of a connected planar patch that lies on the finite surface. */
+  faceCenter?: { patchId: number };
 }
 
 export interface MeasurementEdge {
@@ -57,7 +57,7 @@ export type MeasurementEvidence =
     };
 
 /** Dimensionless sine tolerance used to classify supporting directions as parallel. */
-export const MEASUREMENT_PARALLEL_TOLERANCE = 1e-10;
+export const MEASUREMENT_PARALLEL_TOLERANCE = 1e-5;
 const NORMAL_TOLERANCE = 1e-6;
 const MAX_MEASUREMENT_INDEX = 0xffff_ffff;
 
@@ -140,14 +140,21 @@ export function parseMeasurementEvidence(value: unknown): MeasurementEvidence {
     if (!angle || (angle.method !== method && !(method === 'line-line' && angle.method === 'edge-corner'))) {
       throw new Error('Direction relations require the matching angle method.');
     }
+    const corner = edges.length === 2 ? measureEdgeCorner(edges[0]!, edges[1]!) : undefined;
+    if (method === 'line-line' && corner !== undefined && angle.method !== 'edge-corner') {
+      throw new Error('Edges with one shared endpoint require an edge-corner angle.');
+    }
     const directions = operands.map(operand =>
       operand.kind === 'edge' ? edgeDirection(operand) : unitVector((operand as MeasurementPlane).normal),
     );
     const dot = Math.min(1, Math.abs(dotProduct(directions[0]!, directions[1]!)));
+    const parallel = method === 'line-plane' ? dot : crossMagnitude(directions[0]!, directions[1]!);
     const expectedAngle =
       angle.method === 'edge-corner'
-        ? measureEdgeCorner(edges[0]!, edges[1]!)?.value
-        : (method === 'line-plane' ? Math.asin(dot) : Math.acos(dot)) * (180 / Math.PI);
+        ? corner?.value
+        : method !== 'line-line' && parallel <= MEASUREMENT_PARALLEL_TOLERANCE
+          ? 0
+          : (method === 'line-plane' ? Math.asin(dot) : Math.acos(dot)) * (180 / Math.PI);
     if (expectedAngle === undefined) {
       throw new Error('An edge-corner angle requires exactly one shared endpoint.');
     }
@@ -159,7 +166,6 @@ export function parseMeasurementEvidence(value: unknown): MeasurementEvidence {
         throw new Error('Edge relations require finite segment-segment distance.');
       }
     } else if (distance) {
-      const parallel = method === 'line-plane' ? dot : crossMagnitude(directions[0]!, directions[1]!);
       if (distance.method !== 'parallel-gap' || parallel > MEASUREMENT_PARALLEL_TOLERANCE) {
         throw new Error('Supporting-plane gaps require parallel operands.');
       }
@@ -199,11 +205,11 @@ function parseMeasurementOperand(value: unknown): MeasurementOperand {
     measurementKeys(record, ['kind', 'position', 'vertexId', 'triangleId', 'faceCenter']);
     let faceCenter: MeasurementPoint['faceCenter'];
     if (record.faceCenter !== undefined) {
-      const center = measurementRecord(record.faceCenter, ['patchId', 'onSurface']);
-      if (typeof center.onSurface !== 'boolean' || record.vertexId !== undefined || record.triangleId !== undefined) {
-        throw new Error('A face center requires onSurface and cannot also identify a mesh vertex or triangle hit.');
+      const center = measurementRecord(record.faceCenter, ['patchId']);
+      if (record.vertexId !== undefined || record.triangleId !== undefined) {
+        throw new Error('A face center cannot also identify a mesh vertex or triangle hit.');
       }
-      faceCenter = { patchId: measurementIndex(center.patchId), onSurface: center.onSurface };
+      faceCenter = { patchId: measurementIndex(center.patchId) };
     }
     return {
       kind: 'point',

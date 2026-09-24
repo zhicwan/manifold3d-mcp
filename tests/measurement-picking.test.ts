@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import type { ViewerModel } from '@manifold3d/protocol/wire/model.js';
 import { MeasurementGeometry } from '../packages/viewer/src/measurements/geometry.js';
-import { pickMeasurement, pickMeasurementCandidates } from '../packages/viewer/src/measurements/picker.js';
+import { pickMeasurement } from '../packages/viewer/src/measurements/picker.js';
 import { payloadToGeometry } from '../packages/viewer/src/scene/mesh-bridge.js';
 import { prepareMeshPicking } from '../packages/viewer/src/scene/mesh-picking.js';
 
@@ -36,17 +36,17 @@ function orthographic(): THREE.OrthographicCamera {
   return camera;
 }
 const viewport = { width: 400, height: 400 };
+const pickCandidates = (input: Parameters<typeof pickMeasurement>[0]) => pickMeasurement(input).candidates;
 
 describe('measurement candidate picking', () => {
   it('prioritizes visible vertices then edges then plane without triangle diagonals', () => {
     const input = { ...square(), camera: orthographic(), ...viewport };
-    const corner = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.49, 0.49) });
-    expect(corner.map(c => c.operand.kind)).toEqual(['point', 'edge', 'edge', 'plane', 'point']);
+    const corner = pickCandidates({ ...input, ndc: new THREE.Vector2(0.49, 0.49) });
+    expect(corner.map(c => c.operand.kind)).toEqual(['point', 'edge', 'edge', 'plane']);
     expect(corner[0]!.operand).toMatchObject({ vertexId: 2 });
-    expect(corner.at(-1)?.key).toMatch(/^surface:/);
-    const middle = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0, 0) });
-    expect(middle.map(c => c.operand.kind)).toEqual(['point', 'plane', 'point']);
-    expect(middle[0]!.operand).toMatchObject({ faceCenter: { patchId: 0, onSurface: true } });
+    const middle = pickCandidates({ ...input, ndc: new THREE.Vector2(0, 0) });
+    expect(middle.map(c => c.operand.kind)).toEqual(['point', 'plane']);
+    expect(middle[0]!.operand).toMatchObject({ faceCenter: { patchId: 0 } });
   });
 
   it('shows the hovered face center before the pointer reaches snapping range', () => {
@@ -88,14 +88,14 @@ describe('measurement candidate picking', () => {
     };
     expect(pickMeasurement({ ...input, ndc: new THREE.Vector2(0.75, 0) }).faceCenter).toBeNull();
     const center = pickMeasurement({ ...input, ndc: new THREE.Vector2() });
-    expect(center.candidates[0]?.operand).toMatchObject({ faceCenter: { onSurface: true } });
+    expect(center.candidates[0]?.operand).toMatchObject({ faceCenter: { patchId: expect.any(Number) } });
     expect(center.candidates[0]?.anchor[2]).toBe(-1);
     expect(center.candidates.some(candidate => candidate.key === 'face-center:0')).toBe(false);
   });
 
   it('finds silhouette edges even when the pointer ray misses the surface', () => {
     const input = { ...square(), camera: orthographic(), ...viewport };
-    const candidates = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.53, 0) });
+    const candidates = pickCandidates({ ...input, ndc: new THREE.Vector2(0.53, 0) });
     expect(candidates).toHaveLength(1);
     expect(candidates[0]!.operand.kind).toBe('edge');
     expect(candidates[0]!.triIds).toEqual([0, 1]);
@@ -103,17 +103,13 @@ describe('measurement candidate picking', () => {
 
   it('has CSS-pixel release hysteresis without keeping a hidden or remote candidate', () => {
     const input = { ...square(), camera: orthographic(), ...viewport };
-    const selected = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.53, 0) })[0]!;
-    expect(pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.565, 0) })).toEqual([]);
-    expect(
-      pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.565, 0), previousKey: selected.key })[0]?.key,
-    ).toBe(selected.key);
-    expect(pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.58, 0), previousKey: selected.key })).toEqual(
-      [],
+    const selected = pickCandidates({ ...input, ndc: new THREE.Vector2(0.53, 0) })[0]!;
+    expect(pickCandidates({ ...input, ndc: new THREE.Vector2(0.565, 0) })).toEqual([]);
+    expect(pickCandidates({ ...input, ndc: new THREE.Vector2(0.565, 0), previousKey: selected.key })[0]?.key).toBe(
+      selected.key,
     );
-    expect(pickMeasurementCandidates({ ...input, width: 800, height: 800, ndc: new THREE.Vector2(0.53, 0) })).toEqual(
-      [],
-    );
+    expect(pickCandidates({ ...input, ndc: new THREE.Vector2(0.58, 0), previousKey: selected.key })).toEqual([]);
+    expect(pickCandidates({ ...input, width: 800, height: 800, ndc: new THREE.Vector2(0.53, 0) })).toEqual([]);
   });
 
   it('rejects background vertices and edges at the same projected position', () => {
@@ -125,28 +121,9 @@ describe('measurement candidate picking', () => {
       camera: orthographic(),
       ...viewport,
     };
-    const candidates = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.49, 0.49) });
-    expect(candidates.map(c => c.operand.kind)).toEqual(['point', 'edge', 'edge', 'plane', 'point']);
+    const candidates = pickCandidates({ ...input, ndc: new THREE.Vector2(0.49, 0.49) });
+    expect(candidates.map(c => c.operand.kind)).toEqual(['point', 'edge', 'edge', 'plane']);
     expect(candidates.every(c => c.anchor[2] === 1)).toBe(true);
-  });
-
-  it('returns deliberate canonical surface points with distinct keys on one triangle', () => {
-    const input = { ...square(), camera: orthographic(), ...viewport, surfacePoint: true };
-    input.mesh.position.set(0.25, 0, 1);
-    input.mesh.scale.set(0.5, 0.75, 2);
-    const a = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.125, -0.1) }).find(c =>
-      c.key.startsWith('surface:'),
-    )!;
-    const b = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.15, -0.1) }).find(c =>
-      c.key.startsWith('surface:'),
-    )!;
-    expect(a.operand).toMatchObject({ kind: 'point', triangleId: 0 });
-    expect(a.anchor[0]).toBeCloseTo(0);
-    expect(a.anchor[1]).toBeCloseTo(-0.2 / 0.75);
-    expect(a.anchor[2]).toBeCloseTo(0);
-    expect(a.key).not.toBe(b.key);
-    expect(b.operand).toMatchObject({ triangleId: 0 });
-    expect(input.geometry.measure(a, b)?.distance?.value).toBeCloseTo(0.1);
   });
 
   it('does not narrow snapping to just the hit triangle', () => {
@@ -155,12 +132,12 @@ describe('measurement candidate picking', () => {
       camera: orthographic(),
       ...viewport,
     };
-    const candidates = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.01, -0.01) });
+    const candidates = pickCandidates({ ...input, ndc: new THREE.Vector2(0.01, -0.01) });
     expect(candidates.some(candidate => candidate.operand.kind === 'point' && candidate.operand.vertexId === 4)).toBe(
       true,
     );
     expect(candidates.some(c => c.operand.kind === 'plane')).toBe(true);
-    const atVertex = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0, 0.02) });
+    const atVertex = pickCandidates({ ...input, ndc: new THREE.Vector2(0, 0.02) });
     expect(atVertex[0]?.operand).toMatchObject({ kind: 'point', vertexId: 4 });
   });
 
@@ -185,7 +162,7 @@ describe('measurement candidate picking', () => {
     const input = { ...fixture(points, triangles.flat()), camera: orthographic(), ...viewport };
     const before = input.mesh.geometry.index!.array.slice();
     const lookup = vi.spyOn(input.geometry, 'candidatesForTriangle');
-    const candidates = pickMeasurementCandidates({ ...input, ndc: new THREE.Vector2(0.375, 0.375) });
+    const candidates = pickCandidates({ ...input, ndc: new THREE.Vector2(0.375, 0.375) });
     expect(candidates[0]!.operand).toMatchObject({ kind: 'point', vertexId: 70 * 81 + 70 });
     expect(lookup.mock.calls.length).toBeLessThan(triangles.length / 10);
     expect(input.mesh.geometry.index!.array).toEqual(before);
@@ -198,7 +175,7 @@ describe('measurement candidate picking', () => {
     camera.updateMatrixWorld();
     const start = new THREE.Vector3(-1, 0, 1).project(camera);
     const end = new THREE.Vector3(1, 0, -3).project(camera);
-    const candidates = pickMeasurementCandidates({
+    const candidates = pickCandidates({
       ...input,
       camera,
       ...viewport,
@@ -206,7 +183,7 @@ describe('measurement candidate picking', () => {
     });
     expect(candidates[0]!.operand.kind).toBe('edge');
     input.mesh.position.z = 20;
-    expect(pickMeasurementCandidates({ ...input, camera, ...viewport, ndc: new THREE.Vector2() })).toEqual([]);
+    expect(pickCandidates({ ...input, camera, ...viewport, ndc: new THREE.Vector2() })).toEqual([]);
   });
 
   it.each([

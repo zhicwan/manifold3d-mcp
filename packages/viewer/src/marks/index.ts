@@ -120,8 +120,8 @@ export function installMarks(deps: MarksDeps): MarksHandle {
       flyouts.cancelOpenDraft();
     },
     frame(): void {
-      flyouts.updatePositions();
       ruler.frame();
+      flyouts.updatePositions();
     },
     setModelVersion(v: string): void {
       if (store.getModelVersion() !== v) {

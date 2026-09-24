@@ -141,7 +141,7 @@ describe('ruler interaction lifecycle', () => {
     const { ruler, store, scene } = setup();
     const center: MeasurementCandidate = {
       key: 'face-center:0',
-      operand: { kind: 'point', position: [0, 0, 0.5], faceCenter: { patchId: 0, onSurface: true } },
+      operand: { kind: 'point', position: [0, 0, 0.5], faceCenter: { patchId: 0 } },
       anchor: [0, 0, 0.5],
       triIds: [],
     };
@@ -161,7 +161,7 @@ describe('ruler interaction lifecycle', () => {
     const { ruler, scene } = setup();
     mocks.center = {
       key: 'face-center:0',
-      operand: { kind: 'point', position: [0, 0, 0.5], faceCenter: { patchId: 0, onSurface: true } },
+      operand: { kind: 'point', position: [0, 0, 0.5], faceCenter: { patchId: 0 } },
       anchor: [0, 0, 0.5],
       triIds: [],
     };
@@ -327,12 +327,7 @@ describe('ruler interaction lifecycle', () => {
       anchor: [1.5, 2, 0],
       triIds: [],
     };
-    const surface: MeasurementCandidate = {
-      ...a,
-      key: 'surface:0:0:0',
-      operand: { kind: 'point', position: [0, 0, 0], triangleId: 0 },
-    };
-    mocks.pick.mockReturnValue([edge, surface]);
+    mocks.pick.mockReturnValue([edge, a]);
     ruler.hover({ clientX: 100, clientY: 100 });
     expect(ruler.getSnapshot().candidate).toBe(edge);
     ruler.confirmCandidate();
@@ -372,15 +367,41 @@ describe('ruler interaction lifecycle', () => {
     expect(store.list()).toEqual([]);
   });
 
-  it('invalidates an unfinished pick when the payload is replaced', () => {
+  it('invalidates an unfinished pick at the model-version boundary', () => {
     const { ruler, store, finished } = setup();
     mocks.pick.mockReturnValue([a]);
     ruler.hover({ clientX: 100, clientY: 100 });
     ruler.confirmCandidate();
+    ruler.modelChanging();
+    store.setModelVersion('v2');
     ruler.setPayload({ ...payload });
     expect(ruler.getSnapshot()).toMatchObject({ active: false, locked: null, candidate: null, notice: 'changed' });
     expect(store.list()).toEqual([]);
     expect(finished).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuilds retained rendering without exiting Measure when the same model payload is replayed', () => {
+    const { ruler, store, scene, finished } = setup();
+    const edge: MeasurementCandidate = {
+      key: 'edge',
+      operand: { kind: 'edge', edgeId: 'edge', start: [0, 0, 0], end: [3, 4, 0] },
+      anchor: [1.5, 2, 0],
+      triIds: [],
+    };
+    mocks.pick.mockReturnValue([edge]);
+    ruler.hover({ clientX: 100, clientY: 100 });
+    ruler.confirmCandidate();
+    expect(store.list()).toHaveLength(1);
+    expect(scene.getObjectByName('measurement-point')).toBeDefined();
+    finished.mockClear();
+
+    ruler.setPayload({ ...payload });
+    ruler.frame();
+
+    expect(ruler.getSnapshot()).toMatchObject({ active: true, locked: null, notice: null });
+    expect(store.list()).toHaveLength(1);
+    expect(scene.getObjectByName('measurement-point')).toBeDefined();
+    expect(finished).not.toHaveBeenCalled();
   });
 
   it('releases its scene contribution and subscriptions on disposal', () => {

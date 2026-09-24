@@ -31,9 +31,8 @@ interface Segment {
   support: string;
 }
 
-// Recognition tolerates Float32 tessellation noise; parallel-gap semantics do not.
-// The protocol's 1e-10 sine tolerance (~6e-9 degrees) only absorbs double arithmetic noise.
-const PLANAR_SINE = 1e-5;
+// Recognition and supporting-direction semantics share the Float32 payload tolerance.
+const PLANAR_SINE = MEASUREMENT_PARALLEL_TOLERANCE;
 const STRAIGHT_SINE = 1e-6;
 const CURVED_NEIGHBOR_COSINE = Math.cos(Math.PI / 6);
 const vector = (p: MeasurementVec3): Vector3 => new Vector3(...p);
@@ -288,7 +287,7 @@ export class MeasurementGeometry {
       if (!this.outside(operand, centroid)) {
         this.patchCenters.set(patchId, {
           key: `face-center:${patchId}`,
-          operand: { kind: 'point', position, faceCenter: { patchId, onSurface: true } },
+          operand: { kind: 'point', position, faceCenter: { patchId } },
           anchor: position,
           triIds: candidate.triIds,
         });
@@ -521,7 +520,11 @@ export class MeasurementGeometry {
       const u = unit(vector(first.end).sub(vector(first.start)));
       const n = unit(vector(second.normal));
       const sine = clamp(Math.abs(u.dot(n)));
-      result.angle = { method: 'line-plane', unit: 'deg', value: (Math.asin(sine) * 180) / Math.PI };
+      result.angle = {
+        method: 'line-plane',
+        unit: 'deg',
+        value: sine <= MEASUREMENT_PARALLEL_TOLERANCE ? 0 : (Math.asin(sine) * 180) / Math.PI,
+      };
       if (sine <= MEASUREMENT_PARALLEL_TOLERANCE) {
         const p = vector(first.start).add(vector(first.end)).multiplyScalar(0.5);
         const foot = p.clone().addScaledVector(n, -p.clone().sub(vector(second.origin)).dot(n));
@@ -534,7 +537,7 @@ export class MeasurementGeometry {
       result.angle = {
         method: 'plane-plane',
         unit: 'deg',
-        value: (Math.atan2(sine, Math.abs(n.dot(m))) * 180) / Math.PI,
+        value: sine <= MEASUREMENT_PARALLEL_TOLERANCE ? 0 : (Math.atan2(sine, Math.abs(n.dot(m))) * 180) / Math.PI,
       };
       if (sine <= MEASUREMENT_PARALLEL_TOLERANCE) {
         // Keep a height marker beside the smaller feature, not a remote corner

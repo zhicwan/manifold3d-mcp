@@ -38,14 +38,12 @@ structured `measurement` field rather than treating `worldCoord` as the measured
 quantity. It contains canonical point, finite straight-edge or planar-patch
 operands, method names, mm distances with witness endpoints, and/or angles.
 `edge-corner` measures rays leaving a unique shared endpoint (0-180 degrees).
-Other methods, including historical `line-line` evidence, retain smaller
-unoriented angles (0-90 degrees). Supporting-plane distances are not shortest
+Other direction methods retain smaller unoriented angles (0-90 degrees).
+Supporting-plane distances are not shortest
 distances to finite faces; `extended: true` identifies witnesses outside a patch.
 Mesh edges are tessellation evidence, not guaranteed nominal CAD features.
-Point operands may include `faceCenter: { patchId, onSurface }`: the area centroid
+Point operands may include `faceCenter: { patchId }`: the area centroid
 of a connected planar face. The Viewer offers only centers on the actual surface.
-In historical snapshots, `onSurface: false` identifies a reference in a hole or
-beyond the face boundary, not a point on the printable surface.
 
 MCP has no composer attachment or active Send modification action. Retrieve retained measurements here
 before replacing the model; replacement clears them and requires remeasurement.

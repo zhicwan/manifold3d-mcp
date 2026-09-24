@@ -36,7 +36,7 @@ function relation(a: MeasurementOperand, b: MeasurementOperand): MeasurementEvid
 }
 
 describe('measurement wire evidence', () => {
-  it('validates 120-degree endpoint corners and preserves legacy smaller-angle semantics', () => {
+  it('validates 120-degree endpoint corners and rejects ambiguous smaller-angle encoding', () => {
     const first: MeasurementEdge = { ...edge, start: [0, 0, 0], end: [10, 0, 0] };
     const second: MeasurementEdge = { kind: 'edge', edgeId: 'b', start: [0, 0, 0], end: [-5, 5 * Math.sqrt(3), 0] };
     const evidence = {
@@ -52,9 +52,9 @@ describe('measurement wire evidence', () => {
         expect(parseMeasurementEvidence({ ...evidence, operands: [b, a] })).toMatchObject({ angle: { value: 120 } });
       }
     }
-    expect(
+    expect(() =>
       parseMeasurementEvidence({ ...evidence, angle: { method: 'line-line', unit: 'deg', value: 60 } }),
-    ).toMatchObject({ angle: { method: 'line-line', value: 60 } });
+    ).toThrow(/edge-corner/);
     for (const value of [60, 90, 181, -1, Infinity]) {
       expect(() => parseMeasurementEvidence({ ...evidence, angle: { ...evidence.angle, value } })).toThrow();
     }
@@ -71,11 +71,11 @@ describe('measurement wire evidence', () => {
     expect(() => parseMeasurementEvidence({ ...evidence, operands: [first, first] })).toThrow(/shared endpoint/);
   });
 
-  it('preserves detached face-center reference semantics, including centers outside the actual surface', () => {
+  it('preserves detached on-surface face-center reference semantics', () => {
     const evidence: MeasurementEvidence = {
       kind: 'relation',
       operands: [
-        { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 3, onSurface: false } },
+        { kind: 'point', position: [0, 0, 0], faceCenter: { patchId: 3 } },
         { kind: 'point', position: [0, 0, 5], vertexId: 2 },
       ],
       distance: { method: 'point-point', unit: 'mm', value: 5, start: [0, 0, 0], end: [0, 0, 5] },
@@ -85,12 +85,8 @@ describe('measurement wire evidence', () => {
     if (evidence.operands[0].kind === 'point') {
       evidence.operands[0].faceCenter!.patchId = 99;
     }
-    expect(parsed.operands[0]).toMatchObject({ faceCenter: { patchId: 3, onSurface: false } });
-    for (const invalid of [
-      { patchId: -1, onSurface: false },
-      { patchId: 0, onSurface: 'yes' },
-      { patchId: 0, onSurface: true, extra: 1 },
-    ]) {
+    expect(parsed.operands[0]).toMatchObject({ faceCenter: { patchId: 3 } });
+    for (const invalid of [{ patchId: -1 }, { patchId: 0, onSurface: true }, { patchId: 0, extra: 1 }]) {
       expect(() =>
         parseMeasurementEvidence({
           ...evidence,
@@ -102,7 +98,7 @@ describe('measurement wire evidence', () => {
       parseMeasurementEvidence({
         ...evidence,
         operands: [
-          { kind: 'point', position: [0, 0, 0], vertexId: 0, faceCenter: { patchId: 0, onSurface: true } },
+          { kind: 'point', position: [0, 0, 0], vertexId: 0, faceCenter: { patchId: 0 } },
           evidence.operands[1],
         ],
       }),
@@ -376,24 +372,32 @@ describe('measurement wire evidence', () => {
     expect(parseMeasurementEvidence(evidence)).toEqual(evidence);
   });
 
-  it('rejects near-parallel gaps even when the direction dot product rounds to one', () => {
+  it('accepts Float32-scale parallel noise and rejects visibly tilted gaps', () => {
     const plane = { kind: 'plane', patchId: 0, triangleId: 0, origin: [0, 0, 0], normal: [0, 0, 1] };
     const distance = { method: 'parallel-gap', unit: 'mm', value: 2, start: [0, 0, 2], end: [0, 0, 0] };
-    expect(() =>
+    expect(
       parseMeasurementEvidence({
         kind: 'relation',
         operands: [{ ...edge, start: [0, 0, 2], end: [10, 0, 2 + 1e-7] }, plane],
         angle: { method: 'line-plane', unit: 'deg', value: 0 },
         distance,
       }),
-    ).toThrow(/parallel/);
-    expect(() =>
+    ).toMatchObject({ distance: { method: 'parallel-gap' }, angle: { value: 0 } });
+    expect(
       parseMeasurementEvidence({
         kind: 'relation',
         operands: [{ ...plane, patchId: 1, origin: [0, 0, 2], normal: [1e-8, 0, 1] }, plane],
         angle: { method: 'plane-plane', unit: 'deg', value: 0 },
         distance,
       }),
-    ).toThrow(/parallel/);
+    ).toMatchObject({ distance: { method: 'parallel-gap' }, angle: { value: 0 } });
+    expect(() =>
+      parseMeasurementEvidence({
+        kind: 'relation',
+        operands: [{ ...edge, start: [0, 0, 2], end: [10, 0, 2.001] }, plane],
+        angle: { method: 'line-plane', unit: 'deg', value: 0 },
+        distance,
+      }),
+    ).toThrow();
   });
 });

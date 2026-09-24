@@ -27,6 +27,7 @@ describe('task-focused measurement readings', () => {
     expect(formatMeasurement(relation(0, 90), i18n)).toBe('90°');
     expect(formatMeasurement(relation(16, 45), i18n)).toBe('16 mm · 45°');
     expect(formatMeasurement(relation(0, 0), i18n)).toBe('0 mm');
+    expect(formatMeasurement(relation(0, 0.000004), i18n)).toBe('0°');
   });
 
   it('shows obtuse corner angles without calling them smaller angles', () => {

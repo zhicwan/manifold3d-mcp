@@ -126,7 +126,7 @@ describe('canonical measurement topology', () => {
       expect(geometry.centers[0]!.operand).toMatchObject({
         kind: 'point',
         position: [2, 1, 0],
-        faceCenter: { patchId: 0, onSurface: true },
+        faceCenter: { patchId: 0 },
       });
     }
   });
@@ -165,9 +165,9 @@ describe('canonical measurement topology', () => {
   it('keeps small sharp-edged faces rather than filtering by absolute area', () => {
     const geometry = new MeasurementGeometry(meshModel(new THREE.BoxGeometry(0.001, 0.002, 0.003)));
     expect(geometry.centers).toHaveLength(6);
-    expect(
-      geometry.centers.every(item => item.operand.kind === 'point' && item.operand.faceCenter?.onSurface === true),
-    ).toBe(true);
+    expect(geometry.centers.every(item => item.operand.kind === 'point' && item.operand.faceCenter !== undefined)).toBe(
+      true,
+    );
   });
 
   it('keeps separate centers for disconnected coplanar regions', () => {
@@ -412,7 +412,11 @@ describe('complete distance/angle matrix', () => {
       expect(result.angle?.value).toBe(0);
       expect(result.distance).toMatchObject({ method: 'parallel-gap', value: 3, extended: true });
     }
-    expect(relation(geometry.measure(edge([0, 0, 3], [1, 0, 3 + 1e-8]), b)).distance).toBeUndefined();
+    expect(relation(geometry.measure(edge([0, 0, 3], [1, 0, 3 + 1e-6]), b))).toMatchObject({
+      angle: { value: 0 },
+      distance: { method: 'parallel-gap' },
+    });
+    expect(relation(geometry.measure(edge([0, 0, 3], [1, 0, 3 + 1e-4]), b)).distance).toBeUndefined();
     expect(relation(geometry.measure(edge([0, 0, -3], [0, 0, 3]), b)).angle?.value).toBe(90);
   });
 
@@ -432,7 +436,11 @@ describe('complete distance/angle matrix', () => {
         expect(result.angle?.value).toBe(0);
       }
     }
-    expect(relation(geometry.measure(a, plane([0, 0, 0], [1e-8, 0, 1]))).distance).toBeUndefined();
+    expect(relation(geometry.measure(a, plane([0, 0, 0], [1e-6, 0, 1])))).toMatchObject({
+      angle: { value: 0 },
+      distance: { method: 'parallel-gap' },
+    });
+    expect(relation(geometry.measure(a, plane([0, 0, 0], [1e-4, 0, 1]))).distance).toBeUndefined();
     expect(relation(geometry.measure(a, plane([0, 0, 0], [1, 0, 0]))).angle?.value).toBe(90);
   });
 
@@ -444,13 +452,26 @@ describe('complete distance/angle matrix', () => {
       .setPosition(7, 8, 9);
     for (let i = 0; i < payload.vertices; i++) {
       const p = new THREE.Vector3().fromArray(payload.vertProperties, i * 3).applyMatrix4(matrix);
-      p.toArray(payload.vertProperties, i * 3);
+      payload.vertProperties[i * 3] = Math.fround(p.x);
+      payload.vertProperties[i * 3 + 1] = Math.fround(p.y);
+      payload.vertProperties[i * 3 + 2] = Math.fround(p.z);
     }
     const transformed = new MeasurementGeometry(payload);
     expect(transformed.planes).toHaveLength(6);
     expect(transformed.edges).toHaveLength(12);
     const lengths = transformed.edges.map(e => transformed.measure(e)!.distance!.value).sort((a, b) => a - b);
     [4, 4, 4, 4, 6, 6, 6, 6, 8, 8, 8, 8].forEach((length, i) => expect(lengths[i]).toBeCloseTo(length, 5));
+    const planeGaps: number[] = [];
+    for (let i = 0; i < transformed.planes.length; i++) {
+      for (let j = i + 1; j < transformed.planes.length; j++) {
+        const measured = relation(transformed.measure(transformed.planes[i]!, transformed.planes[j]!));
+        if (measured.distance) {
+          expect(measured.angle?.value).toBe(0);
+          planeGaps.push(measured.distance.value);
+        }
+      }
+    }
+    expect(planeGaps.sort((a, b) => a - b)).toEqual([expect.closeTo(4, 5), expect.closeTo(6, 5), expect.closeTo(8, 5)]);
     for (const a of transformed.candidates) {
       for (const b of transformed.candidates) {
         if (a.key !== b.key) {

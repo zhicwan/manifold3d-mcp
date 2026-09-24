@@ -174,7 +174,7 @@ export class MarkTool {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
-    if (!this.enabled || !isViewerShortcutEvent(event, this.root)) {
+    if (!this.enabled || !isViewerShortcutEvent(event, this.root) || this.flyouts.ownsDraftTarget(event.target)) {
       return;
     }
     if (event.key === 'Escape') {

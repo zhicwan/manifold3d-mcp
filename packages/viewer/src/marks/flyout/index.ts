@@ -213,6 +213,11 @@ export class FlyoutLayer {
     );
   }
 
+  /** Returns true when keyboard input belongs to an open editor, not its model anchor. */
+  ownsDraftTarget(target: EventTarget | null): boolean {
+    return target instanceof Node && this.host.contains(target);
+  }
+
   /** Called when the user clicks somewhere outside any flyout. */
   dismissAll(): void {
     this.controller.dismissAll();
