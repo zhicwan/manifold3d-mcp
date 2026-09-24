@@ -115,7 +115,7 @@ describe('measurement mode and delivery separation', () => {
       modelVersion: 'v1',
       annotationRevision: store.getRevision(),
       annotationIds: [measurement.id],
-      input: { markerNumbers: [measurement.displayNumber] },
+      input: { markerNumbers: [1] },
     });
     await expect(submit()).rejects.toThrow(/already/);
     expect(requests).toHaveLength(1);

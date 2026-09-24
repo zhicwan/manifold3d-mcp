@@ -156,10 +156,12 @@ describe('measurement label mode routing', () => {
   it('shows a number only for a nonempty comment or a successful attachment', () => {
     const number = () => render().find(node => node.props.text === '10 mm')?.props.displayNumber;
     expect(number()).toBeUndefined();
+    expect(annotations.get(id)?.displayNumber).toBe(0);
     annotations.updateMeasurementNote(id, '   ');
     expect(number()).toBeUndefined();
     annotations.updateMeasurementNote(id, 'Please change this');
     expect(number()).toBe(annotations.get(id)?.displayNumber);
+    expect(number()).toBe(1);
     annotations.updateMeasurementNote(id, '');
     expect(number()).toBeUndefined();
     annotations.setMeasurementState(id, 'draft', 'pending');

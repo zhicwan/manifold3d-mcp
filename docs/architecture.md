@@ -230,7 +230,10 @@ model version and exact annotation revision before dispatch.
 Editing a previously delivered measurement creates a new draft without changing
 its geometry or any host snapshot. Labels show shared annotation display numbers
 only when they have a nonempty comment or a successful attachment; plain
-measurements remain unnumbered visually. They reuse the regular comment preview
+measurements neither display nor reserve a number. Measurement numbers are
+allocated when the first nonempty note is saved or a direct attachment begins,
+so batch ordering reflects annotation intent rather than geometry creation.
+They reuse the regular comment preview
 styling on hover/focus. Notes do not require
 a separate comment badge. A paperclip indicates attachment and a spinner indicates
 pending delivery; an attached-note mismatch marks newer edits instead of claiming

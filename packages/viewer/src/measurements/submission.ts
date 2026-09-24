@@ -41,8 +41,16 @@ export async function submitMeasurement(options: {
   if (reason) {
     throw new Error(reason);
   }
+  const allocatedDisplayNumber = annotation.displayNumber === 0;
+  const displayNumber = store.ensureMeasurementDisplayNumber(id);
+  if (displayNumber === undefined) {
+    throw new Error(i18n.t('actionAlreadyRunning'));
+  }
   const previousState = annotation.state;
   if (!store.setMeasurementState(id, previousState, 'pending')) {
+    if (allocatedDisplayNumber) {
+      store.releaseMeasurementDisplayNumber(id);
+    }
     throw new Error(i18n.t('actionAlreadyRunning'));
   }
   const captured = store.get(id);
@@ -50,13 +58,16 @@ export async function submitMeasurement(options: {
   try {
     const status = await client.invokeAndWait(actionId, {
       annotationIds: [id],
-      input: { markerNumbers: [annotation.displayNumber] },
+      input: { markerNumbers: [displayNumber] },
     });
     if (!stillCurrent()) {
       return 'stale';
     }
     if (status.state === 'failed') {
       store.setMeasurementState(id, 'pending', previousState);
+      if (allocatedDisplayNumber) {
+        store.releaseMeasurementDisplayNumber(id);
+      }
       flush();
       return 'failed';
     }
@@ -71,6 +82,9 @@ export async function submitMeasurement(options: {
       return 'stale';
     }
     store.setMeasurementState(id, 'pending', previousState);
+    if (allocatedDisplayNumber) {
+      store.releaseMeasurementDisplayNumber(id);
+    }
     flush();
     throw error;
   }

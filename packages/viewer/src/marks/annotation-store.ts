@@ -254,12 +254,15 @@ export class AnnotationStore {
   addMeasurement(measurement: MeasurementEvidence, anchor: MeasurementVec3): MeasurementAnnotation {
     const evidence = deepFreeze(parseMeasurementEvidence(measurement));
     const ann: MeasurementAnnotation = freezeAnnotation({
-      ...this.createBase({
-        kind: 'measurement',
-        anchorWorld: anchor,
-        worldCoord: anchor,
-        triIds: [],
-      }),
+      ...this.createBase(
+        {
+          kind: 'measurement',
+          anchorWorld: anchor,
+          worldCoord: anchor,
+          triIds: [],
+        },
+        false,
+      ),
       kind: 'measurement',
       intent: 'measurement',
       state: 'draft',
@@ -290,13 +293,19 @@ export class AnnotationStore {
           note,
           state: 'draft',
           batchId: commentBase?.batchId ?? current.batchId,
+          displayNumber:
+            current.attachedNote === undefined && current.sentNote === undefined
+              ? (commentBase?.displayNumber ?? 0)
+              : current.displayNumber,
         }),
       );
     } else {
+      const displayNumber = current.displayNumber || ++this.displaySequence;
       this.items.set(
         id,
         freezeAnnotation({
           ...current,
+          displayNumber,
           note,
           state: 'draft',
           batchId: this.currentCommentBatchId,
@@ -306,10 +315,42 @@ export class AnnotationStore {
               note: current.note,
               state: current.state,
               batchId: current.batchId,
+              displayNumber: current.displayNumber,
             }),
         }),
       );
     }
+    this.commit();
+    return true;
+  }
+
+  ensureMeasurementDisplayNumber(id: string): number | undefined {
+    const current = this.items.get(id);
+    if (current?.intent !== 'measurement' || current.state === 'pending') {
+      return undefined;
+    }
+    if (current.displayNumber > 0) {
+      return current.displayNumber;
+    }
+    const displayNumber = ++this.displaySequence;
+    this.items.set(id, freezeAnnotation({ ...current, displayNumber }));
+    this.commit();
+    return displayNumber;
+  }
+
+  releaseMeasurementDisplayNumber(id: string): boolean {
+    const current = this.items.get(id);
+    if (
+      current?.intent !== 'measurement' ||
+      current.state === 'pending' ||
+      current.note.trim() !== '' ||
+      current.attachedNote !== undefined ||
+      current.sentNote !== undefined ||
+      current.displayNumber === 0
+    ) {
+      return false;
+    }
+    this.items.set(id, freezeAnnotation({ ...current, displayNumber: 0 }));
     this.commit();
     return true;
   }
@@ -384,7 +425,13 @@ export class AnnotationStore {
     if (current?.intent !== 'measurement' || current.state !== 'pending' || current.pendingDelivery !== 'direct') {
       return false;
     }
-    this.items.set(id, finishMeasurementNote(current, kind));
+    this.items.set(
+      id,
+      finishMeasurementNote(
+        current.displayNumber === 0 ? { ...current, displayNumber: ++this.displaySequence } : current,
+        kind,
+      ),
+    );
     this.commit();
     return true;
   }
@@ -411,12 +458,15 @@ export class AnnotationStore {
     }
   }
 
-  private createBase(input: Omit<SelectionAnnotationInput, 'kind'> & { kind: AnnotationKind }) {
+  private createBase(
+    input: Omit<SelectionAnnotationInput, 'kind'> & { kind: AnnotationKind },
+    allocateDisplayNumber = true,
+  ) {
     const seq = ++this.seqByKind[input.kind];
     return {
       id: `ann_${Date.now().toString(36)}_${(++this.idSequence).toString(36)}`,
       createdAt: Date.now(),
-      displayNumber: ++this.displaySequence,
+      displayNumber: allocateDisplayNumber ? ++this.displaySequence : 0,
       modelVersion: this.modelVersion,
       kind: input.kind,
       anchorWorld: frozenTuple3(input.anchorWorld),
@@ -431,16 +481,18 @@ export class AnnotationStore {
   }
 
   private getBatchNotes(batchId: string, states: ReadonlySet<CommentAnnotation['state']>): BatchNote[] {
-    return this.snapshot.filter(
-      (annotation): annotation is BatchNote =>
-        (annotation.intent === 'comment' ||
-          (annotation.intent === 'measurement' &&
-            annotation.commentBase !== undefined &&
-            (annotation.state !== 'pending' || annotation.pendingDelivery === 'batch') &&
-            annotation.note.trim() !== '')) &&
-        states.has(annotation.state) &&
-        annotation.batchId === batchId,
-    );
+    return this.snapshot
+      .filter(
+        (annotation): annotation is BatchNote =>
+          (annotation.intent === 'comment' ||
+            (annotation.intent === 'measurement' &&
+              annotation.commentBase !== undefined &&
+              (annotation.state !== 'pending' || annotation.pendingDelivery === 'batch') &&
+              annotation.note.trim() !== '')) &&
+          states.has(annotation.state) &&
+          annotation.batchId === batchId,
+      )
+      .sort((a, b) => a.displayNumber - b.displayNumber);
   }
 
   private rotateCommentBatch(): void {

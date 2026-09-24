@@ -59,7 +59,9 @@ evidence action. Measurement alone never requests a change. Comment edits remain
 local drafts until explicitly delivered to chat.
 An attached label remains editable; past attachments are immutable snapshots.
 Only measurements with a nonempty comment or a successful attachment show the
-shared annotation number; plain measurements show the value alone.
+shared annotation number; plain measurements show the value alone and do not
+reserve a number. Numbers follow the order measurements first enter the shared
+annotation stream, not the order their geometry was measured.
 Labels preview their note on
 hover or keyboard focus, without opening an editor. A paperclip indicates an
 attachment; no redundant comment icon is shown. A dashed border

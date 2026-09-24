@@ -14,6 +14,31 @@ function evidence(): MeasurementEvidence {
 }
 
 describe('measurement annotations', () => {
+  it('numbers measurements when they enter the annotation stream, not when geometry is created', () => {
+    const store = new AnnotationStore();
+    const firstGeometry = store.addMeasurement(evidence(), [1.5, 2, 0]);
+    const secondGeometry = store.addMeasurement(evidence(), [1.5, 2, 0]);
+    expect([firstGeometry.displayNumber, secondGeometry.displayNumber]).toEqual([0, 0]);
+
+    store.updateMeasurementNote(secondGeometry.id, 'commented first');
+    store.updateMeasurementNote(firstGeometry.id, 'commented second');
+    expect(store.get(secondGeometry.id)?.displayNumber).toBe(1);
+    expect(store.get(firstGeometry.id)?.displayNumber).toBe(2);
+    expect(store.getDraftBatch().annotationIds).toEqual([secondGeometry.id, firstGeometry.id]);
+
+    store.cancelBatch(store.getDraftBatch().batchId);
+    expect(store.get(secondGeometry.id)?.displayNumber).toBe(0);
+    expect(store.get(firstGeometry.id)?.displayNumber).toBe(0);
+    const next = store.addComment({
+      kind: 'point',
+      worldCoord: [0, 0, 0],
+      anchorWorld: [0, 0, 0],
+      triIds: [],
+      note: 'reuses the released first number',
+    });
+    expect(next.displayNumber).toBe(1);
+  });
+
   it.each(['attach', 'send'] as const)(
     'keeps direct %s ownership separate from a concurrently submitted note batch',
     delivery => {
@@ -83,7 +108,7 @@ describe('measurement annotations', () => {
       note: 'ordinary',
     });
     store.updateMeasurementNote(measured.id, 'Change this length');
-    expect(store.getDraftBatch().annotationIds).toEqual([measured.id, ordinary.id]);
+    expect(store.getDraftBatch().annotationIds).toEqual([ordinary.id, measured.id]);
     expect(store.getDraftBatch().annotationIds).not.toContain(plain.id);
     store.freezeBatch(store.getDraftBatch().batchId);
     expect(store.getDraftBatch().annotationIds).toEqual([]);

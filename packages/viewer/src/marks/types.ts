@@ -17,7 +17,7 @@ export type MarkMode = 'orbit' | 'annotate' | 'select' | 'measure';
 interface SpatialAnnotation {
   id: string;
   createdAt: number;
-  /** Viewer-local presentation number for this model, shown as #N. */
+  /** Viewer-local presentation number for this model. Zero means an unannotated measurement has not entered the stream. */
   displayNumber: number;
   /** Identifies the model version this annotation was made against. */
   modelVersion: string;
@@ -76,6 +76,7 @@ export interface MeasurementAnnotation extends SpatialAnnotation {
     note: string;
     state: 'draft' | 'committed';
     batchId: string;
+    displayNumber: number;
   };
 }
 
