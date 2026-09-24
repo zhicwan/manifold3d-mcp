@@ -62,7 +62,7 @@ describe('AnnotationAttachment', () => {
     };
     const attachment = buildAnnotationAttachment({ ...input, mode: 'measurement' });
     expect(attachment).toMatchObject({
-      version: 5,
+      version: 6,
       mode: 'measurement',
       annotations: [{ note: '', measurement: measurement.measurement }],
     });
@@ -199,7 +199,7 @@ describe('AnnotationAttachment', () => {
       markerNumbers: [2, 6, 9],
     });
     const expected = {
-      version: 5,
+      version: 6,
       source: 'manifold3d-viewer',
       mode: 'annotation-batch',
       batchId: 'mixed-batch',

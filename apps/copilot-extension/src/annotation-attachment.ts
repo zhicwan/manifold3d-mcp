@@ -1,7 +1,7 @@
 import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
 import { parseMeasurementEvidence, type MeasurementEvidence } from '@manifold3d/protocol/wire/measurements.js';
 
-export const ANNOTATION_ATTACHMENT_VERSION = 5 as const;
+export const ANNOTATION_ATTACHMENT_VERSION = 6 as const;
 export const MAX_ATTACHMENT_ANNOTATIONS = 128;
 const MAX_ATTACHMENT_NOTE_LENGTH = 4_096;
 export const MAX_ATTACHMENT_SKETCH_POINTS = 8_192;

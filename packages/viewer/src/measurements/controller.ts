@@ -10,6 +10,7 @@ import { pickMeasurement } from './picker.js';
 import { MeasurementRenderer } from './renderer.js';
 import { projectMeasurement, type DimensionStroke, type ProjectedMeasurement } from './projection.js';
 import { RadialPlacementResolver } from './radial-placement.js';
+import { contextualizeMeasurement } from './context.js';
 
 export interface MeasurementLabel extends ProjectedMeasurement {
   id: string;
@@ -73,6 +74,7 @@ export class RulerController {
     private readonly getMesh: () => THREE.Mesh | null,
     private readonly requestRender: () => void,
     private readonly finish: () => void,
+    private readonly featureFor: (candidate: MeasurementCandidate) => string | null = () => null,
   ) {
     this.renderer = new MeasurementRenderer(scene, getMesh);
     this.unsubscribe = store.subscribe(() => {
@@ -235,11 +237,12 @@ export class RulerController {
           return;
         }
         try {
-          const length = this.geometry.measure(candidate);
+          const measured = this.geometry.measure(candidate);
+          const length = measured ? contextualizeMeasurement(measured, [candidate], this.featureFor) : null;
           if (!length) {
             throw new Error('The selected edge has no measurable length.');
           }
-          const annotation = this.store.addMeasurement(length, candidate.anchor);
+          const annotation = this.store.addMeasurement(length.evidence, candidate.anchor, length.partLabel);
           this.updatePreview({
             locked: candidate,
             candidate: null,
@@ -445,11 +448,19 @@ export class RulerController {
             .toArray()
         : candidate.anchor;
       if (currentId) {
-        if (!this.store.replaceMeasurement(currentId, evidence, anchor)) {
+        const partLabel = evidence.operands
+          .map(operand => operand.feature)
+          .filter((feature): feature is string => feature !== undefined)
+          .join(' to ');
+        if (!this.store.replaceMeasurement(currentId, evidence, anchor, partLabel || 'Measurement')) {
           throw new Error('The measurement changed before the comparison was completed.');
         }
       } else {
-        this.store.addMeasurement(evidence, anchor);
+        const partLabel = evidence.operands
+          .map(operand => operand.feature)
+          .filter((feature): feature is string => feature !== undefined)
+          .join(' to ');
+        this.store.addMeasurement(evidence, anchor, partLabel || 'Measurement');
       }
       this.finish();
     } catch (error) {
@@ -460,13 +471,19 @@ export class RulerController {
   private updatePreview(changes: Partial<RulerSnapshot> = {}): void {
     try {
       const { locked, candidate, faceCenter } = { ...this.snapshot, ...changes };
-      const relation =
+      const measured =
         this.geometry && candidate
           ? locked
             ? this.geometry.measure(locked, candidate)
             : this.geometry.measure(candidate)
           : null;
-      const preview = relation ?? (locked?.operand.kind === 'edge' ? (this.geometry?.measure(locked) ?? null) : null);
+      const relation =
+        measured && candidate
+          ? contextualizeMeasurement(measured, locked ? [locked, candidate] : [candidate], this.featureFor).evidence
+          : null;
+      const single = locked?.operand.kind === 'edge' ? this.geometry?.measure(locked) : null;
+      const preview =
+        relation ?? (single ? contextualizeMeasurement(single, [locked!], this.featureFor).evidence : null);
       const previewTarget = candidate ?? locked;
       const mesh = this.getMesh();
       this.camera.updateMatrixWorld();

@@ -92,7 +92,7 @@ the Viewer action status rather than treated as successful launches.
 
 Batch actions require explicit `annotationIds` and input
 `{ "batchId": "<safe-id>", "markerNumbers": [1, 2] }` (one display number per id).
-Both capture a bounded version 5 static snapshot
+Both capture a bounded version 6 static snapshot
 with mode `annotation-batch`, the model version, annotation revision, batch id,
 selected geometry, and notes. `attach-annotation-batch` adds exactly one
 `extension_context` composer pill and does not send a message.
@@ -117,7 +117,7 @@ exactly-once guarantee if a network acknowledgement is lost.
 
 `attach-location-selection` requires exactly one point or region annotation
 whose note is empty, with input `{ "markerNumbers": [1] }`.
-Its single version 5 pill uses mode `location-selection`,
+Its single version 6 pill uses mode `location-selection`,
 omits `batchId` and comment text, and records only the selected location.
 Snapshots are validated against the room's committed model version and
 annotation revision before dispatch. Saving or editing annotations alone never
@@ -128,11 +128,14 @@ successful completion owned by the current Viewer operation updates its local
 delivery receipt.
 
 `attach-measurement` requires exactly one explicit measurement `annotationIds`
-entry and input `{ "markerNumbers": [1] }`. Its version 5, mode `measurement`
+entry and input `{ "markerNumbers": [1] }`. Its version 6, mode `measurement`
 pill stores structured `measurement` evidence under `annotations[0]`, with an
 optional/empty note, model version and annotation revision. Canonical operands,
 distance witnesses in mm, supporting-plane methods/extensions, and angle methods
-are preserved separately from prose. `edge-corner` is the angle between rays
+are preserved separately from prose. Feature labels identify model parts when
+available; `display` records the visible rounded primary quantity and `summary`
+provides a deterministic explanation. Operand order records selection order but
+does not imply which operand may move in an edit. `edge-corner` is the angle between rays
 leaving the unique shared endpoint of two edges (0-180 degrees); other methods
 remain smaller unoriented angles (0-90 degrees). The
 snapshot is validated, detached and bounded to 128 KiB. Attach adds a composer

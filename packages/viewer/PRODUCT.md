@@ -50,6 +50,11 @@ The ruler sits directly above zoom in the view-tools group, separated from
 annotation controls.
 Results remain on the current model. Values sit inline within projected
 dimension lines, including during hover. A short hint replaces the measurement
+Detached measurement evidence includes the same rounded primary reading the
+user saw, a deterministic summary and semantic feature labels when the model
+provides them. Planar origins use patch area centroids rather than arbitrary
+triangle corners. Operand order records selection order only; if an edit request
+does not identify which side may move, the assistant must ask rather than infer. A short hint replaces the measurement
 panel; its only action is Exit. Candidate ranking drives direct picking, without
 a separate candidate-choice menu. Clicking a dimension in Annotate opens the
 shared note editor. No technical information panel or per-result restart tool is

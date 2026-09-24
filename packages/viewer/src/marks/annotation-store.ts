@@ -251,7 +251,11 @@ export class AnnotationStore {
     return this.items.get(id);
   }
 
-  addMeasurement(measurement: MeasurementEvidence, anchor: MeasurementVec3): MeasurementAnnotation {
+  addMeasurement(
+    measurement: MeasurementEvidence,
+    anchor: MeasurementVec3,
+    partLabel = 'Measurement',
+  ): MeasurementAnnotation {
     const evidence = deepFreeze(parseMeasurementEvidence(measurement));
     const ann: MeasurementAnnotation = freezeAnnotation({
       ...this.createBase(
@@ -260,6 +264,7 @@ export class AnnotationStore {
           anchorWorld: anchor,
           worldCoord: anchor,
           triIds: [],
+          partLabel,
         },
         false,
       ),
@@ -355,7 +360,12 @@ export class AnnotationStore {
     return true;
   }
 
-  replaceMeasurement(id: string, measurement: MeasurementEvidence, anchor: MeasurementVec3): boolean {
+  replaceMeasurement(
+    id: string,
+    measurement: MeasurementEvidence,
+    anchor: MeasurementVec3,
+    partLabel = 'Measurement',
+  ): boolean {
     const current = this.items.get(id);
     if (
       current?.intent !== 'measurement' ||
@@ -373,6 +383,7 @@ export class AnnotationStore {
         measurement: deepFreeze(parseMeasurementEvidence(measurement)),
         anchorWorld: frozenTuple3(anchor),
         worldCoord: frozenTuple3(anchor),
+        partLabel,
       }),
     );
     this.commit();

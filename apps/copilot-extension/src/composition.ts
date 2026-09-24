@@ -32,7 +32,9 @@ export const ATTACH_MEASUREMENT_ACTION_ID = 'attach-measurement';
 export const MODEL_EXPORT_ACTION_ID = 'export-model-file';
 export const OPEN_IN_MANIFOLDCAD_ACTION_ID = 'open-in-manifoldcad';
 export const FIX_ANNOTATION_BATCH_PROMPT =
-  'Revise the current manifold-3d model using the following static annotation batch snapshot.';
+  'Revise the current manifold-3d model using the following static annotation batch snapshot. ' +
+  'For measurement items, trust the structured evidence and summary; parallel-gap measures supporting planes, not finite-face clearance. ' +
+  'Operand order records selection order, but never guess which operand may move when the instruction is ambiguous: ask the user to clarify.';
 const DEFAULT_SESSION_DISCONNECT_TIMEOUT_MS = 500;
 const DEFAULT_FIX_SEND_DRAIN_TIMEOUT_MS = 250;
 
@@ -508,7 +510,12 @@ class ExtensionController {
     context: HostActionHandlerContext,
   ): Promise<HostActionHandlerResult> {
     const attachment = this.buildMeasurementAttachment(context);
-    await this.pushAttachment(binding, `Measurement · #${attachment.annotations[0].displayNumber}`, attachment);
+    const measurement = attachment.annotations[0];
+    await this.pushAttachment(
+      binding,
+      `Measurement #${measurement.displayNumber}${measurement.measurement.display?.text ? ` · ${measurement.measurement.display.text}` : ''}`,
+      attachment,
+    );
     return {
       status: 'succeeded',
       message: 'Attached measurement.',

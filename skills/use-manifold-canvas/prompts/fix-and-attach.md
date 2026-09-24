@@ -41,7 +41,10 @@ Numbered measurement labels preview their note on hover; a paperclip marks an
 attached snapshot. A dashed label border
 after editing means the current comment is newer than its attached snapshot.
 Use its structured operands, methods, mm distances/witnesses and angles, not just
-its label or note. `edge-corner` is the angle between rays leaving the shared
+its label or note. Prefer its bounded `summary`, operand `feature` labels and
+`display.primary` when interpreting what the user saw. Operand order records
+selection order, but never guess which operand should move when an edit is
+ambiguous; ask the user to clarify. `edge-corner` is the angle between rays leaving the shared
 endpoint (0-180 degrees); reversing endpoint or selection order does not change it.
 Other direction methods remain smaller unoriented angles (0-90 degrees), not
 solid interior angles. Supporting-plane distances do not

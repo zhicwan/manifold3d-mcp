@@ -37,6 +37,11 @@ deleting the dimension. Read the
 structured `measurement` field rather than treating `worldCoord` as the measured
 quantity. It contains canonical point, finite straight-edge or planar-patch
 operands, method names, mm distances with witness endpoints, and/or angles.
+Operand `feature` labels identify model parts when feature metadata is available.
+`display` records the primary quantity and visible rounded reading; `summary`
+is the deterministic human-readable interpretation. Operand order records the
+selection order, but never infer which operand should move from that order:
+ask the user when an edit instruction is ambiguous.
 `edge-corner` measures rays leaving a unique shared endpoint (0-180 degrees).
 Other direction methods retain smaller unoriented angles (0-90 degrees).
 Supporting-plane distances are not shortest

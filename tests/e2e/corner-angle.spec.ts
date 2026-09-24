@@ -34,7 +34,7 @@ test('a real 120-degree bracket corner shows and attaches 120 degrees, not its s
   await testInfo.attach('corner-120-degrees', { body: await page.screenshot(), contentType: 'image/png' });
   await attachMeasurement(page);
   const payload = parseAnnotationAttachment(attachmentPayload(extension));
-  expect(payload.version).toBe(5);
+  expect(payload.version).toBe(6);
   expect(payload.mode).toBe('measurement');
   if (payload.mode !== 'measurement') {
     throw new Error('Expected a dedicated measurement snapshot.');

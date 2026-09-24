@@ -27,7 +27,19 @@ test('Select Attach captures immutable snapshots while measurement comments use 
   expect(extension.messages).toHaveLength(0);
   expect(attachmentPayload(extension)).toMatchObject({
     mode: 'measurement',
-    annotations: [{ displayNumber: 1, measurement: { kind: 'edge-length', distance: { value: 80, unit: 'mm' } } }],
+    annotations: [
+      {
+        displayNumber: 1,
+        partLabel: expect.stringMatching(/cube#\d/i),
+        measurement: {
+          kind: 'edge-length',
+          operands: [{ feature: expect.stringMatching(/cube#\d/i) }],
+          distance: { value: 80, unit: 'mm' },
+          display: { text: '80 mm', primary: 'distance' },
+          summary: expect.stringContaining('Length 80 mm'),
+        },
+      },
+    ],
   });
   const original = structuredClone(extension.attachments[0]);
   await saveMeasurementComment(page, 'use 85 mm');

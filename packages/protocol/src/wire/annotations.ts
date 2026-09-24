@@ -43,7 +43,7 @@ export interface WireAnnotation {
   clientId?: string;
 }
 
-export const ANNOTATIONS_PROTOCOL_VERSION = 3 as const;
+export const ANNOTATIONS_PROTOCOL_VERSION = 4 as const;
 export const MAX_ANNOTATIONS = 500;
 const MAX_ANNOTATION_ID_LENGTH = 64;
 export const MAX_ANNOTATION_NOTE_LENGTH = 4_096;

@@ -124,6 +124,7 @@ describe('measurement wire evidence', () => {
     expect(message.protocolVersion).toBe(ANNOTATIONS_PROTOCOL_VERSION);
     expect(() => parseAnnotationsMessage({ ...message, protocolVersion: 1 })).toThrow(/protocolVersion/);
     expect(() => parseAnnotationsMessage({ ...message, protocolVersion: 2 })).toThrow(/protocolVersion/);
+    expect(() => parseAnnotationsMessage({ ...message, protocolVersion: 3 })).toThrow(/protocolVersion/);
     expect(() => parseAnnotationsMessage({ ...message, modelVersion: 'v2' })).toThrow(/match/);
     expect(() => parseWireAnnotation({ ...annotation, measurement: undefined })).toThrow();
     expect(() => parseWireAnnotation({ ...annotation, kind: 'point' })).toThrow(/measurement/);

@@ -49,7 +49,7 @@ describe('boolean-unioned measurement fixture', () => {
     }
   });
 
-  it('places the base-to-boss height at the boss, not a remote base corner', () => {
+  it('places the base-to-boss height at the boss area centroid, not a patch corner', () => {
     const geometry = new MeasurementGeometry(buildDemoPayload());
     const planeAt = (z: number) =>
       geometry.planes.find(
@@ -63,8 +63,8 @@ describe('boolean-unioned measurement fixture', () => {
     const evidence = geometry.measure(base, boss)!;
     expect(evidence.distance?.value).toBeCloseTo(16);
     const witness = evidence.distance!.start;
-    expect(Math.hypot(witness[0] + 18, witness[1] + 8)).toBeCloseTo(12, 4);
-    expect(evidence.distance?.extended).not.toBe(true);
+    expect(Math.hypot(witness[0] + 18, witness[1] + 8)).toBeCloseTo(0, 4);
+    expect(evidence.distance?.extended).toBe(true);
     expect(geometry.measure(boss, base)?.distance?.value).toBeCloseTo(16);
   });
 

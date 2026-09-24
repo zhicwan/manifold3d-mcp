@@ -268,7 +268,7 @@ export class MeasurementGeometry {
       }
       centroid.divideScalar(area).add(seed.triangle.a);
       this.patchAreas.set(patchId, area);
-      const origin = tuple(seed.triangle.a);
+      const origin = tuple(centroid);
       const operand: MeasurementPlane = {
         kind: 'plane',
         patchId,
@@ -279,7 +279,7 @@ export class MeasurementGeometry {
       const candidate: MeasurementCandidate = {
         key: `plane:${patchId}`,
         operand,
-        anchor: tuple(seed.triangle.getMidpoint(new Vector3())),
+        anchor: origin,
         triIds: queue.map(f => f.id),
       };
       this.patchCandidates.set(patchId, candidate);

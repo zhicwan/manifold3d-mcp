@@ -129,7 +129,7 @@ note joins the ordinary point/region notes batch, including its count, Done,
 Cancel, Attach and Fix lifecycle. Clearing that note removes it from the batch
 without deleting the dimension. Batch Cancel restores the measurement's pre-batch
 note and delivery state while preserving geometry; ordinary new comments retain
-their existing discard behavior. Wire annotation protocol 3 requires
+their existing discard behavior. Wire annotation protocol 4 supports
 structured evidence for `kind: "measurement"`: canonical point/finite-edge/supporting-plane
 operands, mm distances and witness endpoints, and explicitly classified angles.
 `edge-corner` measures rays leaving a unique shared endpoint (0-180 degrees),
@@ -139,6 +139,12 @@ Strict parsing checks finite geometry, normalized plane normals,
 method/operand combinations and numerical consistency; it does not authenticate
 mesh provenance. Parallel classification uses a dimensionless sine tolerance of
 `1e-5`, absorbing Float32 payload noise rather than rounded display angles.
+Viewer-produced evidence enriches operands with bounded feature labels when
+model metadata is available and includes deterministic `display` and `summary`
+fields. `display.primary` states which quantity drives the visible reading;
+`display.text` records its rounded text. Operand order preserves selection order
+but does not authorize an assistant to infer which side of an ambiguous edit may
+move.
 
 Hovering a connected planar patch exposes its triangle-area-weighted centroid
 as a snap candidate. It remains a canonical point operand with optional
@@ -151,6 +157,10 @@ normal-continuation heuristic: two comparably sized adjacent patches, each
 turning at most 30 degrees in opposing tangent directions. This avoids an
 absolute area cutoff that would remove genuine small faces; it is not analytic
 CAD feature recognition. The underlying face and edge measurements are unchanged.
+Planar-patch `origin` and label anchors use the area centroid, making detached
+evidence representative of the selected finite patch rather than an arbitrary
+seed-triangle corner. Patch and triangle ids remain opaque, model-version-local
+identifiers.
 The wire format still preserves off-surface reference metadata in previously
 captured evidence, but the Viewer does not offer those points for new snapping.
 Eligible surface centers and other snap points use small depth-tested spheres with screen-stable size.
@@ -207,7 +217,7 @@ refresh the candidate without requiring another pointer movement.
 
 Host-action protocol 3 advertises `measurement-result`. The Extension's
 `attach-measurement` requires one explicit annotation id and
-`input: { markerNumbers: [displayNumber] }`. Attachment version 5 includes
+`input: { markerNumbers: [displayNumber] }`. Attachment version 6 includes
 shared-endpoint corner-angle evidence alongside mode
 `measurement` with exactly one evidence item and an optional/empty note, under
 the existing 128 KiB snapshot bound. Ordinary comment Attach/Fix accepts saved

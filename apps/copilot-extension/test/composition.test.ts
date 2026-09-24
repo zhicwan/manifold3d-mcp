@@ -110,7 +110,7 @@ describe('Fix and Attach delivery (source composition)', () => {
     const serialized = sent.prompt.slice(`${FIX_ANNOTATION_BATCH_PROMPT}\n\n`.length);
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(MAX_ANNOTATION_ATTACHMENT_BYTES);
     expect(parseAnnotationAttachment(JSON.parse(serialized))).toEqual({
-      version: 5,
+      version: 6,
       source: 'manifold3d-viewer',
       mode: 'annotation-batch',
       batchId: 'batch-1',
@@ -221,7 +221,7 @@ describe('Fix and Attach delivery (source composition)', () => {
       JSON.parse(sent.prompt.slice(`${FIX_ANNOTATION_BATCH_PROMPT}\n\n`.length)),
     );
     expect(snapshot).toMatchObject({
-      version: 5,
+      version: 6,
       mode: 'annotation-batch',
       batchId: 'batch-1',
       modelVersion: 'model-7',
@@ -264,6 +264,7 @@ describe('Fix and Attach delivery (source composition)', () => {
     expect(harness.sendAttachments.mock.calls[0]![0]).toMatchObject({
       attachments: [
         {
+          title: 'Measurement #1 · 10 mm',
           payload: {
             mode: 'measurement',
             annotations: [{ note: '', measurement: context.annotations[0]!.measurement }],
@@ -499,8 +500,10 @@ function measurementAnnotation(): WireAnnotation {
     worldCoord: [5, 0, 0],
     measurement: {
       kind: 'edge-length',
-      operands: [{ kind: 'edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+      operands: [{ kind: 'edge', feature: 'boss#1 top edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
       distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+      display: { text: '10 mm', primary: 'distance' },
+      summary: 'Length 10 mm of boss#1 top edge.',
     },
   };
 }

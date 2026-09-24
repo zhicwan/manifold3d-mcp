@@ -2,6 +2,8 @@ export type MeasurementVec3 = [number, number, number];
 
 export interface MeasurementPoint {
   kind: 'point';
+  /** Bounded semantic part label when model feature metadata is available. */
+  feature?: string;
   position: MeasurementVec3;
   vertexId?: number;
   triangleId?: number;
@@ -11,6 +13,8 @@ export interface MeasurementPoint {
 
 export interface MeasurementEdge {
   kind: 'edge';
+  /** Bounded semantic part label when model feature metadata is available. */
+  feature?: string;
   edgeId: string;
   start: MeasurementVec3;
   end: MeasurementVec3;
@@ -18,6 +22,8 @@ export interface MeasurementEdge {
 
 export interface MeasurementPlane {
   kind: 'plane';
+  /** Bounded semantic part label when model feature metadata is available. */
+  feature?: string;
   patchId: number;
   triangleId: number;
   origin: MeasurementVec3;
@@ -43,7 +49,12 @@ export interface MeasurementAngle {
   value: number;
 }
 
-export type MeasurementEvidence =
+export interface MeasurementDisplay {
+  text: string;
+  primary: 'distance' | 'angle';
+}
+
+export type MeasurementEvidence = (
   | {
       kind: 'edge-length';
       operands: [MeasurementEdge];
@@ -54,7 +65,14 @@ export type MeasurementEvidence =
       operands: [MeasurementOperand, MeasurementOperand];
       distance?: MeasurementDistance;
       angle?: MeasurementAngle;
-    };
+    }
+) & {
+  /** Operands preserve user selection order; this is evidence, not permission to choose which object may move. */
+  /** Deterministic primary reading shown by the producing Viewer. */
+  display?: MeasurementDisplay;
+  /** Bounded, human-readable explanation for hosts that receive only detached JSON. */
+  summary?: string;
+};
 
 /** Dimensionless sine tolerance used to classify supporting directions as parallel. */
 export const MEASUREMENT_PARALLEL_TOLERANCE = 1e-5;
@@ -94,7 +112,9 @@ export function measureEdgeCorner(
 
 /** Parses a bounded, detached snapshot. Geometry provenance still belongs to the producer. */
 export function parseMeasurementEvidence(value: unknown): MeasurementEvidence {
-  const record = measurementRecord(value, ['kind', 'operands', 'distance', 'angle']);
+  const record = measurementRecord(value, ['kind', 'operands', 'distance', 'angle', 'display', 'summary']);
+  const display = record.display === undefined ? undefined : parseDisplay(record.display, record);
+  const summary = record.summary === undefined ? undefined : measurementText(record.summary, 'summary', 512);
   if (!Array.isArray(record.operands)) {
     throw new Error('Measurement operands must be an array.');
   }
@@ -116,7 +136,13 @@ export function parseMeasurementEvidence(value: unknown): MeasurementEvidence {
     ) {
       throw new Error('Edge length witnesses must match its endpoints.');
     }
-    return { kind: 'edge-length', operands: [edge], distance };
+    return {
+      kind: 'edge-length',
+      operands: [edge],
+      distance,
+      ...(display ? { display } : {}),
+      ...(summary ? { summary } : {}),
+    };
   }
   if (record.kind !== 'relation' || record.operands.length !== 2) {
     throw new Error('Measurement relation requires exactly two operands.');
@@ -196,13 +222,16 @@ export function parseMeasurementEvidence(value: unknown): MeasurementEvidence {
     operands,
     ...(distance ? { distance } : {}),
     ...(angle ? { angle } : {}),
+    ...(display ? { display } : {}),
+    ...(summary ? { summary } : {}),
   };
 }
 
 function parseMeasurementOperand(value: unknown): MeasurementOperand {
   const record = measurementRecord(value);
   if (record.kind === 'point') {
-    measurementKeys(record, ['kind', 'position', 'vertexId', 'triangleId', 'faceCenter']);
+    measurementKeys(record, ['kind', 'feature', 'position', 'vertexId', 'triangleId', 'faceCenter']);
+    const feature = record.feature === undefined ? undefined : measurementText(record.feature, 'feature', 160);
     let faceCenter: MeasurementPoint['faceCenter'];
     if (record.faceCenter !== undefined) {
       const center = measurementRecord(record.faceCenter, ['patchId']);
@@ -213,6 +242,7 @@ function parseMeasurementOperand(value: unknown): MeasurementOperand {
     }
     return {
       kind: 'point',
+      ...(feature ? { feature } : {}),
       position: measurementVector(record.position),
       ...(record.vertexId !== undefined ? { vertexId: measurementIndex(record.vertexId) } : {}),
       ...(record.triangleId !== undefined ? { triangleId: measurementIndex(record.triangleId) } : {}),
@@ -220,7 +250,8 @@ function parseMeasurementOperand(value: unknown): MeasurementOperand {
     };
   }
   if (record.kind === 'edge') {
-    measurementKeys(record, ['kind', 'edgeId', 'start', 'end']);
+    measurementKeys(record, ['kind', 'feature', 'edgeId', 'start', 'end']);
+    const feature = record.feature === undefined ? undefined : measurementText(record.feature, 'feature', 160);
     if (
       typeof record.edgeId !== 'string' ||
       record.edgeId.length > 128 ||
@@ -234,23 +265,52 @@ function parseMeasurementOperand(value: unknown): MeasurementOperand {
     if (!Number.isFinite(length) || length <= 0) {
       throw new Error('Measurement edge must be nondegenerate with finite length.');
     }
-    return { kind: 'edge', edgeId: record.edgeId, start, end };
+    return { kind: 'edge', ...(feature ? { feature } : {}), edgeId: record.edgeId, start, end };
   }
   if (record.kind === 'plane') {
-    measurementKeys(record, ['kind', 'patchId', 'triangleId', 'origin', 'normal']);
+    measurementKeys(record, ['kind', 'feature', 'patchId', 'triangleId', 'origin', 'normal']);
+    const feature = record.feature === undefined ? undefined : measurementText(record.feature, 'feature', 160);
     const normal = measurementVector(record.normal);
     if (Math.abs(Math.hypot(...normal) - 1) > NORMAL_TOLERANCE) {
       throw new Error('Measurement plane normal must be normalized.');
     }
     return {
       kind: 'plane',
+      ...(feature ? { feature } : {}),
       patchId: measurementIndex(record.patchId),
       triangleId: measurementIndex(record.triangleId),
       origin: measurementVector(record.origin),
       normal,
     };
   }
+
   throw new Error('Measurement operand kind is unsupported.');
+}
+
+function parseDisplay(value: unknown, evidence: Record<string, unknown>): MeasurementDisplay {
+  const record = measurementRecord(value, ['text', 'primary']);
+  if (record.primary !== 'distance' && record.primary !== 'angle') {
+    throw new Error('Measurement display primary must be distance or angle.');
+  }
+  if (record.primary === 'distance' && evidence.distance === undefined) {
+    throw new Error('Measurement display cannot name a missing distance as primary.');
+  }
+  if (record.primary === 'angle' && evidence.angle === undefined) {
+    throw new Error('Measurement display cannot name a missing angle as primary.');
+  }
+  const distanceValue = evidence.distance === undefined ? undefined : measurementRecord(evidence.distance).value;
+  const angleValue = evidence.angle === undefined ? undefined : measurementRecord(evidence.angle).value;
+  const expectedPrimary =
+    distanceValue !== undefined && !(distanceValue === 0 && typeof angleValue === 'number' && angleValue > 0)
+      ? 'distance'
+      : 'angle';
+  if (record.primary !== expectedPrimary) {
+    throw new Error(`Measurement display primary must match the visible ${expectedPrimary} reading.`);
+  }
+  return {
+    text: measurementText(record.text, 'display text', 160),
+    primary: record.primary,
+  };
 }
 
 function parseDistance(value: unknown): MeasurementDistance {
@@ -341,6 +401,13 @@ function measurementIndex(value: unknown): number {
 function measurementQuantity(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new Error('Measurement quantity must be finite and nonnegative.');
+  }
+  return value;
+}
+
+function measurementText(value: unknown, label: string, maximum: number): string {
+  if (typeof value !== 'string' || value.trim() === '' || value.length > maximum) {
+    throw new Error(`Measurement ${label} must be nonempty and at most ${maximum} characters.`);
   }
   return value;
 }

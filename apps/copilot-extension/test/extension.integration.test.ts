@@ -213,7 +213,7 @@ describe('production Copilot Extension composition', () => {
               type: 'extension_context',
               title: 'Annotations · #1 #2',
               payload: {
-                version: 5,
+                version: 6,
                 source: 'manifold3d-viewer',
                 mode: 'annotation-batch',
                 batchId: 'batch-a',
@@ -256,7 +256,7 @@ describe('production Copilot Extension composition', () => {
               type: 'extension_context',
               title: 'Location · #3',
               payload: {
-                version: 5,
+                version: 6,
                 source: 'manifold3d-viewer',
                 mode: 'location-selection',
                 modelVersion: versionA,
@@ -580,9 +580,9 @@ describe('production Copilot Extension composition', () => {
         attachments: [
           {
             type: 'extension_context',
-            title: 'Measurement · #7',
+            title: 'Measurement #7',
             payload: {
-              version: 5,
+              version: 6,
               mode: 'measurement',
               modelVersion: version,
               annotationRevision: 1,

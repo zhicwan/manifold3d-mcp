@@ -64,6 +64,7 @@ export function installMarks(deps: MarksDeps): MarksHandle {
       tool.setMode('orbit');
       deps.canvas.focus({ preventScroll: true });
     },
+    candidate => resolver?.labelForRegion([...candidate.triIds]) ?? null,
   );
   flyouts.onMeasurementExpansion = id => {
     if (ruler.getSnapshot().expandedId !== id) {

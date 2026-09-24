@@ -132,6 +132,8 @@ export async function startMcpServer(opts: McpServerOptions): Promise<McpServerH
           'feedback. Completed ruler measurements have kind "measurement" and structured ' +
           'measurement operands, methods, mm distances with witnesses, and/or angles in degrees ' +
           '(edge-corner: 0-180 at a shared endpoint; other direction angles: smaller 0-90); ' +
+          'feature labels, display.primary/text, and summary make the selected parts and visible reading explicit when present. ' +
+          'Operand order records selection order, but an ambiguous edit must be clarified rather than guessing which operand may move. ' +
           'their note may be empty. Saved nonempty measurement notes share the ordinary notes batch; ' +
           'pure dimensions do not. Plane distances refer to supporting planes, not finite faces. ' +
           'MCP exposes these snapshots here; it does not provide Copilot composer attachments. ' +

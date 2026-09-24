@@ -123,6 +123,10 @@ describe('canonical measurement topology', () => {
     );
     for (const geometry of [rectangle, subdivided]) {
       expect(geometry.centers).toHaveLength(1);
+      expect(geometry.planes[0]).toMatchObject({
+        operand: { kind: 'plane', origin: [2, 1, 0] },
+        anchor: [2, 1, 0],
+      });
       expect(geometry.centers[0]!.operand).toMatchObject({
         kind: 'point',
         position: [2, 1, 0],
