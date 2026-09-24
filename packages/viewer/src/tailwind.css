@@ -156,6 +156,8 @@ body,
   container: viewer / inline-size;
   --viewer-rail-inset: 80px;
   --viewer-bottom-clearance: 104px;
+  --viewer-bottom-inset: 24px;
+  --viewer-view-cube-center: 68px;
 }
 
 .viewer-glass {
@@ -305,16 +307,22 @@ body,
 
 .viewer-bottom-islands {
   position: absolute;
-  bottom: 16px;
+  bottom: var(--viewer-bottom-inset);
   left: 50%;
   z-index: 30;
   display: flex;
-  width: min(480px, calc(100% - 280px));
+  width: min(480px, calc(100% - 170px));
   transform: translateX(-50%);
   flex-direction: column;
   align-items: center;
   gap: 8px;
   pointer-events: none;
+}
+
+.viewer-bottom-islands:has(.viewer-action-status):not(:has(.viewer-batch-bar, .measurement-hud, .measurement-notice)) {
+  top: calc(100% - var(--viewer-view-cube-center));
+  bottom: auto;
+  transform: translate(-50%, -50%);
 }
 
 .viewer-batch-bar {
@@ -338,7 +346,7 @@ body,
   background: var(--glass-editor-background);
 }
 
-.viewer-shell:has(.viewer-action-status) {
+.viewer-shell:has(.viewer-action-status, .measurement-notice) {
   --viewer-bottom-clearance: min(40%, 272px);
 }
 
@@ -394,11 +402,7 @@ body,
   }
 
   .viewer-bottom-islands {
-    right: 12px;
-    bottom: 12px;
-    left: auto;
-    width: calc(100% - 144px);
-    transform: none;
+    width: calc(100% - 88px);
   }
 
   .viewer-batch-count-label {

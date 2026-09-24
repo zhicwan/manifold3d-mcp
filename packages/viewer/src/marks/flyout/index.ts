@@ -41,6 +41,8 @@ export class FlyoutLayer {
   private readonly elements = new Map<string, HTMLElement>();
   private readonly controller: FlyoutController;
   private unsubscribe: (() => void) | null = null;
+  private readonly measurementAnchors = new Map<string, HTMLElement>();
+  onMeasurementExpansion?: (id: string | null) => void;
 
   /** Cached CSS-pixel dimensions, invalidated by canvas resizing rather than every frame. */
   private readonly screenSize = { x: 0, y: 0 };
@@ -55,7 +57,20 @@ export class FlyoutLayer {
     this.refreshScreenSize();
     this.invalidateLayout();
   };
-  private readonly onPointerDown = () => this.invalidateLayout();
+  private readonly onPointerDown = (event: PointerEvent) => {
+    this.invalidateLayout();
+    const expandedId = this.controller.getExpandedId();
+    const root = this.canvas.closest('[data-viewer-root]');
+    if (
+      expandedId &&
+      event.target instanceof Node &&
+      root?.contains(event.target) &&
+      !this.ownsTarget(event.target) &&
+      !(event.target instanceof Element && event.target.closest('[data-viewer-draft-action]'))
+    ) {
+      this.controller.dismissAll();
+    }
+  };
 
   constructor(
     parent: HTMLElement,
@@ -87,6 +102,10 @@ export class FlyoutLayer {
     this.refreshScreenSize();
     this.observer = new ResizeObserver(this.onResize);
     this.observer.observe(canvas);
+    const bottomRegion = canvas.closest('[data-viewer-root]')?.querySelector('.viewer-bottom-islands');
+    if (bottomRegion) {
+      this.observer.observe(bottomRegion);
+    }
     window.addEventListener('resize', this.onResize);
     document.addEventListener('pointerdown', this.onPointerDown);
     this.unsubscribe = store.subscribe(items => this.sync(items));
@@ -103,6 +122,7 @@ export class FlyoutLayer {
     }
     this.views.clear();
     this.elements.clear();
+    this.measurementAnchors.clear();
     this.host.remove();
   }
 
@@ -141,6 +161,7 @@ export class FlyoutLayer {
       mesh: this.getMesh(),
       editorSizes,
       obstacles: this.obstacles,
+      screenAnchors: this.measurementScreenAnchors(),
     });
     this.cameraMatrix.copy(this.camera.matrixWorld);
     this.projectionMatrix.copy(this.camera.projectionMatrix);
@@ -152,12 +173,39 @@ export class FlyoutLayer {
     this.controller.open(id);
   }
 
+  setMeasurementAnchor(id: string, element: HTMLElement | null): void {
+    if (element) {
+      this.measurementAnchors.set(id, element);
+    } else {
+      this.measurementAnchors.delete(id);
+    }
+    this.invalidateLayout();
+  }
+
+  toggleMeasurement(id: string): void {
+    if (this.store.get(id)?.intent !== 'measurement') {
+      return;
+    }
+    if (this.controller.getExpandedId() === id) {
+      this.controller.commit(id);
+    } else {
+      this.controller.open(id);
+    }
+  }
+
   /** Returns true if the click target is inside any flyout DOM. */
   ownsTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) {
       return false;
     }
-    return this.host.contains(target);
+    return (
+      this.host.contains(target) || [...this.measurementAnchors.values()].some(element => element.contains(target))
+    );
+  }
+
+  /** Returns true when keyboard input belongs to an open editor, not its model anchor. */
+  ownsDraftTarget(target: EventTarget | null): boolean {
+    return target instanceof Node && this.host.contains(target);
   }
 
   /** Called when the user clicks somewhere outside any flyout. */
@@ -165,11 +213,22 @@ export class FlyoutLayer {
     this.controller.dismissAll();
   }
 
+  cancelOpenDraft(): void {
+    const id = this.controller.getExpandedId();
+    if (id) {
+      this.controller.cancel(id);
+    }
+  }
+
   private sync(items: readonly Annotation[]): void {
     const aliveIds = new Set(items.map(a => a.id));
     const editableIds = new Set(
       items
-        .filter(annotation => annotation.intent === 'comment' && annotation.state === 'draft')
+        .filter(annotation =>
+          annotation.intent === 'measurement'
+            ? annotation.state !== 'pending'
+            : annotation.intent === 'comment' && annotation.state === 'draft',
+        )
         .map(annotation => annotation.id),
     );
     for (const [id, v] of this.views) {
@@ -225,6 +284,7 @@ export class FlyoutLayer {
     this.layoutDirty = true;
     this.updatePositions();
     this.requestRender();
+    this.notifyMeasurementExpansion();
   }
 
   private refreshView(id: string): void {
@@ -234,6 +294,7 @@ export class FlyoutLayer {
       return;
     }
     view.setView(this.toViewModel(ann));
+    this.notifyMeasurementExpansion();
   }
 
   private focusView(id: string): void {
@@ -259,7 +320,8 @@ export class FlyoutLayer {
       note,
       kind: ann.kind,
       expanded: this.controller.getExpandedId() === ann.id,
-      readOnly: ann.intent === 'selection' || ann.state !== 'draft',
+      readOnly:
+        ann.intent === 'measurement' ? ann.state === 'pending' : ann.intent === 'selection' || ann.state !== 'draft',
       number: ann.displayNumber,
       intent: ann.intent,
       state: ann.state,
@@ -270,6 +332,23 @@ export class FlyoutLayer {
     const rect = this.canvas.getBoundingClientRect();
     this.screenSize.x = rect.width;
     this.screenSize.y = rect.height;
+  }
+
+  private notifyMeasurementExpansion(): void {
+    const id = this.controller.getExpandedId();
+    this.onMeasurementExpansion?.(id && this.store.get(id)?.intent === 'measurement' ? id : null);
+  }
+
+  private measurementScreenAnchors(): ReadonlyMap<string, { x: number; y: number }> {
+    const rect = this.canvas.getBoundingClientRect();
+    const points = new Map<string, { x: number; y: number }>();
+    for (const [id, element] of this.measurementAnchors) {
+      const box = element.getBoundingClientRect();
+      if (box.width > 0 && box.height > 0) {
+        points.set(id, { x: box.left - rect.left + box.width / 2, y: box.top - rect.top + box.height / 2 });
+      }
+    }
+    return points;
   }
 
   private invalidateLayout(): void {

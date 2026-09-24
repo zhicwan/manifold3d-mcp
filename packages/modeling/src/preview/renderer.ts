@@ -521,6 +521,35 @@ function drawAnnotationOverlay(
   vh: number,
 ): void {
   for (const annotation of annotations) {
+    if (annotation.kind === 'measurement') {
+      const evidence = annotation.measurement;
+      if (!evidence) {
+        throw new Error('Measurement annotation requires evidence.');
+      }
+      const color: [number, number, number] = [14, 116, 144];
+      const labels: string[] = [];
+      let anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord).sub(origin), camera, vw, vh);
+      const angle = evidence.kind === 'relation' ? evidence.angle : undefined;
+      if (evidence.distance && !(evidence.distance.value === 0 && angle && angle.value > 0)) {
+        const distance = evidence.distance;
+        const start = project(new THREE.Vector3().fromArray(distance.start).sub(origin), camera, vw, vh);
+        const end = project(new THREE.Vector3().fromArray(distance.end).sub(origin), camera, vw, vh);
+        drawLine(ctx, start, end, color, 2);
+        drawDot(ctx, start, color, 3);
+        drawDot(ctx, end, color, 3);
+        anchor = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2, z: (start.z + end.z) / 2 };
+        labels.push(`${Number(distance.value.toPrecision(6))} mm`);
+        labels.push(distance.method + (distance.extended ? ' (extended plane)' : ''));
+      }
+      if (angle) {
+        const angleKind = angle.method === 'edge-corner' ? 'corner' : 'smaller';
+        labels.push(`${angleKind} ${Number(angle.value.toPrecision(6))} deg (${angle.method})`);
+      }
+      labels.forEach((label, index) =>
+        drawLabel(ctx, Math.round(anchor.x + 9), Math.round(anchor.y - 10 + index * 16), label.toUpperCase(), color),
+      );
+      continue;
+    }
     if (annotation.kind === 'sketch') {
       drawSketchAnnotation(ctx, camera, annotation, origin, captureView, vw, vh);
       continue;
@@ -528,10 +557,22 @@ function drawAnnotationOverlay(
     const anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord).sub(origin), camera, vw, vh);
     if (annotation.kind === 'point') {
       drawDot(ctx, anchor, POINT_COLOR, 5);
-      drawLabel(ctx, Math.round(anchor.x + 9), Math.round(anchor.y - 10), annotation.partLabel, POINT_COLOR);
+      drawLabel(
+        ctx,
+        Math.round(anchor.x + 9),
+        Math.round(anchor.y - 10),
+        normalizeLabel(annotation.partLabel),
+        POINT_COLOR,
+      );
     } else {
       drawRegionAnchor(ctx, anchor, REGION_COLOR);
-      drawLabel(ctx, Math.round(anchor.x + 10), Math.round(anchor.y - 10), annotation.partLabel, REGION_COLOR);
+      drawLabel(
+        ctx,
+        Math.round(anchor.x + 10),
+        Math.round(anchor.y - 10),
+        normalizeLabel(annotation.partLabel),
+        REGION_COLOR,
+      );
     }
   }
 }
@@ -548,7 +589,13 @@ function drawSketchAnnotation(
   if (!annotation.viewPlane || !annotation.planeOrigin || !annotation.strokes) {
     const anchor = project(new THREE.Vector3().fromArray(annotation.worldCoord).sub(origin), camera, vw, vh);
     drawRegionAnchor(ctx, anchor, SKETCH_COLOR);
-    drawLabel(ctx, Math.round(anchor.x + 10), Math.round(anchor.y - 10), annotation.partLabel, SKETCH_COLOR);
+    drawLabel(
+      ctx,
+      Math.round(anchor.x + 10),
+      Math.round(anchor.y - 10),
+      normalizeLabel(annotation.partLabel),
+      SKETCH_COLOR,
+    );
     return;
   }
 
@@ -576,7 +623,13 @@ function drawSketchAnnotation(
   const anchor =
     labelAnchor ?? project(new THREE.Vector3().fromArray(annotation.worldCoord).sub(origin), camera, vw, vh);
   drawDot(ctx, anchor, SKETCH_COLOR, captureView === annotation.viewPlane ? 4 : 3);
-  drawLabel(ctx, Math.round(anchor.x + 9), Math.round(anchor.y - 10), annotation.partLabel, SKETCH_COLOR);
+  drawLabel(
+    ctx,
+    Math.round(anchor.x + 9),
+    Math.round(anchor.y - 10),
+    normalizeLabel(annotation.partLabel),
+    SKETCH_COLOR,
+  );
 }
 
 function sketchPointToLocal(
@@ -763,8 +816,7 @@ function drawRegionAnchor(
   drawLine(ctx, { x: cx, y: cy - 9 }, { x: cx, y: cy + 9 }, LABEL_COLOR, 1);
 }
 
-function drawLabel(ctx: RasterContext, x: number, y: number, text: string, color: [number, number, number]): void {
-  const label = normalizeLabel(text);
+function drawLabel(ctx: RasterContext, x: number, y: number, label: string, color: [number, number, number]): void {
   const scale = 1;
   const width = textWidth(label, scale) + 6;
   const height = 11;
@@ -860,6 +912,10 @@ const FONT: Readonly<Record<string, Glyph>> = {
   '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
   '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
   '9': ['01110', '10001', '10001', '01111', '00001', '00001', '11110'],
+  '.': ['0', '0', '0', '0', '0', '0', '1'],
+  '+': ['000', '010', '010', '111', '010', '010', '000'],
+  '(': ['01', '10', '10', '10', '10', '10', '01'],
+  ')': ['10', '01', '01', '01', '01', '01', '10'],
   '#': ['01010', '01010', '11111', '01010', '11111', '01010', '01010'],
   '-': ['0', '0', '0', '111', '0', '0', '0'],
   _: ['0', '0', '0', '0', '0', '0', '11111'],

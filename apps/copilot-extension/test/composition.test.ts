@@ -16,6 +16,7 @@ import {
 import {
   ATTACH_ANNOTATION_BATCH_ACTION_ID,
   ATTACH_LOCATION_SELECTION_ACTION_ID,
+  ATTACH_MEASUREMENT_ACTION_ID,
   FIX_ANNOTATION_BATCH_ACTION_ID,
   FIX_ANNOTATION_BATCH_PROMPT,
   MANIFOLD_CANVAS_ID,
@@ -78,7 +79,7 @@ describe('Fix and Attach delivery (source composition)', () => {
     vi.useRealTimers();
   });
 
-  it('sends an immutable complete v2 snapshot directly and succeeds only when the SDK accepts it', async () => {
+  it('sends an immutable complete v4 snapshot directly and succeeds only when the SDK accepts it', async () => {
     const harness = createHarness();
     const enqueue = deferred<string>();
     harness.send.mockReturnValueOnce(enqueue.promise);
@@ -109,7 +110,7 @@ describe('Fix and Attach delivery (source composition)', () => {
     const serialized = sent.prompt.slice(`${FIX_ANNOTATION_BATCH_PROMPT}\n\n`.length);
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(MAX_ANNOTATION_ATTACHMENT_BYTES);
     expect(parseAnnotationAttachment(JSON.parse(serialized))).toEqual({
-      version: 3,
+      version: 6,
       source: 'manifold3d-viewer',
       mode: 'annotation-batch',
       batchId: 'batch-1',
@@ -172,6 +173,7 @@ describe('Fix and Attach delivery (source composition)', () => {
       status: 'succeeded',
       resultDetails: { kind: 'annotations-attached', count: batch.annotations.length },
     });
+
     const location = actionContext(ATTACH_LOCATION_SELECTION_ACTION_ID, [{ ...batchAnnotations()[0]!, note: '' }]);
     await expect(actionHandler(ATTACH_LOCATION_SELECTION_ACTION_ID)(location)).resolves.toMatchObject({
       status: 'succeeded',
@@ -197,6 +199,79 @@ describe('Fix and Attach delivery (source composition)', () => {
     }
     expect(attachment.payload).not.toHaveProperty('batchId');
     expect(attachment.payload).not.toHaveProperty('annotations.0.note');
+  });
+
+  it.each(['measurement-only', 'mixed'])('delivers a %s comment batch through ordinary Fix and Attach', async kind => {
+    const harness = createHarness();
+    application = await harness.start();
+    await harness.canvas().open(canvasContext());
+    const measurement = measurementAnnotation();
+    const annotations = kind === 'mixed' ? [...batchAnnotations(), measurement] : [measurement];
+    const fix = actionContext(FIX_ANNOTATION_BATCH_ACTION_ID, annotations);
+    expect(await actionHandler(FIX_ANNOTATION_BATCH_ACTION_ID)(fix)).toMatchObject({ status: 'accepted' });
+    expect(harness.send).toHaveBeenCalledOnce();
+    expect(harness.sendAttachments).not.toHaveBeenCalled();
+    const sent = harness.send.mock.calls[0]![0];
+    expect(sent).toMatchObject({
+      mode: 'enqueue',
+      displayPrompt: `Fix ${annotations.length} Manifold annotation${annotations.length === 1 ? '' : 's'} · batch-1`,
+    });
+    expect(sent.prompt).toContain(FIX_ANNOTATION_BATCH_PROMPT);
+    const snapshot = parseAnnotationAttachment(
+      JSON.parse(sent.prompt.slice(`${FIX_ANNOTATION_BATCH_PROMPT}\n\n`.length)),
+    );
+    expect(snapshot).toMatchObject({
+      version: 6,
+      mode: 'annotation-batch',
+      batchId: 'batch-1',
+      modelVersion: 'model-7',
+      annotationRevision: 9,
+    });
+    expect(snapshot.annotations.at(-1)).toEqual({
+      id: 'measurement-1',
+      displayNumber: annotations.length,
+      partLabel: 'Measurement',
+      note: 'Make this 12 mm',
+      selection: { kind: 'measurement', measurement: measurement.measurement, worldCoord: [5, 0, 0] },
+    });
+    await actionHandler(ATTACH_ANNOTATION_BATCH_ACTION_ID)(
+      actionContext(ATTACH_ANNOTATION_BATCH_ACTION_ID, annotations),
+    );
+    expect(harness.send).toHaveBeenCalledOnce();
+    expect(harness.sendAttachments).toHaveBeenCalledOnce();
+    const attachment = harness.sendAttachments.mock.calls[0]![0].attachments[0];
+    if (attachment?.type !== 'extension_context') {
+      throw new Error('Expected a batch context attachment.');
+    }
+    expect(attachment.payload).toEqual(snapshot);
+    measurement.note = 'edited later';
+    measurement.worldCoord[0] = 99;
+    measurement.measurement!.distance!.end[0] = 99;
+    expect(attachment.payload).toEqual(snapshot);
+    expect(sent.prompt).not.toContain('edited later');
+    expect(sent.prompt).toContain('"end":[10,0,0]');
+  });
+
+  it('still attaches a measurement with an empty instruction without sending', async () => {
+    const harness = createHarness();
+    application = await harness.start();
+    await harness.canvas().open(canvasContext());
+    const context = actionContext(ATTACH_MEASUREMENT_ACTION_ID);
+    context.annotations[0]!.note = '';
+    await actionHandler(ATTACH_MEASUREMENT_ACTION_ID)(context);
+    expect(harness.send).not.toHaveBeenCalled();
+    expect(harness.sendAttachments).toHaveBeenCalledTimes(1);
+    expect(harness.sendAttachments.mock.calls[0]![0]).toMatchObject({
+      attachments: [
+        {
+          title: 'Measurement #1 · 10 mm',
+          payload: {
+            mode: 'measurement',
+            annotations: [{ note: '', measurement: context.annotations[0]!.measurement }],
+          },
+        },
+      ],
+    });
   });
 
   it.each(['rejection', 'synchronous throw'] as const)(
@@ -249,31 +324,31 @@ describe('Fix and Attach delivery (source composition)', () => {
     expect(harness.sendAttachments).not.toHaveBeenCalled();
   });
 
-  it('rejects a closed room handler even after the same canvas instance is reopened', async () => {
+  it('rejects a closed batch Fix handler even after the same canvas instance is reopened', async () => {
+    const actionId = FIX_ANNOTATION_BATCH_ACTION_ID;
     const harness = createHarness();
     application = await harness.start();
     await harness.canvas().open(canvasContext());
-    const oldHandler = actionHandler(FIX_ANNOTATION_BATCH_ACTION_ID);
+    const oldHandler = actionHandler(actionId);
     await harness.canvas().onClose?.(canvasContext());
-    expect(() => oldHandler(actionContext(FIX_ANNOTATION_BATCH_ACTION_ID))).toThrow(
-      'Canvas room is no longer available.',
-    );
+    expect(() => oldHandler(actionContext(actionId))).toThrow('Canvas room is no longer available.');
     await harness.canvas().open(canvasContext());
-    expect(() => oldHandler(actionContext(FIX_ANNOTATION_BATCH_ACTION_ID))).toThrow(
-      'Canvas room is no longer available.',
-    );
+    expect(() => oldHandler(actionContext(actionId))).toThrow('Canvas room is no longer available.');
     expect(harness.send).not.toHaveBeenCalled();
     expect(harness.sendAttachments).not.toHaveBeenCalled();
   });
 
-  it.each(['resolve', 'reject'] as const)('ignores a late send %s after its room closes and reopens', async outcome => {
+  it.each([
+    [FIX_ANNOTATION_BATCH_ACTION_ID, 'resolve'],
+    [FIX_ANNOTATION_BATCH_ACTION_ID, 'reject'],
+  ])('ignores a late %s send %s after its room closes and reopens', async (actionId, outcome) => {
     const harness = createHarness();
     const enqueue = deferred<string>();
     harness.send.mockReturnValueOnce(enqueue.promise);
     application = await harness.start();
     await harness.canvas().open(canvasContext());
-    const context = actionContext(FIX_ANNOTATION_BATCH_ACTION_ID);
-    await actionHandler(FIX_ANNOTATION_BATCH_ACTION_ID)(context);
+    const context = actionContext(actionId!);
+    await actionHandler(actionId!)(context);
     await harness.canvas().onClose?.(canvasContext());
     await harness.canvas().open(canvasContext());
     if (outcome === 'resolve') {
@@ -396,7 +471,10 @@ function actionHandler(id: string): HostActionHandler {
   return handler;
 }
 
-function actionContext(actionId: string, annotations = batchAnnotations()): HostActionHandlerContext {
+function actionContext(
+  actionId: string,
+  annotations = actionId === ATTACH_MEASUREMENT_ACTION_ID ? [measurementAnnotation()] : batchAnnotations(),
+): HostActionHandlerContext {
   return {
     requestId: 'request-1',
     actionId,
@@ -405,10 +483,28 @@ function actionContext(actionId: string, annotations = batchAnnotations()): Host
     annotationIds: annotations.map(annotation => annotation.id),
     annotations,
     input: {
-      batchId: 'batch-1',
+      ...(actionId === ATTACH_MEASUREMENT_ACTION_ID ? {} : { batchId: 'batch-1' }),
       markerNumbers: annotations.map((_annotation, index) => index + 1),
     },
     publish: { running: vi.fn(), failed: vi.fn(), succeeded: vi.fn() },
+  };
+}
+
+function measurementAnnotation(): WireAnnotation {
+  return {
+    id: 'measurement-1',
+    modelVersion: 'model-7',
+    kind: 'measurement',
+    partLabel: 'Measurement',
+    note: 'Make this 12 mm',
+    worldCoord: [5, 0, 0],
+    measurement: {
+      kind: 'edge-length',
+      operands: [{ kind: 'edge', feature: 'boss#1 top edge', edgeId: 'edge-1', start: [0, 0, 0], end: [10, 0, 0] }],
+      distance: { method: 'segment-length', unit: 'mm', value: 10, start: [0, 0, 0], end: [10, 0, 0] },
+      display: { text: '10 mm', primary: 'distance' },
+      summary: 'Length 10 mm of boss#1 top edge.',
+    },
   };
 }
 

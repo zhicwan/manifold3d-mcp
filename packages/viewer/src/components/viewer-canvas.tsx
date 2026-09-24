@@ -219,6 +219,7 @@ async function startViewerGeneration(
       onModelVersion: version => {
         viewerStore.setModelVersion(version);
         marks.setModelVersion(version);
+        hostActions.setModelVersion(version);
         uplink.flushNow();
       },
       onHostActionsManifest: manifest => hostActions.receiveManifest(manifest),
@@ -257,26 +258,43 @@ async function startViewerGeneration(
         if (!mounted || viewerStore.getState().payload) {
           return;
         }
-        void import('@/demo-payload').then(({ buildDemoPayload }) => {
-          if (!mounted || viewerStore.getState().payload) {
-            return;
-          }
-          const demo = buildDemoPayload();
-          viewerStore.setStatus('connected');
-          viewerStore.setPayload(demo);
-          viewer.setMesh(demo);
-          marks.setPayload(demo);
-          marks.setModelVersion('demo');
-          viewerStore.setModelVersion('demo');
-        });
+        void import('@/demo-payload')
+          .then(({ buildDemoPayload }) => {
+            if (!mounted || viewerStore.getState().payload) {
+              return;
+            }
+            const demo = buildDemoPayload();
+            viewerStore.setStatus('connected');
+            viewerStore.setPayload(demo);
+            viewer.setMesh(demo);
+            marks.setPayload(demo);
+            marks.setModelVersion('demo');
+            viewerStore.setModelVersion('demo');
+          })
+          .catch(error => {
+            if (mounted && !viewerStore.getState().payload) {
+              console.error('Failed to load the offline demo model.', error);
+              viewerStore.setViewerError({ key: 'viewerStartupFailed', detail: errorMessage(error) });
+            }
+          });
       }, 600);
       partialCleanup.push(() => window.clearTimeout(demoTimer));
     }
 
     viewerStore.setMarksRuntime({
       store: marks.store,
+      ruler: marks.ruler,
+      openMeasurementComment(id): void {
+        marks.openMeasurementComment(id);
+      },
+      setMeasurementAnchor(id, element): void {
+        marks.setMeasurementAnchor(id, element);
+      },
       commitOpenDraft(): void {
         marks.commitOpenDraft();
+      },
+      cancelOpenDraft(): void {
+        marks.cancelOpenDraft();
       },
       flushAnnotations(): boolean {
         return uplink.flushNow();
@@ -294,6 +312,7 @@ async function startViewerGeneration(
       },
       setTheme(theme: ViewerTheme): void {
         viewer.setTheme(theme);
+        marks.ruler.setTheme(theme);
       },
       zoomIn(): void {
         viewer.zoomIn();

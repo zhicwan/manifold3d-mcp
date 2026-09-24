@@ -12,6 +12,7 @@ import { HostActionsClient, type HostActionsSnapshot } from '../packages/viewer/
 import { AnnotationStore } from '../packages/viewer/src/marks/annotation-store.js';
 import { createViewerStore, type ViewerApi, type ViewerState, type ViewerStore } from '../packages/viewer/src/store.js';
 import type { ViewerI18n } from '../packages/viewer/src/i18n/index.js';
+import { createMarksRuntime } from './fixtures/marks-runtime.js';
 
 const harness = vi.hoisted(() => ({
   store: null as ViewerStore | null,
@@ -129,6 +130,8 @@ beforeEach(() => {
   harness.store = createViewerStore();
   harness.snapshot = {
     actions: [],
+    modelVersion: 'unknown',
+    requestModels: {},
     statuses: {},
     requestOrder: [],
     latestStatus: null,
@@ -193,6 +196,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  harness.store?.getState().marksRuntime?.ruler.dispose();
+  harness.store?.getState().hostActionsClient?.dispose();
   vi.unstubAllGlobals();
 });
 
@@ -236,6 +241,7 @@ function key(value: string, options: Partial<KeyboardEvent> = {}) {
 }
 
 interface NodeProps {
+  className?: string;
   children?: React.ReactNode;
   render?: React.ReactNode;
   label?: string;
@@ -257,6 +263,18 @@ function nodes(tree: React.ReactNode): Array<React.ReactElement<NodeProps>> {
 }
 
 describe('Viewer controls', () => {
+  it('groups Measure directly above zoom controls rather than with annotation tools', () => {
+    const tree = RightRail();
+    const controls = nodes(tree).find(node => node.props.className === 'viewer-view-controls');
+    expect(controls).toBeDefined();
+    const buttons = nodes(controls).filter(node => node.props['aria-label'] || node.props.label);
+    expect(buttons[0]?.props['aria-label']).toBe('Measure (D)');
+    expect(buttons[1]?.props.label).toBe('Zoom in');
+    expect(buttons[2]?.props.label).toBe('Zoom out');
+    const annotationGroup = nodes(tree).find(node => node.props.className === 'flex flex-col gap-1');
+    expect(nodes(annotationGroup).some(node => node.props['aria-label'] === 'Measure (D)')).toBe(false);
+  });
+
   it('updates controls in Chinese without changing the active tool or model', () => {
     harness.snapshot!.actions = [selectionAction];
     harness.store!.setMarkMode('annotate');
@@ -300,8 +318,9 @@ describe('Viewer controls', () => {
   });
 
   it('prioritizes only the advertised host capability and retains tool names', () => {
-    expect(viewerTools(false).map(tool => tool.mode)).toEqual(['orbit', 'annotate']);
-    expect(viewerTools(true).map(tool => tool.mode)).toEqual(['orbit', 'select', 'annotate']);
+    expect(viewerTools(false).map(tool => tool.mode)).toEqual(['orbit', 'annotate', 'measure']);
+    expect(viewerTools(true).map(tool => tool.mode)).toEqual(['orbit', 'select', 'annotate', 'measure']);
+    expect(toolForShortcut('D', false, false)).toBe('measure');
     expect(VIEWER_TOOLS.find(tool => tool.mode === 'annotate')?.icon).toBe(MessageSquare);
     expect(VIEWER_TOOLS.find(tool => tool.mode === 'select')?.icon).toBe(MapPin);
     expect(toolForShortcut('S', false, false)).toBeUndefined();
@@ -502,11 +521,7 @@ describe('Viewer controls', () => {
 describe('Viewer batch controls', () => {
   function prepareBatch(host = true) {
     const annotations = new AnnotationStore();
-    const marks = {
-      store: annotations,
-      commitOpenDraft: vi.fn(),
-      flushAnnotations: vi.fn(() => true),
-    };
+    const marks = createMarksRuntime(annotations);
     const send = vi.fn();
     const client = new HostActionsClient({
       send,
@@ -598,6 +613,18 @@ describe('Viewer batch controls', () => {
     expect((button('Done').props as { variant?: string }).variant).toBeUndefined();
     button('Done').props.onClick!();
     expect(annotations.get(saved.id)?.state).toBe('committed');
+    expect(api.setMarkMode).toHaveBeenCalledWith('orbit');
+  });
+
+  it('cancels the live editor before reverting the note batch, never committing its unsaved input', () => {
+    const { add, annotations, marks } = prepareBatch(false);
+    const draft = add('saved in batch');
+    const cancel = vi.spyOn(annotations, 'cancelBatch');
+    button('Cancel').props.onClick!();
+    expect(marks.cancelOpenDraft).toHaveBeenCalledOnce();
+    expect(marks.commitOpenDraft).not.toHaveBeenCalled();
+    expect(marks.cancelOpenDraft.mock.invocationCallOrder[0]).toBeLessThan(cancel.mock.invocationCallOrder[0]!);
+    expect(annotations.get(draft.id)).toBeUndefined();
     expect(api.setMarkMode).toHaveBeenCalledWith('orbit');
   });
 });

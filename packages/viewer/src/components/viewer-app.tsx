@@ -10,6 +10,8 @@ import { HostActionStatusRegion } from './host-actions';
 import { AnnotationBatchBar } from './annotation-batch-bar';
 import { ViewerRuntimeProvider } from '@/viewer-runtime';
 import type { ViewerSlots } from './viewer-slots';
+import { MeasurementOverlay } from './measurement-overlay';
+import { MeasurementControls } from './measurement-controls';
 
 export interface ViewerAppProps {
   readonly slots?: ViewerSlots;
@@ -63,8 +65,10 @@ function ViewerShell({ slots, resumeIdentity }: { slots: ViewerSlots; resumeIden
       <EmptyState />
       <TopBar toolbarEnd={slots.toolbarEnd} />
       <RightRail />
+      <MeasurementOverlay />
       <div className="viewer-bottom-islands">
         <HostActionStatusRegion />
+        <MeasurementControls />
         <AnnotationBatchBar />
       </div>
       {slots.overlays}

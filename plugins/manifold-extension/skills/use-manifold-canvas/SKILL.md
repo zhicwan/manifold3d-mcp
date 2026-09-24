@@ -41,7 +41,7 @@ Canvas.
    constraints before detailing. Unknown process or dimensions remain explicit
    assumptions, not fabrication promises.
 3. **Write** a parameterized TypeScript snippet using the sandbox references.
-   For revisions, apply the supplied annotation/location context and preserve
+   For revisions, apply the supplied annotation/location/measurement context and preserve
    constraints outside the requested change.
 4. **`manifold_validate_script`** — fix errors and review warnings, actual dimensions
    and functional features using [verification and handoff](references/verification-and-handoff.md).

@@ -80,6 +80,7 @@ export function updatePositions(
     mesh: THREE.Mesh | null;
     editorSizes: ReadonlyMap<string, { width: number; height: number }>;
     obstacles: readonly ScreenRect[];
+    screenAnchors?: ReadonlyMap<string, { x: number; y: number }>;
   },
 ): void {
   const ray = new THREE.Raycaster();
@@ -92,13 +93,17 @@ export function updatePositions(
       continue;
     }
     scratch.fromArray(ann.anchorWorld).project(camera);
-    const visible = scratch.z >= -1 && scratch.z <= 1 && Math.abs(scratch.x) <= 1 && Math.abs(scratch.y) <= 1;
+    const anchor = ann.intent === 'measurement' ? presentation?.screenAnchors?.get(id) : undefined;
+    const visible =
+      ann.intent === 'measurement'
+        ? anchor !== undefined
+        : scratch.z >= -1 && scratch.z <= 1 && Math.abs(scratch.x) <= 1 && Math.abs(scratch.y) <= 1;
     if (!visible) {
       el.style.display = 'none';
       continue;
     }
-    const x = (scratch.x * 0.5 + 0.5) * screenSize.x;
-    const y = (1 - (scratch.y * 0.5 + 0.5)) * screenSize.y;
+    const x = anchor?.x ?? (scratch.x * 0.5 + 0.5) * screenSize.x;
+    const y = anchor?.y ?? (1 - (scratch.y * 0.5 + 0.5)) * screenSize.y;
     el.style.display = '';
     el.style.transform = `translate(${x}px, ${y}px)`;
     if (presentation) {

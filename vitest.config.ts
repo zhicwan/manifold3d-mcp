@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
@@ -8,5 +8,6 @@ export default defineConfig({
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: { junit: 'test-results.junit.xml' },
     pool: 'forks',
+    exclude: [...configDefaults.exclude, '**/e2e/**'],
   },
 });

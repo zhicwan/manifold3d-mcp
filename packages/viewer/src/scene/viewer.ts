@@ -8,6 +8,7 @@ import { prepareMeshPicking } from './mesh-picking.js';
 import { ViewCube } from './view-cube.js';
 import { computeDesktopCameraClipping } from './camera-clipping.js';
 import { applyModelPresentation } from './model-presentation.js';
+import { SCENE_PALETTE as THEME_COLORS } from './palette.js';
 import type {
   ModelPresentationState,
   ViewerAnimationFrame,
@@ -25,15 +26,6 @@ THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 export type RenderMode = 'solid' | 'wireframe' | 'edges' | 'xray';
 
 export type ViewerTheme = 'light' | 'dark';
-
-/** Scene palette per UI theme. Kept subtle so the model stays the hero. */
-const THEME_COLORS: Record<
-  ViewerTheme,
-  { background: number; gridMajor: number; gridMinor: number; model: number; edges: number }
-> = {
-  light: { background: 0xf5f5f5, gridMajor: 0xc4c8ce, gridMinor: 0xe0e2e6, model: 0xc4c8cc, edges: 0x242424 },
-  dark: { background: 0x131316, gridMajor: 0x30333a, gridMinor: 0x22252b, model: 0x8b9096, edges: 0xd6d6dc },
-};
 
 /**
  * Owns the three.js scene + render loop. On-demand rendering: only

@@ -107,5 +107,8 @@ function toWire(a: Annotation): WireAnnotation {
   if (a.kind === 'region') {
     wire.triCount = a.triIds.length;
   }
+  if (a.kind === 'measurement') {
+    wire.measurement = a.measurement;
+  }
   return wire;
 }

@@ -25,6 +25,9 @@ export interface HostActionClientStatus extends HostActionStatusMessage {
 
 export interface HostActionsSnapshot {
   actions: readonly HostActionDescriptor[];
+  modelVersion: string;
+  /** Local ownership for status history; never sent over the host-action protocol. */
+  requestModels: Readonly<Record<string, string>>;
   /** Request-scoped status records keyed by requestId. */
   statuses: Readonly<Record<string, HostActionClientStatus>>;
   requestOrder: readonly string[];
@@ -66,6 +69,8 @@ type Listener = () => void;
 
 const INITIAL_SNAPSHOT: HostActionsSnapshot = {
   actions: [],
+  modelVersion: 'unknown',
+  requestModels: {},
   statuses: {},
   requestOrder: [],
   latestStatus: null,
@@ -86,7 +91,9 @@ export class HostActionsClient {
   >();
   private snapshot: HostActionsSnapshot = INITIAL_SNAPSHOT;
 
-  constructor(private readonly options: HostActionsClientOptions) {}
+  constructor(private readonly options: HostActionsClientOptions) {
+    this.snapshot = { ...INITIAL_SNAPSHOT, modelVersion: options.getInvocationContext().modelVersion };
+  }
 
   getSnapshot = (): HostActionsSnapshot => this.snapshot;
 
@@ -106,6 +113,22 @@ export class HostActionsClient {
     this.update({ ...this.snapshot, protocolState: 'error' });
   }
 
+  setModelVersion(modelVersion: string): void {
+    if (this.snapshot.modelVersion === modelVersion) {
+      return;
+    }
+    this.update({
+      ...this.snapshot,
+      modelVersion,
+      latestStatus: latestStatusInOrder(
+        this.snapshot.statuses,
+        this.snapshot.requestOrder,
+        this.snapshot.requestModels,
+        modelVersion,
+      ),
+    });
+  }
+
   receiveHello(message: HelloMessage): void {
     const resumed = message.resumed === true && this.snapshot.clientId === message.clientId;
     if (!resumed) {
@@ -117,6 +140,7 @@ export class HostActionsClient {
       this.update({
         ...this.snapshot,
         statuses: {},
+        requestModels: {},
         requestOrder: [],
         latestStatus: null,
         clientId: message.clientId,
@@ -133,11 +157,15 @@ export class HostActionsClient {
       Object.entries(this.snapshot.statuses).filter(([, status]) => actionIds.has(status.actionId)),
     );
     const requestOrder = this.snapshot.requestOrder.filter(requestId => statuses[requestId] !== undefined);
-    const latestStatus = latestStatusInOrder(statuses, requestOrder);
+    const requestModels = Object.fromEntries(
+      Object.entries(this.snapshot.requestModels).filter(([requestId]) => statuses[requestId] !== undefined),
+    );
+    const latestStatus = latestStatusInOrder(statuses, requestOrder, requestModels, this.snapshot.modelVersion);
     this.update({
       ...this.snapshot,
       actions: manifest.actions,
       statuses,
+      requestModels,
       requestOrder,
       latestStatus,
       connected: this.options.isOpen(),
@@ -146,6 +174,13 @@ export class HostActionsClient {
   }
 
   receiveStatus(status: HostActionClientStatus): void {
+    const requestModels = {
+      ...this.snapshot.requestModels,
+      [status.requestId]:
+        this.retainedInvocations.get(status.requestId)?.modelVersion ??
+        this.snapshot.requestModels[status.requestId] ??
+        this.options.getInvocationContext().modelVersion,
+    };
     if (status.state === 'succeeded' || status.state === 'failed') {
       this.retainedInvocations.delete(status.requestId);
       const waiter = this.terminalWaiters.get(status.requestId);
@@ -154,14 +189,17 @@ export class HostActionsClient {
         waiter.resolve(status);
       }
     }
+    const statuses = { ...this.snapshot.statuses, [status.requestId]: status };
+    const requestOrder = [
+      ...this.snapshot.requestOrder.filter(requestId => requestId !== status.requestId),
+      status.requestId,
+    ];
     this.update({
       ...this.snapshot,
-      statuses: { ...this.snapshot.statuses, [status.requestId]: status },
-      requestOrder: [
-        ...this.snapshot.requestOrder.filter(requestId => requestId !== status.requestId),
-        status.requestId,
-      ],
-      latestStatus: status,
+      statuses,
+      requestModels,
+      requestOrder,
+      latestStatus: latestStatusInOrder(statuses, requestOrder, requestModels, this.snapshot.modelVersion),
     });
   }
 
@@ -177,6 +215,7 @@ export class HostActionsClient {
         return requestId;
       }
       const context = this.options.getInvocationContext();
+      this.setModelVersion(context.modelVersion);
       const invocation = createHostActionInvocation({
         requestId,
         actionId,
@@ -260,6 +299,8 @@ export class HostActionsClient {
       next.connected === this.snapshot.connected &&
       next.protocolState === this.snapshot.protocolState &&
       next.actions === this.snapshot.actions &&
+      next.modelVersion === this.snapshot.modelVersion &&
+      next.requestModels === this.snapshot.requestModels &&
       next.statuses === this.snapshot.statuses &&
       next.requestOrder === this.snapshot.requestOrder &&
       next.latestStatus === this.snapshot.latestStatus &&
@@ -281,7 +322,7 @@ export function getLatestHostActionStatus(
   for (let index = snapshot.requestOrder.length - 1; index >= 0; index -= 1) {
     const requestId = snapshot.requestOrder[index];
     const status = requestId === undefined ? undefined : snapshot.statuses[requestId];
-    if (status?.actionId === actionId) {
+    if (status?.actionId === actionId && belongsToCurrentModel(snapshot, status.requestId)) {
       return status;
     }
   }
@@ -290,7 +331,10 @@ export function getLatestHostActionStatus(
 
 export function hasPendingHostActionRequest(snapshot: HostActionsSnapshot, actionId: string): boolean {
   return Object.values(snapshot.statuses).some(
-    status => status.actionId === actionId && (status.state === 'accepted' || status.state === 'running'),
+    status =>
+      status.actionId === actionId &&
+      belongsToCurrentModel(snapshot, status.requestId) &&
+      (status.state === 'accepted' || status.state === 'running'),
   );
 }
 
@@ -326,6 +370,8 @@ export function hostActionDisabledReason(
 
 export function hostActionLabel(action: HostActionDescriptor, i18n: ViewerI18n): string {
   switch (action.id) {
+    case 'attach-measurement':
+      return i18n.t('measureAttach');
     case 'attach-annotation-batch':
       return i18n.t('actionAttach');
     case 'fix-annotation-batch':
@@ -349,6 +395,9 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
     return status.message ? i18n.t('actionFailureDetail', status.message) : i18n.t('actionFailed');
   }
   if (status.state === 'succeeded') {
+    if (status.actionId === 'attach-measurement') {
+      return i18n.t('measureAttached');
+    }
     if (status.resultDetails?.kind === 'annotations-attached') {
       return i18n.t('actionAttachedCount', status.resultDetails.count);
     }
@@ -372,6 +421,8 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
     }
   }
   switch (status.actionId) {
+    case 'attach-measurement':
+      return i18n.t('measureAttaching');
     case 'attach-annotation-batch':
       return i18n.t('actionAttaching');
     case 'fix-annotation-batch':
@@ -390,9 +441,27 @@ export function hostActionStatusMessage(status: HostActionClientStatus, i18n: Vi
 function latestStatusInOrder(
   statuses: Readonly<Record<string, HostActionClientStatus>>,
   requestOrder: readonly string[],
+  requestModels: HostActionsSnapshot['requestModels'],
+  modelVersion: string,
 ): HostActionClientStatus | null {
-  const requestId = requestOrder.at(-1);
-  return requestId === undefined ? null : (statuses[requestId] ?? null);
+  for (let index = requestOrder.length - 1; index >= 0; index--) {
+    const requestId = requestOrder[index];
+    if (requestId !== undefined && belongsToCurrentModel({ requestModels, modelVersion }, requestId)) {
+      const status = statuses[requestId];
+      if (status) {
+        return status;
+      }
+    }
+  }
+  return null;
+}
+
+function belongsToCurrentModel(
+  snapshot: Pick<HostActionsSnapshot, 'requestModels' | 'modelVersion'>,
+  requestId: string,
+): boolean {
+  const owner = snapshot.requestModels[requestId];
+  return owner === undefined || owner === snapshot.modelVersion;
 }
 
 function createRequestId(): string {

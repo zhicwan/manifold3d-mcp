@@ -17,6 +17,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npm run verify:viewer-flat
       - run: npm run build:plugins -- --check
       - run: git diff --exit-code
       - run: npm run format:check
@@ -25,6 +26,17 @@ jobs:
       - run: npm run check:sync
       - run: npm run test:unit:built
       - run: npm run test:extension
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-failures
+          path: |
+            test-results/e2e/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run test:smoke:built
       - run: npm run verify --workspace @manifold3d/copilot-extension
-      - run: npm run verify:viewer-flat

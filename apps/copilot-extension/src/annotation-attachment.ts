@@ -1,13 +1,15 @@
 import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
+import { parseMeasurementEvidence, type MeasurementEvidence } from '@manifold3d/protocol/wire/measurements.js';
 
-export const ANNOTATION_ATTACHMENT_VERSION = 3 as const;
+// Version 6 carries annotation protocol 4 measurement evidence through the strict attachment schema.
+export const ANNOTATION_ATTACHMENT_VERSION = 6 as const;
 export const MAX_ATTACHMENT_ANNOTATIONS = 128;
 const MAX_ATTACHMENT_NOTE_LENGTH = 4_096;
 export const MAX_ATTACHMENT_SKETCH_POINTS = 8_192;
 export const MAX_ANNOTATION_ATTACHMENT_BYTES = 128 * 1024;
 const MAX_ATTACHMENT_BATCH_ID_LENGTH = 64;
 
-type AnnotationAttachmentMode = 'annotation-batch' | 'location-selection';
+type AnnotationAttachmentMode = 'annotation-batch' | 'location-selection' | 'measurement';
 
 type AnnotationAttachmentBase = {
   version: typeof ANNOTATION_ATTACHMENT_VERSION;
@@ -29,9 +31,16 @@ export type LocationSelectionAttachmentPayload = AnnotationAttachmentBase & {
   annotations: [LocationSelectionAttachmentItem];
 };
 
-export type AnnotationAttachmentPayload = AnnotationBatchAttachmentPayload | LocationSelectionAttachmentPayload;
+export type MeasurementAttachmentPayload = AnnotationAttachmentBase & {
+  mode: 'measurement';
+  annotations: [MeasurementAttachmentItem];
+};
 
-type AnnotationAttachmentItem = AnnotationBatchAttachmentItem | LocationSelectionAttachmentItem;
+export type AnnotationAttachmentPayload =
+  AnnotationBatchAttachmentPayload | LocationSelectionAttachmentPayload | MeasurementAttachmentPayload;
+
+type AnnotationAttachmentItem =
+  AnnotationBatchAttachmentItem | LocationSelectionAttachmentItem | MeasurementAttachmentItem;
 
 type AnnotationAttachmentItemBase = {
   id: string;
@@ -48,7 +57,21 @@ type LocationSelectionAttachmentItem = AnnotationAttachmentItemBase & {
   selection: PointSelection | RegionSelection;
 };
 
-type AnnotationSelection = PointSelection | RegionSelection | SketchSelection;
+type MeasurementAttachmentItem = AnnotationAttachmentItemBase & {
+  note?: string;
+  measurement: AttachmentData<MeasurementEvidence>;
+};
+
+/** Closed data shape for the SDK's JSON value boundary, without open interface declarations. */
+type AttachmentData<T> = T extends object ? { [K in keyof T]: AttachmentData<T[K]> } : T;
+
+type AnnotationSelection = PointSelection | RegionSelection | SketchSelection | MeasurementSelection;
+
+type MeasurementSelection = {
+  kind: 'measurement';
+  measurement: AttachmentData<MeasurementEvidence>;
+  worldCoord: [number, number, number];
+};
 
 type PointSelection = {
   kind: 'point';
@@ -83,6 +106,9 @@ type AnnotationAttachmentBuildInput =
     })
   | (AnnotationAttachmentBuildBase & {
       mode: 'location-selection';
+    })
+  | (AnnotationAttachmentBuildBase & {
+      mode: 'measurement';
     });
 
 export function buildAnnotationAttachment(
@@ -91,18 +117,35 @@ export function buildAnnotationAttachment(
 export function buildAnnotationAttachment(
   input: Extract<AnnotationAttachmentBuildInput, { mode: 'location-selection' }>,
 ): LocationSelectionAttachmentPayload;
+export function buildAnnotationAttachment(
+  input: Extract<AnnotationAttachmentBuildInput, { mode: 'measurement' }>,
+): MeasurementAttachmentPayload;
 export function buildAnnotationAttachment(input: AnnotationAttachmentBuildInput): AnnotationAttachmentPayload {
   if (input.markerNumbers.length !== input.annotations.length) {
     throw new Error('Annotation marker number count must match the annotation count.');
+  }
+  if (input.annotations.some(annotation => annotation.modelVersion !== input.modelVersion)) {
+    throw new Error('Every attachment annotation must belong to the current model.');
   }
   const annotations =
     input.mode === 'annotation-batch'
       ? input.annotations.map((annotation, index) =>
           sanitizeBatchAnnotation(annotation, index, input.markerNumbers[index]),
         )
-      : input.annotations.map((annotation, index) =>
-          sanitizeLocationAnnotation(annotation, index, input.markerNumbers[index]),
-        );
+      : input.mode === 'measurement'
+        ? input.annotations.map((annotation, index) => {
+            if (annotation.kind !== 'measurement') {
+              throw new Error('Measurement attachment requires a measurement from the current model.');
+            }
+            return {
+              ...sanitizeAnnotationBase(annotation, index, input.markerNumbers[index]),
+              note: boundedText(annotation.note, `Annotation ${index} note`, MAX_ATTACHMENT_NOTE_LENGTH, true),
+              measurement: parseMeasurementEvidence(annotation.measurement),
+            };
+          })
+        : input.annotations.map((annotation, index) =>
+            sanitizeLocationAnnotation(annotation, index, input.markerNumbers[index]),
+          );
   return parseAnnotationAttachment({
     version: ANNOTATION_ATTACHMENT_VERSION,
     source: 'manifold3d-viewer',
@@ -128,7 +171,7 @@ export function parseAnnotationAttachment(value: unknown): AnnotationAttachmentP
   if (record.source !== 'manifold3d-viewer') {
     throw new Error('Annotation attachment source is unsupported.');
   }
-  if (record.mode !== 'annotation-batch' && record.mode !== 'location-selection') {
+  if (record.mode !== 'annotation-batch' && record.mode !== 'location-selection' && record.mode !== 'measurement') {
     throw new Error('Annotation attachment mode is unsupported.');
   }
   const modelVersion = boundedText(record.modelVersion, 'Annotation attachment modelVersion', 128, false);
@@ -165,7 +208,20 @@ export function parseAnnotationAttachment(value: unknown): AnnotationAttachmentP
   }
 
   if (Object.hasOwn(record, 'batchId')) {
-    throw new Error('Location selection attachments must not include batchId.');
+    throw new Error('Location selection and measurement attachments must not include batchId.');
+  }
+  if (record.mode === 'measurement') {
+    if (record.annotations.length !== 1) {
+      throw new Error('Measurement attachment must contain exactly one annotation.');
+    }
+    return {
+      version: ANNOTATION_ATTACHMENT_VERSION,
+      source: 'manifold3d-viewer',
+      mode: 'measurement',
+      modelVersion,
+      annotationRevision: record.annotationRevision,
+      annotations: [parseMeasurementAnnotation(record.annotations[0])],
+    };
   }
   if (record.annotations.length !== 1) {
     throw new Error('Location selection attachment must contain exactly one annotation.');
@@ -211,7 +267,7 @@ function sanitizeLocationAnnotation(
     throw new Error('Location selection annotation note must be empty.');
   }
   const selection = sanitizeSelection(annotation, index);
-  if (selection.kind === 'sketch') {
+  if (selection.kind !== 'point' && selection.kind !== 'region') {
     throw new Error('Location selection annotation must be a point or region.');
   }
   return {
@@ -235,6 +291,9 @@ function sanitizeAnnotationBase(
 function sanitizeSelection(annotation: WireAnnotation, index: number): AnnotationSelection {
   const label = `Annotation ${index}`;
   const worldCoord = finiteTuple3(annotation.worldCoord, `${label} worldCoord`);
+  if (annotation.kind === 'measurement') {
+    return { kind: 'measurement', measurement: parseMeasurementEvidence(annotation.measurement), worldCoord };
+  }
   if (annotation.kind === 'point') {
     return { kind: 'point', worldCoord };
   }
@@ -262,6 +321,21 @@ function sanitizeSelection(annotation: WireAnnotation, index: number): Annotatio
   };
 }
 
+function parseMeasurementAnnotation(value: unknown): MeasurementAttachmentItem {
+  const label = 'Measurement annotation';
+  const record = requireRecord(value, label);
+  requireOnlyKeys(record, ['id', 'displayNumber', 'partLabel', 'note', 'measurement'], label);
+  return {
+    id: boundedIdentifier(record.id, `${label} id`, 64),
+    displayNumber: positiveInteger(record.displayNumber, `${label} displayNumber`),
+    partLabel: boundedText(record.partLabel, `${label} partLabel`, 160, false),
+    ...(record.note !== undefined
+      ? { note: boundedText(record.note, `${label} note`, MAX_ATTACHMENT_NOTE_LENGTH, true) }
+      : {}),
+    measurement: parseMeasurementEvidence(record.measurement),
+  };
+}
+
 function parseBatchAnnotation(
   value: unknown,
   index: number,
@@ -284,7 +358,7 @@ function parseLocationAnnotation(value: unknown, index: number): LocationSelecti
   const record = requireRecord(value, label);
   requireOnlyKeys(record, ['id', 'displayNumber', 'partLabel', 'selection'], label);
   const selection = parseSelection(record.selection, label, false, { value: 0 });
-  if (selection.kind === 'sketch') {
+  if (selection.kind !== 'point' && selection.kind !== 'region') {
     throw new Error(`${label} location selection must be a point or region.`);
   }
   return {
@@ -298,7 +372,7 @@ function parseLocationAnnotation(value: unknown, index: number): LocationSelecti
 function parseSelection(
   value: unknown,
   label: string,
-  allowSketch: boolean,
+  allowBatchKinds: boolean,
   pointCounter: { value: number },
 ): AnnotationSelection {
   const record = requireRecord(value, `${label} selection`);
@@ -324,7 +398,15 @@ function parseSelection(
       triangleCount: record.triangleCount,
     };
   }
-  if (record.kind !== 'sketch' || !allowSketch) {
+  if (record.kind === 'measurement' && allowBatchKinds) {
+    requireOnlyKeys(record, ['kind', 'measurement', 'worldCoord'], `${label} selection`);
+    return {
+      kind: 'measurement',
+      measurement: parseMeasurementEvidence(record.measurement),
+      worldCoord: finiteTuple3(record.worldCoord, `${label} worldCoord`),
+    };
+  }
+  if (record.kind !== 'sketch' || !allowBatchKinds) {
     throw new Error(`${label} selection kind is unsupported.`);
   }
   requireOnlyKeys(record, ['kind', 'worldCoord', 'viewPlane', 'planeOrigin', 'strokes'], `${label} selection`);

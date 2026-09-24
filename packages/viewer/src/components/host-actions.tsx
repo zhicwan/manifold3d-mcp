@@ -33,6 +33,8 @@ import type { HostActionDescriptor, HostActionIcon, HostActionTone } from '@mani
 
 const EMPTY_HOST_ACTIONS: HostActionsSnapshot = {
   actions: [],
+  modelVersion: 'unknown',
+  requestModels: {},
   statuses: {},
   requestOrder: [],
   latestStatus: null,
@@ -160,8 +162,17 @@ export function HostActionStatusRegion() {
   const label = action ? hostActionLabel(action, i18n) : i18n.t('actionFallback');
   const message = status ? hostActionStatusMessage(status, i18n) : '';
   const failed = Boolean(error) || status?.state === 'failed';
+  const showStatus =
+    !protocolError &&
+    !(
+      (viewerError?.key === 'measurementDeliveryFailed' && status?.actionId === 'attach-measurement') ||
+      (viewerError?.key === 'annotationDeliveryFailed' &&
+        (status?.actionId === 'attach-annotation-batch' || status?.actionId === 'fix-annotation-batch'))
+    );
   const savedExport =
-    status?.state === 'succeeded' && status.resultDetails?.kind === 'model-saved' ? status.resultDetails : null;
+    showStatus && status?.state === 'succeeded' && status.resultDetails?.kind === 'model-saved'
+      ? status.resultDetails
+      : null;
   return (
     <div
       data-viewer-obstacle
@@ -175,27 +186,28 @@ export function HostActionStatusRegion() {
     >
       <div className="min-w-0 flex-1 select-text break-words leading-relaxed">
         {error && <p>{error}</p>}
-        {savedExport ? (
-          <p className="min-w-0">
-            <span>{i18n.t('actionModelSavedTo', savedExport.format)} </span>
-            <a
-              className="break-all underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground"
-              href={localFileUrl(savedExport.path)}
-              rel="noreferrer"
-              target="_blank"
-              title={savedExport.path}
-            >
-              {savedExport.path}
-            </a>
-          </p>
-        ) : (
-          status &&
-          dismissed !== status && (
-            <p>
-              <span className="font-medium">{label}:</span> {message}
+        {showStatus &&
+          (savedExport ? (
+            <p className="min-w-0">
+              <span>{i18n.t('actionModelSavedTo', savedExport.format)} </span>
+              <a
+                className="break-all underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground"
+                href={localFileUrl(savedExport.path)}
+                rel="noreferrer"
+                target="_blank"
+                title={savedExport.path}
+              >
+                {savedExport.path}
+              </a>
             </p>
-          )
-        )}
+          ) : (
+            status &&
+            dismissed !== status && (
+              <p>
+                <span className="font-medium">{label}:</span> {message}
+              </p>
+            )
+          ))}
         {savedExport && copyFailedStatus === status && <p>{i18n.t('actionCopyPathFailed')}</p>}
       </div>
       {savedExport && (

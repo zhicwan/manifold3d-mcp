@@ -100,12 +100,20 @@ describe('MarkTool annotate/select gestures', () => {
   let store: AnnotationStore;
   let flyouts: {
     ownsTarget: ReturnType<typeof vi.fn>;
+    ownsDraftTarget: ReturnType<typeof vi.fn>;
     openExpanded: ReturnType<typeof vi.fn>;
     dismissAll: ReturnType<typeof vi.fn>;
   };
   let controls: { enabled: boolean; mouseButtons: OrbitControls['mouseButtons']; touches: OrbitControls['touches'] };
   let modeChanged: ReturnType<typeof vi.fn<(mode: MarkMode) => void>>;
   let selectionCreated: ReturnType<typeof vi.fn<(id: string) => void>>;
+  let measurement: {
+    hover: ReturnType<typeof vi.fn<(event: Pick<PointerEvent, 'clientX' | 'clientY'>) => void>>;
+    click: ReturnType<typeof vi.fn<(event: Pick<PointerEvent, 'clientX' | 'clientY'>) => void>>;
+    escape: ReturnType<typeof vi.fn<() => boolean>>;
+    clearHover: ReturnType<typeof vi.fn<() => void>>;
+    clearInspection: ReturnType<typeof vi.fn<() => void>>;
+  };
   let tool: MarkTool;
 
   beforeEach(() => {
@@ -117,6 +125,7 @@ describe('MarkTool annotate/select gestures', () => {
     store = new AnnotationStore();
     flyouts = {
       ownsTarget: vi.fn(() => false),
+      ownsDraftTarget: vi.fn(() => false),
       openExpanded: vi.fn(),
       dismissAll: vi.fn(),
     };
@@ -127,6 +136,13 @@ describe('MarkTool annotate/select gestures', () => {
     };
     modeChanged = vi.fn();
     selectionCreated = vi.fn();
+    measurement = {
+      hover: vi.fn(),
+      click: vi.fn(),
+      escape: vi.fn(() => false),
+      clearHover: vi.fn(),
+      clearInspection: vi.fn(),
+    };
     vi.stubGlobal('window', fakeWindow);
     vi.stubGlobal('HTMLElement', FakeElement);
     vi.stubGlobal('Node', FakeElement);
@@ -157,6 +173,7 @@ describe('MarkTool annotate/select gestures', () => {
       () => null,
       modeChanged,
       selectionCreated,
+      measurement,
     );
   });
 
@@ -195,6 +212,7 @@ describe('MarkTool annotate/select gestures', () => {
         expandedId = null;
       }
     });
+
     flyouts.openExpanded.mockImplementation((id: string) => {
       if (expandedId !== null) {
         store.remove(expandedId);
@@ -207,6 +225,52 @@ describe('MarkTool annotate/select gestures', () => {
 
     expect(store.list()).toHaveLength(1);
     expect(store.list()[0]?.displayNumber).toBe(1);
+  });
+
+  it('routes ruler clicks without creating comment or location annotations', () => {
+    performGesture('measure', false);
+    expect(measurement.click).toHaveBeenCalledTimes(1);
+    expect(store.list()).toEqual([]);
+    expect(selectionCreated).not.toHaveBeenCalled();
+    expect(pickerMocks.pickPoint).not.toHaveBeenCalled();
+  });
+
+  it('does not interpret a ruler drag as a rectangle selection', () => {
+    performGesture('measure', true);
+    expect(measurement.click).not.toHaveBeenCalled();
+    expect(pickerMocks.pickRegion).not.toHaveBeenCalled();
+    expect(store.list()).toEqual([]);
+  });
+
+  it('lets the ruler cancel a locked operand before leaving measure mode', () => {
+    tool.setMode('measure');
+    measurement.escape.mockReturnValueOnce(true);
+    const event = { key: 'Escape', target: canvas, preventDefault: vi.fn() };
+    fakeWindow.emit('keydown', event);
+    expect(canvas.dataset.markMode).toBe('measure');
+    fakeWindow.emit('keydown', event);
+    expect(canvas.dataset.markMode).toBe('orbit');
+  });
+
+  it('leaves Escape handling to an owned flyout while allowing focused dimension anchors', () => {
+    const label = new FakeElement();
+    label.tagName = 'BUTTON';
+    canvas.appendChild(label);
+    label.focus();
+    flyouts.ownsDraftTarget.mockReturnValue(true);
+    tool.setMode('measure');
+    fakeWindow.emit('keydown', { key: 'Escape', target: label, preventDefault: vi.fn() });
+    expect(measurement.escape).not.toHaveBeenCalled();
+    expect(canvas.dataset.markMode).toBe('measure');
+    flyouts.ownsDraftTarget.mockReturnValue(false);
+    fakeWindow.emit('keydown', { key: 'Escape', target: label, preventDefault: vi.fn() });
+    expect(measurement.escape).toHaveBeenCalledOnce();
+    expect(canvas.dataset.markMode).toBe('orbit');
+    tool.setMode('measure');
+    label.tagName = 'TEXTAREA';
+    fakeWindow.emit('keydown', { key: 'Escape', target: label, preventDefault: vi.fn() });
+    expect(measurement.escape).toHaveBeenCalledOnce();
+    expect(canvas.dataset.markMode).toBe('measure');
   });
 
   it('removes an empty open draft before numbering a location selection', () => {
@@ -244,6 +308,13 @@ describe('MarkTool annotate/select gestures', () => {
     fakeDocument.emit('pointerup', { ...mouse(10, 10), ctrlKey: true });
 
     expect(store.list()).toEqual([]);
+  });
+
+  it('clears measurement inspection when primary Orbit interaction returns to the model', () => {
+    canvas.emit('pointerdown', mouse(10, 10));
+    expect(measurement.clearInspection).toHaveBeenCalledOnce();
+    canvas.emit('pointerdown', { ...mouse(10, 10), button: 2 });
+    expect(measurement.clearInspection).toHaveBeenCalledOnce();
     expect(controls.enabled).toBe(true);
   });
 

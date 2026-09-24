@@ -179,6 +179,8 @@ export class FlyoutView {
     this.element.dataset.kind = vm.kind;
     this.applyLocale();
     this.pill.setAttribute('aria-expanded', String(vm.expanded));
+    this.pill.hidden = vm.intent === 'measurement';
+    this.previewEl.hidden = vm.intent === 'measurement';
     this.previewEl.textContent = vm.note.trim() || vm.partLabel;
     this.textarea.readOnly = vm.readOnly;
     this.textarea.hidden = vm.readOnly;

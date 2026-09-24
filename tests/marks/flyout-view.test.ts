@@ -80,6 +80,7 @@ describe('Compact annotation editor', () => {
       onCommit: vi.fn(),
       onCancel: vi.fn(),
       onLayout: vi.fn(),
+      onSend: vi.fn(),
     };
     const view = new FlyoutView('id-1', model, callbacks, i18n);
     const root = view.element as unknown as Element;
@@ -107,6 +108,22 @@ describe('Compact annotation editor', () => {
     expect(document.activeElement).toBe(textarea);
     view.dispose();
     expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('reuses the same comment editor actions for measurement drafts', () => {
+    const { view, root, body, textarea, callbacks } = setup({
+      ...draft,
+      kind: 'measurement',
+      intent: 'measurement',
+      note: 'change this',
+    });
+    expect(root.querySelector('.marks-flyout-pill').hidden).toBe(true);
+    expect(root.querySelector('.marks-flyout-preview').hidden).toBe(true);
+    expect(root.innerHTML).not.toContain('marks-flyout-send');
+    expect(textarea.placeholder).toBe('Add a note...');
+    body.events.get('keydown')!({ target: textarea, key: 'Enter', preventDefault: vi.fn(), stopPropagation: vi.fn() });
+    expect(callbacks.onCommit).toHaveBeenCalledOnce();
+    view.dispose();
   });
 
   it('grows for long notes but bounds height, and updates the same draft', () => {

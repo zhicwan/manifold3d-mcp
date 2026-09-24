@@ -21,8 +21,10 @@ export function AnnotationBatchBar() {
   const client = useViewerState(state => state.hostActionsClient);
   const hostActions = useHostActionsSnapshot();
   useAnnotations(marks?.store ?? null);
-  const [pending, setPending] = useState<{ actionId: string; marks: MarksRuntime } | null>(null);
-  const pendingAction = pending?.marks === marks ? pending.actionId : null;
+  const [pending, setPending] = useState<{ actionId: string; marks: MarksRuntime; modelVersion: string } | null>(null);
+  const modelVersion = marks?.store.getModelVersion();
+  const pendingAction =
+    pending && pending.marks === marks && pending.modelVersion === modelVersion ? pending.actionId : null;
 
   if (markMode !== 'annotate' || !marks) {
     return null;
@@ -40,7 +42,12 @@ export function AnnotationBatchBar() {
   const busy = pendingAction !== null;
   const isCurrent = (): boolean => {
     const state = viewerStore.getState();
-    return state.marksRuntime === marks && state.viewerApi === viewerApi && state.hostActionsClient === client;
+    return (
+      state.marksRuntime === marks &&
+      state.viewerApi === viewerApi &&
+      state.hostActionsClient === client &&
+      marks.store.getModelVersion() === modelVersion
+    );
   };
   const disabledReason = (action: HostActionDescriptor): string | undefined =>
     batchTooLarge
@@ -65,6 +72,7 @@ export function AnnotationBatchBar() {
       marks.commitOpenDraft();
       marks.store.freezeBatch(batch.batchId);
     } else {
+      marks.cancelOpenDraft();
       marks.store.cancelBatch(batch.batchId);
     }
     marks.flushAnnotations();
@@ -80,23 +88,41 @@ export function AnnotationBatchBar() {
     if (committedDraft.annotationIds.length === 0) {
       return;
     }
-    const markerNumbers = committedDraft.annotationIds.map(id => marks.store.get(id)?.displayNumber);
-    if (markerNumbers.some(number => number === undefined)) {
+    if (committedDraft.annotationIds.length > MAX_HOST_ACTION_ANNOTATION_IDS) {
+      viewerStore.setViewerError({
+        key: 'annotationDeliveryFailed',
+        detail: i18n.t('actionBatchLimit', MAX_HOST_ACTION_ANNOTATION_IDS),
+      });
       return;
+    }
+    const markerNumbers: number[] = [];
+    for (const id of committedDraft.annotationIds) {
+      const annotation = marks.store.get(id);
+      if (!annotation) {
+        viewerStore.setViewerError({
+          key: 'annotationDeliveryFailed',
+          detail: 'The note batch changed before submission.',
+        });
+        return;
+      }
+      markerNumbers.push(annotation.displayNumber);
     }
     if (!marks.store.sealBatch(committedDraft.batchId)) {
       return;
     }
     marks.flushAnnotations();
     viewerApi?.setMarkMode('orbit');
-    const request = { actionId, marks };
+    if (viewerStore.getState().viewerError?.key === 'annotationDeliveryFailed') {
+      viewerStore.setViewerError(null);
+    }
+    const request = { actionId, marks, modelVersion: marks.store.getModelVersion() };
     setPending(request);
     const operation = client
       .invokeAndWait(actionId, {
         annotationIds: committedDraft.annotationIds,
         input: {
           batchId: committedDraft.batchId,
-          markerNumbers: markerNumbers as number[],
+          markerNumbers,
         },
       })
       .then(status => {
@@ -104,7 +130,7 @@ export function AnnotationBatchBar() {
           return;
         }
         if (status.state === 'succeeded') {
-          marks.store.freezeBatch(committedDraft.batchId);
+          marks.store.freezeBatch(committedDraft.batchId, actionId === ATTACH_BATCH_ACTION ? 'attach' : 'send');
         } else {
           if (marks.store.restoreBatch(committedDraft.batchId)) {
             viewerApi?.setMarkMode('annotate');
@@ -112,7 +138,7 @@ export function AnnotationBatchBar() {
         }
         marks.flushAnnotations();
       })
-      .catch(() => {
+      .catch(error => {
         if (!isCurrent()) {
           return;
         }
@@ -121,6 +147,10 @@ export function AnnotationBatchBar() {
         if (restored) {
           viewerApi?.setMarkMode('annotate');
         }
+        viewerStore.setViewerError({
+          key: 'annotationDeliveryFailed',
+          detail: error instanceof Error ? error.message : String(error),
+        });
       });
     void operation.then(clearPending, clearPending);
     function clearPending(): void {
@@ -131,6 +161,7 @@ export function AnnotationBatchBar() {
   return (
     <section
       data-viewer-obstacle
+      data-viewer-draft-action
       aria-label={i18n.t('actionBatchActions')}
       className={`${glass} viewer-batch-bar flex items-center gap-1 p-1.5`}
     >

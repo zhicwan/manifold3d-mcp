@@ -1,5 +1,5 @@
 import { Popover } from '@base-ui/react/popover';
-import { CircleHelp, MapPin, MessageSquare, MousePointer2 } from 'lucide-react';
+import { CircleHelp, MapPin, MessageSquare, MousePointer2, Ruler } from 'lucide-react';
 import { useEffect, useRef, type RefObject } from 'react';
 
 import { glassPopup } from '@/components/glass';
@@ -18,10 +18,13 @@ export const VIEWER_TOOLS = [
   { mode: 'orbit', shortcut: 'V', icon: MousePointer2 },
   { mode: 'annotate', shortcut: 'M', icon: MessageSquare },
   { mode: 'select', shortcut: 'S', icon: MapPin },
+  { mode: 'measure', shortcut: 'D', icon: Ruler },
 ] as const;
 
 export function viewerTools(supportsSelect: boolean) {
-  return supportsSelect ? [VIEWER_TOOLS[0], VIEWER_TOOLS[2], VIEWER_TOOLS[1]] : [VIEWER_TOOLS[0], VIEWER_TOOLS[1]];
+  return supportsSelect
+    ? [VIEWER_TOOLS[0], VIEWER_TOOLS[2], VIEWER_TOOLS[1], VIEWER_TOOLS[3]]
+    : [VIEWER_TOOLS[0], VIEWER_TOOLS[1], VIEWER_TOOLS[3]];
 }
 
 export function selectionDisabledReason(
