@@ -25,13 +25,13 @@
     "@manifold3d/protocol": "0.0.0-private",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.46.0",
-    "manifold-3d": "^3.5.3",
+    "lucide-react": "^1.48.0",
+    "manifold-3d": "^3.5.4",
     "next-themes": "^0.4.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tailwind-merge": "^3.7.0",
-    "three": "^0.186.0",
+    "three": "^0.186.1",
     "three-mesh-bvh": "^0.9.15"
   },
   "devDependencies": {
@@ -44,6 +44,6 @@
     "shadcn": "^4.21.0",
     "tailwindcss": "^4.3.0",
     "tw-animate-css": "^1.4.0",
-    "vite": "^8.3.0"
+    "vite": "^8.3.1"
   }
 }
