@@ -32,7 +32,14 @@ export interface DshToolsOptions {
   modelingFor(agent: DshAgent): ModelingSession;
   /** Existing modeling state, without creating it. */
   existingModelingFor(agent: DshAgent): ModelingSession | undefined;
-  publishModel(agent: DshAgent, model: CommittedModel, source: string, description?: string): void;
+  /** Publish from `modeling`, which must still own the session when its commit runs. */
+  publishModel(
+    agent: DshAgent,
+    modeling: ModelingSession,
+    model: CommittedModel,
+    source: string,
+    description?: string,
+  ): void;
 }
 
 /** A tool failure whose message is the model-facing JSON body. */
@@ -67,13 +74,14 @@ export function createDshTools(options: DshToolsOptions): DshToolDefinition[] {
       execute: async (args, exec) => {
         const input = parseCodeArgs(args, true);
         const agent = requireAgent(exec);
-        const result = await options.modelingFor(agent).execute(
+        const modeling = options.modelingFor(agent);
+        const result = await modeling.execute(
           {
             code: input.code,
             ...(input.description !== undefined ? { description: input.description } : {}),
           },
           {
-            beforeCommit: model => options.publishModel(agent, model, input.code, input.description),
+            beforeCommit: model => options.publishModel(agent, modeling, model, input.code, input.description),
           },
         );
         return reportValue(result.report, result.model ? { modelRevision: result.model.revision } : {});

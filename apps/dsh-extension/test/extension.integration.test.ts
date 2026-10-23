@@ -84,6 +84,33 @@ describe('DeepSeek Harness Extension composition', () => {
     }
   });
 
+  it('rejects publication from a modeling session released while it was executing', async () => {
+    let release: (() => void) | undefined;
+    const executeGate = new Promise<void>(resolvePromise => {
+      release = resolvePromise;
+    });
+    const harness = createHarness({ executeGate });
+    extension = harness.extension;
+    const room = await harness.openRoom('session-a', 'tab-1');
+    const client = await connect(room.url);
+    try {
+      const execution = harness
+        .tool('manifold_execute_script')
+        .execute({ code: 'result = Manifold.cube(1);', description: 'stale' }, harness.exec('session-a'));
+      await new Promise(resolvePromise => setImmediate(resolvePromise));
+      const disposed = harness.extension.agentDisposed('session-a');
+      release?.();
+      await expect(execution).rejects.toThrow(/released before this model could be published/);
+      await disposed;
+      expect(client.messages.items.some(message => message.kind === 'mesh')).toBe(false);
+      await expect(harness.tool('manifold_capture_view').execute({}, harness.exec('session-a'))).rejects.toThrow(
+        /NO_MODEL/,
+      );
+    } finally {
+      client.socket.close();
+    }
+  });
+
   it('reports failed validation as a tool failure without replacing the model', async () => {
     const harness = createHarness({ failValidation: true });
     extension = harness.extension;
@@ -139,6 +166,32 @@ describe('DeepSeek Harness Extension composition', () => {
     expect((await harness.request('DELETE', '/rooms', { sessionId: 'session-a', tabId: 'tab-1' })).status).toBe(204);
     expect((await fetch(room.url)).status).toBe(404);
     expect((await harness.request('GET', '/insertions', { sessionId: 'session-a', tabId: 'tab-1' })).status).toBe(404);
+  });
+
+  it('keeps unexpected route failures out of responses and reports them to the Harness log', async () => {
+    const harness = createHarness({
+      startViewerHost: () => Promise.reject(new Error('secret internal detail')),
+    });
+    extension = harness.extension;
+    const response = await harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-1' });
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(response.body)).not.toContain('secret');
+    expect(harness.reportedErrors).toHaveLength(1);
+    expect(String(harness.reportedErrors[0]?.error)).toContain('secret internal detail');
+  });
+
+  it('retries a Viewer Host start that failed', async () => {
+    let attempts = 0;
+    const harness = createHarness({
+      startViewerHost: hostOptions => {
+        attempts += 1;
+        return attempts === 1 ? Promise.reject(new Error('port busy')) : startViewerHost(hostOptions);
+      },
+    });
+    extension = harness.extension;
+    expect((await harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-1' })).status).toBe(500);
+    expect((await harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-1' })).status).toBe(200);
+    expect(attempts).toBe(2);
   });
 
   it('closes a room whose tab was deleted while the Viewer Host was starting', async () => {
@@ -436,6 +489,7 @@ describe('DeepSeek Harness Extension composition', () => {
 
 interface HarnessOptions {
   startViewerHost?: typeof startViewerHost;
+  executeGate?: Promise<void>;
   failValidation?: boolean;
   insertionTimeoutMs?: number;
 }
@@ -452,6 +506,7 @@ function createHarness(options: HarnessOptions = {}) {
     });
   }
   const runners: StubRunner[] = [];
+  const reportedErrors: Array<{ message: string; error: unknown }> = [];
   const modelingSessions: ModelingSession[] = [];
   let imageCount = 0;
   const state = {
@@ -462,6 +517,9 @@ function createHarness(options: HarnessOptions = {}) {
     getAgent: sessionId => agents.get(sessionId),
     workingDirectory: () => testWorkspace,
     allowsRemoteAuthorities: () => state.remote,
+    reportError: (message, error) => {
+      reportedErrors.push({ message, error });
+    },
     admitImage: () => {
       if (state.imageAdmission) {
         return Promise.resolve(state.imageAdmission);
@@ -482,7 +540,7 @@ function createHarness(options: HarnessOptions = {}) {
     ...(options.startViewerHost ? { startViewerHost: options.startViewerHost } : {}),
     timings: { insertionTimeoutMs: options.insertionTimeoutMs ?? 5_000, insertionPollMs: 5_000 },
     createModelingSession: () => {
-      const runner = new StubRunner(options.failValidation === true);
+      const runner = new StubRunner(options.failValidation === true, options.executeGate);
       runners.push(runner);
       const session = new ModelingSession(new ModelingEngine(runner, new StubRenderer()));
       modelingSessions.push(session);
@@ -517,6 +575,7 @@ function createHarness(options: HarnessOptions = {}) {
   return {
     extension,
     followups,
+    reportedErrors,
     agents,
     runners,
     modelingSessions,
@@ -556,7 +615,10 @@ function createHarness(options: HarnessOptions = {}) {
 class StubRunner extends Runner {
   disposeCalls = 0;
 
-  constructor(private readonly failValidation: boolean) {
+  constructor(
+    private readonly failValidation: boolean,
+    private readonly executeGate?: Promise<void>,
+  ) {
     super();
   }
 
@@ -574,7 +636,8 @@ class StubRunner extends Runner {
       }
       return Promise.resolve({ report });
     }
-    return Promise.resolve({ report: emptyReport(), artifact: artifact(request.description) });
+    const result = { report: emptyReport(), artifact: artifact(request.description) };
+    return this.executeGate ? this.executeGate.then(() => result) : Promise.resolve(result);
   }
 
   override dispose(): Promise<void> {

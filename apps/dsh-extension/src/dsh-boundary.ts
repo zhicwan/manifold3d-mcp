@@ -71,6 +71,8 @@ export interface DshHostPorts {
   getAgent(sessionId: string): DshAgent | undefined;
   /** The Session's effective working directory. */
   workingDirectory(agent: DshAgent): string;
+  /** Record an unexpected failure in the Harness log without exposing it to clients. */
+  reportError(message: string, error: unknown): void;
   /** Whether non-owner peers may reach the connection channel. */
   allowsRemoteAuthorities(): boolean;
   /**

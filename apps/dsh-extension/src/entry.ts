@@ -100,6 +100,11 @@ function createPorts(ctx: CordisContext): DshHostPorts {
     getAgent: sessionId => ctx.agents.get(sessionId),
     workingDirectory: agent => ctx.workingDirectory.get(agent.session),
     allowsRemoteAuthorities: () => ctx.connection.allowsRemoteAuthorities,
+    reportError: (message, error) => {
+      ctx.logger?.warn(
+        `manifold3d: ${message}: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
+      );
+    },
     admitImage: (exec, png) => admitImage(ctx, exec, png),
   };
 }

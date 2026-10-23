@@ -127,7 +127,8 @@ export function createDshExtension(options: StartDshExtensionOptions): DshExtens
       ports: options.ports,
       modelingFor: agent => controller.modelingFor(agent),
       existingModelingFor: agent => controller.existingModelingFor(agent),
-      publishModel: (agent, model, source, description) => controller.publishModel(agent, model, source, description),
+      publishModel: (agent, modeling, model, source, description) =>
+        controller.publishModel(agent, modeling, model, source, description),
     }),
     routes: controller.routes(),
     agentDisposed: sessionId => controller.agentDisposed(sessionId),
@@ -159,9 +160,20 @@ class DshExtensionController {
     return this.sessions.get(agent.session.id)?.modeling;
   }
 
-  publishModel(agent: DshAgent, model: CommittedModel, source: string, description?: string): void {
+  publishModel(
+    agent: DshAgent,
+    modeling: ModelingSession,
+    model: CommittedModel,
+    source: string,
+    description?: string,
+  ): void {
     this.assertActive();
-    const binding = this.bindingFor(agent.session.id);
+    const binding = this.sessions.get(agent.session.id);
+    // A detached session (released by agent disposal while draining) must not
+    // overwrite a replacement's Viewer state; rejecting aborts its commit.
+    if (!binding || binding.modeling !== modeling) {
+      throw new Error('The session modeling state was released before this model could be published.');
+    }
     const frame = toViewerModelFrame(model.artifact);
     const publication: ModelPublication = {
       revision: model.revision,
@@ -237,7 +249,13 @@ class DshExtensionController {
         }
       }
       if (this.hostPromise) {
-        const host = await Promise.allSettled([this.hostPromise.then(viewerHost => viewerHost.close())]);
+        const host = await Promise.allSettled([
+          this.hostPromise.then(
+            viewerHost => viewerHost.close(),
+            // A host that never started has nothing to close.
+            () => undefined,
+          ),
+        ]);
         errors.push(...rejectedReasons(host));
       }
       if (errors.length > 0) {
@@ -262,7 +280,9 @@ class DshExtensionController {
       if (error instanceof RouteError) {
         return json(error.status, { error: error.message });
       }
-      return json(500, { error: errorMessage(error) });
+      // Unexpected failures stay in the Harness log; the response carries no internals.
+      this.options.ports.reportError(`Manifold 3D route ${new URL(request.url).pathname} failed`, error);
+      return json(500, { error: 'The Manifold 3D extension could not complete this request.' });
     }
   }
 
@@ -402,13 +422,23 @@ class DshExtensionController {
   }
 
   private viewerHost(): Promise<ViewerHost> {
-    const start = this.options.startViewerHost ?? startViewerHost;
-    this.hostPromise ??= start({
-      assetProvider: createInMemoryViewerAssetProvider(this.options.viewerAssets),
-      preferredPort: this.options.preferredPort ?? 0,
-      host: '127.0.0.1',
-      frameAncestors: this.options.frameAncestors,
-    });
+    if (!this.hostPromise) {
+      const start = this.options.startViewerHost ?? startViewerHost;
+      const starting = start({
+        assetProvider: createInMemoryViewerAssetProvider(this.options.viewerAssets),
+        preferredPort: this.options.preferredPort ?? 0,
+        host: '127.0.0.1',
+        frameAncestors: this.options.frameAncestors,
+      });
+      this.hostPromise = starting;
+      // A failed start owns no server: let the next open retry instead of
+      // caching the rejection (and keep it out of shutdown).
+      starting.catch(() => {
+        if (this.hostPromise === starting) {
+          this.hostPromise = undefined;
+        }
+      });
+    }
     return this.hostPromise;
   }
 
@@ -835,10 +865,6 @@ function rejectedReasons(results: readonly PromiseSettledResult<unknown>[]): unk
   return results
     .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
     .map(result => result.reason as unknown);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function parseExportInput(input: HostActionHandlerContext['input']) {
