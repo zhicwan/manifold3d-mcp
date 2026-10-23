@@ -76,9 +76,12 @@ optionally `webServer`, `webApp`, `attachments`, `llm` and `skills`.
   so existing files are never overwritten)
   and ask the tab's Client body to insert `@<relative path>` into the composer
   draft with `inputActions.captureInsertion/insertText`. The action succeeds
-  only after the Client acknowledges the insertion; a refusal, closed tab or
-  10 s timeout fails it and deletes the file. Nothing is sent and no model
-  context changes until the user sends the message.
+  only after the Client acknowledges the insertion. Each pending insertion is
+  claimed by exactly one poll. A refusal, or a closed tab or 10 s timeout before
+  any poll claimed it, fails the action and deletes the file. When a poll
+  claimed it but no acknowledgement arrived, the reference may already be in
+  the draft, so the action fails as unconfirmed and keeps the file. Nothing is
+  sent and no model context changes until the user sends the message.
 - **Export** writes to `<cwd>/exports/`; **Open in ManifoldCAD** opens the
   share link for the source displayed in that room.
 

@@ -63,8 +63,14 @@ interface PendingInsertion {
   text: string;
   filePath: string;
   delivered: boolean;
-  settle(outcome: { ok: true } | { ok: false; error: string }): void;
+  settle(outcome: InsertionOutcome): void;
 }
+
+/**
+ * `uncertain` means the Client received the insertion but never confirmed it:
+ * the reference may already be in the draft, so its snapshot is retained.
+ */
+type InsertionOutcome = { ok: true } | { ok: false; error: string; uncertain: boolean };
 
 interface RoomBinding {
   sessionId: string;
@@ -83,9 +89,13 @@ interface SessionBinding {
   publication?: ModelPublication | undefined;
   rooms: Map<string, RoomBinding>;
   /** Tabs whose room creation is waiting for the Viewer Host to start. */
-  opening: Set<string>;
-  /** Opening tabs that were closed before their room existed. */
-  cancelled: Set<string>;
+  opening: Map<string, PendingOpen>;
+}
+
+interface PendingOpen {
+  /** Set when the tab is closed before its room exists. */
+  cancelled: boolean;
+  promise: Promise<RoomBinding>;
 }
 
 export interface StartDshExtensionOptions {
@@ -266,38 +276,49 @@ class DshExtensionController {
     if (existing) {
       return json(200, { url: existing.room.url });
     }
-    if (binding.rooms.size >= MAX_ROOMS_PER_SESSION) {
-      throw new RouteError(429, `A session can open at most ${MAX_ROOMS_PER_SESSION} Manifold 3D Viewer tabs.`);
+    // Concurrent opens of one tab share a single in-flight creation, so a
+    // DELETE cancels every continuation and pending tabs count toward the limit.
+    let pending = binding.opening.get(tabId);
+    if (!pending) {
+      if (binding.rooms.size + binding.opening.size >= MAX_ROOMS_PER_SESSION) {
+        throw new RouteError(429, `A session can open at most ${MAX_ROOMS_PER_SESSION} Manifold 3D Viewer tabs.`);
+      }
+      pending = this.startOpening(binding, tabId);
     }
-    binding.opening.add(tabId);
-    let host: ViewerHost;
-    try {
-      host = await this.viewerHost();
-    } finally {
-      binding.opening.delete(tabId);
-    }
-    if (binding.cancelled.delete(tabId)) {
-      this.releaseIfIdle(binding);
-      throw new RouteError(409, 'The Viewer tab was closed while it was opening.');
-    }
-    // Another request for the same tab may have completed while the host started.
-    const raced = binding.rooms.get(tabId);
-    if (raced) {
-      return json(200, { url: raced.room.url });
-    }
-    if (this.shuttingDown || this.sessions.get(sessionId) !== binding) {
-      throw new RouteError(409, 'The Manifold 3D extension is no longer serving this session.');
-    }
-    const roomBinding = this.createRoomBinding(binding, tabId, host.createRoom());
-    return json(200, { url: roomBinding.room.url });
+    const room = await pending.promise;
+    return json(200, { url: room.room.url });
+  }
+
+  private startOpening(binding: SessionBinding, tabId: string): PendingOpen {
+    const pending: PendingOpen = { cancelled: false, promise: Promise.resolve(undefined as never) };
+    binding.opening.set(tabId, pending);
+    pending.promise = (async () => {
+      try {
+        const host = await this.viewerHost();
+        if (pending.cancelled) {
+          throw new RouteError(409, 'The Viewer tab was closed while it was opening.');
+        }
+        if (this.shuttingDown || this.sessions.get(binding.sessionId) !== binding) {
+          throw new RouteError(409, 'The Manifold 3D extension is no longer serving this session.');
+        }
+        return this.createRoomBinding(binding, tabId, host.createRoom());
+      } finally {
+        if (binding.opening.get(tabId) === pending) {
+          binding.opening.delete(tabId);
+        }
+        this.releaseIfIdle(binding);
+      }
+    })();
+    return pending;
   }
 
   private async handleCloseRoom(request: Request): Promise<Response> {
     const { sessionId, tabId } = parseRoomAddress(queryRecord(request));
     const binding = this.sessions.get(sessionId);
     const room = binding?.rooms.get(tabId);
-    if (binding?.opening.has(tabId)) {
-      binding.cancelled.add(tabId);
+    const pending = binding?.opening.get(tabId);
+    if (pending) {
+      pending.cancelled = true;
     }
     if (!binding || !room) {
       return new Response(null, { status: 204 });
@@ -318,7 +339,6 @@ class DshExtensionController {
     if (!next) {
       return new Response(null, { status: 204 });
     }
-    next.delivered = true;
     return json(200, { id: next.id, text: next.text });
   }
 
@@ -338,15 +358,33 @@ class DshExtensionController {
     insertion.settle(
       ok
         ? { ok: true }
-        : { ok: false, error: typeof body.error === 'string' ? body.error.slice(0, 256) : 'Insertion was refused.' },
+        : {
+            ok: false,
+            error: typeof body.error === 'string' ? body.error.slice(0, 256) : 'Insertion was refused.',
+            uncertain: false,
+          },
     );
     return new Response(null, { status: 204 });
   }
 
+  /**
+   * Claim the next undelivered insertion for one poll. Claiming happens
+   * synchronously with resolution, so overlapping polls never receive the same
+   * insertion and an aborted poll claims nothing.
+   */
   private nextInsertion(room: RoomBinding, signal: AbortSignal): Promise<PendingInsertion | undefined> {
-    const pending = (): PendingInsertion | undefined => room.insertions.find(candidate => !candidate.delivered);
-    const ready = pending();
-    if (ready || room.closed) {
+    const claim = (): PendingInsertion | undefined => {
+      if (room.closed || signal.aborted) {
+        return undefined;
+      }
+      const next = room.insertions.find(candidate => !candidate.delivered);
+      if (next) {
+        next.delivered = true;
+      }
+      return next;
+    };
+    const ready = claim();
+    if (ready || room.closed || signal.aborted) {
       return Promise.resolve(ready);
     }
     return new Promise(resolvePromise => {
@@ -354,7 +392,7 @@ class DshExtensionController {
         clearTimeout(timer);
         room.waiters.delete(wake);
         signal.removeEventListener('abort', finish);
-        resolvePromise(room.closed ? undefined : pending());
+        resolvePromise(claim());
       };
       const wake = (): void => finish();
       const timer = setTimeout(finish, this.insertionPollMs);
@@ -469,7 +507,7 @@ class DshExtensionController {
     }
     room.closed = true;
     for (const insertion of room.insertions.splice(0)) {
-      insertion.settle({ ok: false, error: 'The Manifold 3D Viewer tab was closed.' });
+      insertion.settle({ ok: false, error: 'The Manifold 3D Viewer tab was closed.', uncertain: insertion.delivered });
     }
     for (const wake of [...room.waiters]) {
       wake();
@@ -520,6 +558,11 @@ class DshExtensionController {
     const reference = relative(workspace, filePath).split(sep).join('/');
     const outcome = await this.requestInsertion(room, `@${reference} `, filePath);
     if (!outcome.ok) {
+      if (outcome.uncertain) {
+        throw new Error(
+          `The Viewer tab did not confirm adding @${reference} to the message draft; the snapshot was kept. ${outcome.error}`,
+        );
+      }
       await rm(filePath, { force: true });
       throw new Error(`Could not add the attachment to the composer: ${outcome.error}`);
     }
@@ -531,11 +574,7 @@ class DshExtensionController {
     };
   }
 
-  private requestInsertion(
-    room: RoomBinding,
-    text: string,
-    filePath: string,
-  ): Promise<{ ok: true } | { ok: false; error: string }> {
+  private requestInsertion(room: RoomBinding, text: string, filePath: string): Promise<InsertionOutcome> {
     return new Promise(resolvePromise => {
       let settled = false;
       const insertion: PendingInsertion = {
@@ -557,7 +596,12 @@ class DshExtensionController {
         },
       };
       const timer = setTimeout(
-        () => insertion.settle({ ok: false, error: 'the Viewer tab did not respond. Keep the tab open and retry.' }),
+        () =>
+          insertion.settle({
+            ok: false,
+            error: 'the Viewer tab did not respond. Keep the tab open and retry.',
+            uncertain: insertion.delivered,
+          }),
         this.insertionTimeoutMs,
       );
       room.insertions.push(insertion);
@@ -661,7 +705,7 @@ class DshExtensionController {
   private bindingFor(sessionId: string): SessionBinding {
     let binding = this.sessions.get(sessionId);
     if (!binding) {
-      binding = { sessionId, rooms: new Map(), opening: new Set(), cancelled: new Set() };
+      binding = { sessionId, rooms: new Map(), opening: new Map() };
       this.sessions.set(sessionId, binding);
     }
     return binding;

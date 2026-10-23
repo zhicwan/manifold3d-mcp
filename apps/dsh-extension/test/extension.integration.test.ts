@@ -87,6 +87,9 @@ describe('DeepSeek Harness Extension composition', () => {
   it('reports failed validation as a tool failure without replacing the model', async () => {
     const harness = createHarness({ failValidation: true });
     extension = harness.extension;
+    await harness
+      .tool('manifold_execute_script')
+      .execute({ code: 'result = Manifold.cube(1);', description: 'kept' }, harness.exec('session-a'));
     const failure = await harness
       .tool('manifold_validate_script')
       .execute({ code: 'result = 1;' }, harness.exec('session-a'))
@@ -96,6 +99,10 @@ describe('DeepSeek Harness Extension composition', () => {
     await expect(
       harness.tool('manifold_validate_script').execute({ code: 'x', filePath: 'a.ts' }, harness.exec('session-a')),
     ).rejects.toThrow(/unsupported field `filePath`/);
+    expect(harness.modelingSessions[0]?.getCurrentModel()).toMatchObject({
+      revision: 1,
+      artifact: { description: 'kept' },
+    });
   });
 
   it('returns captures as admitted images, or saved files when the model refuses images', async () => {
@@ -158,6 +165,94 @@ describe('DeepSeek Harness Extension composition', () => {
     expect((await harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-1' })).status).toBe(200);
   });
 
+  it('shares one in-flight open per tab and counts pending opens toward the room limit', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>(resolvePromise => {
+      release = resolvePromise;
+    });
+    const harness = createHarness({
+      startViewerHost: async hostOptions => {
+        await gate;
+        return startViewerHost(hostOptions);
+      },
+    });
+    extension = harness.extension;
+    const sameTab = [
+      harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-0' }),
+      harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-0' }),
+    ];
+    const others = Array.from({ length: 7 }, (_, index) =>
+      harness.post('/rooms', { sessionId: 'session-a', tabId: `tab-${index + 1}` }),
+    );
+    await new Promise(resolvePromise => setImmediate(resolvePromise));
+    expect((await harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-overflow' })).status).toBe(429);
+    release?.();
+    const [first, second] = await Promise.all(sameTab);
+    expect(first?.status).toBe(200);
+    expect(second?.body).toEqual(first?.body);
+    expect((await Promise.all(others)).every(response => response.status === 200)).toBe(true);
+  });
+
+  it('cancels every continuation of an opening tab that is deleted', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>(resolvePromise => {
+      release = resolvePromise;
+    });
+    const harness = createHarness({
+      startViewerHost: async hostOptions => {
+        await gate;
+        return startViewerHost(hostOptions);
+      },
+    });
+    extension = harness.extension;
+    const opens = [
+      harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-1' }),
+      harness.post('/rooms', { sessionId: 'session-a', tabId: 'tab-1' }),
+    ];
+    await new Promise(resolvePromise => setImmediate(resolvePromise));
+    await harness.request('DELETE', '/rooms', { sessionId: 'session-a', tabId: 'tab-1' });
+    release?.();
+    expect((await Promise.all(opens)).map(response => response.status)).toEqual([409, 409]);
+    expect((await harness.request('GET', '/insertions', { sessionId: 'session-a', tabId: 'tab-1' })).status).toBe(404);
+  });
+
+  it('delivers an insertion to one poll and keeps the snapshot when delivery is unconfirmed', async () => {
+    const harness = createHarness({ insertionTimeoutMs: 200 });
+    extension = harness.extension;
+    await harness
+      .tool('manifold_execute_script')
+      .execute({ code: 'result = Manifold.cube(1);' }, harness.exec('session-a'));
+    const room = await harness.openRoom('session-a', 'tab-1');
+    const client = await connect(room.url);
+    try {
+      const modelVersion = await currentModelVersion(client);
+      await commitAnnotations(client, modelVersion, [pointAnnotation('loc', modelVersion, '')]);
+      const address = { sessionId: 'session-a', tabId: 'tab-1' };
+      const polls = [harness.request('GET', '/insertions', address), harness.request('GET', '/insertions', address)];
+      const attach = invokeAction(
+        client,
+        {
+          requestId: 'attach-unconfirmed',
+          actionId: ATTACH_LOCATION_SELECTION_ACTION_ID,
+          modelVersion,
+          annotationRevision: 1,
+          annotationIds: ['loc'],
+          input: { markerNumbers: [1] },
+        },
+        'failed',
+      );
+      const results = await Promise.all(polls);
+      const delivered = results.filter(result => result.status === 200);
+      expect(delivered).toHaveLength(1);
+      expect((delivered[0]?.body as { text: string }).text).toBe('@.manifold3d/loc-1.json ');
+      // No acknowledgement arrives: the reference may already be in the draft, so the file stays.
+      expect(await attach).toMatchObject({ message: expect.stringMatching(/did not confirm/) });
+      expect(await readdirOrEmpty(resolve(testWorkspace, '.manifold3d'))).toEqual(['loc-1.json']);
+    } finally {
+      client.socket.close();
+    }
+  });
+
   it('queues Fix once as a follow-up and never inserts composer content', async () => {
     const harness = createHarness();
     extension = harness.extension;
@@ -181,7 +276,12 @@ describe('DeepSeek Harness Extension composition', () => {
         message: 'Fix for 1 annotation was queued for the agent.',
       });
       client.socket.send(JSON.stringify(createHostActionInvocation(invocation)));
-      await new Promise(resolvePromise => setTimeout(resolvePromise, 50));
+      // The retransmission is answered with the retained terminal status.
+      await client.messages.waitForCount(
+        message =>
+          message.kind === 'host_action_status' && message.requestId === 'fix-1' && message.state === 'succeeded',
+        2,
+      );
       expect(harness.followups).toHaveLength(1);
       const message = harness.followups[0]!;
       expect(message.source).toEqual({ kind: FIX_SOURCE_KIND });
@@ -527,8 +627,11 @@ function pointAnnotation(id: string, modelVersion: string, note: string): WireAn
 async function readdirOrEmpty(path: string): Promise<string[]> {
   try {
     return await readdir(path);
-  } catch {
-    return [];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
   }
 }
 
@@ -571,6 +674,26 @@ class MessageCollector {
     for (const listener of this.listeners) {
       listener();
     }
+  }
+
+  waitForCount(predicate: (message: Record<string, unknown>) => boolean, count: number): Promise<void> {
+    if (this.items.filter(predicate).length >= count) {
+      return Promise.resolve();
+    }
+    return new Promise((resolvePromise, reject) => {
+      const timeout = setTimeout(() => {
+        this.listeners.delete(check);
+        reject(new Error(`Timed out waiting for ${count} Viewer Host messages.`));
+      }, 10_000);
+      const check = (): void => {
+        if (this.items.filter(predicate).length >= count) {
+          clearTimeout(timeout);
+          this.listeners.delete(check);
+          resolvePromise();
+        }
+      };
+      this.listeners.add(check);
+    });
   }
 
   waitFor(predicate: (message: Record<string, unknown>) => boolean): Promise<Record<string, unknown>> {

@@ -125,9 +125,14 @@ async function admitImage(ctx: CordisContext, exec: DshToolExecution, png: Uint8
   let modalities: string[] | undefined;
   try {
     modalities = (await llm.resolveModelInfo(provider, model, exec.signal)).inputModalities;
-  } catch {
+  } catch (error) {
+    // Cancellation of the tool call is not an answer about image capability.
+    if (exec.signal.aborted) {
+      throw error;
+    }
     return { unavailable: 'the current model route could not be verified' };
   }
+  exec.signal.throwIfAborted();
   if (!modalities?.includes('image')) {
     return { unavailable: `model "${model}" does not declare image input` };
   }

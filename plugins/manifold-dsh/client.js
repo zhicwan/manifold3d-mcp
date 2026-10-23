@@ -12,6 +12,8 @@ window.__ModuleLoader__.load({
     const TAB_ID = '@manifold3d/manifold-dsh/viewer';
     const TAB_KIND = 'manifold3d-viewer';
     const POLL_RETRY_MS = 2000;
+    const ACK_ATTEMPTS = 3;
+    const ACK_RETRY_MS = 500;
 
     const zh = {
       'tab.title': '3D 视图',
@@ -75,16 +77,37 @@ window.__ModuleLoader__.load({
 
     function delay(ms, signal) {
       return new Promise(resolve => {
-        const timer = setTimeout(resolve, ms);
-        signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(timer);
-            resolve();
-          },
-          { once: true },
-        );
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        const finish = () => {
+          clearTimeout(timer);
+          signal.removeEventListener('abort', finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, ms);
+        signal.addEventListener('abort', finish, { once: true });
       });
+    }
+
+    /**
+     * Report the insertion outcome. The reference is already in the draft when
+     * ok is true, so retry a few times before leaving it to the Host timeout,
+     * which keeps the snapshot file for an unconfirmed insertion.
+     */
+    async function acknowledge(body) {
+      for (let attempt = 0; attempt < ACK_ATTEMPTS; attempt += 1) {
+        try {
+          await requestJson('insertions/ack', { method: 'POST', body: JSON.stringify(body) });
+          return;
+        } catch (error) {
+          if (error && error.status === 404) {
+            return;
+          }
+          await delay(ACK_RETRY_MS, new AbortController().signal);
+        }
+      }
     }
 
     /** Long-poll composer insertions for one open Viewer tab until it unmounts. */
@@ -112,14 +135,7 @@ window.__ModuleLoader__.load({
         } catch (error) {
           reason = String(error && error.message ? error.message : error);
         }
-        try {
-          await requestJson('insertions/ack', {
-            method: 'POST',
-            body: JSON.stringify({ ...address, id: next.body.id, ok, ...(reason ? { error: reason } : {}) }),
-          });
-        } catch {
-          // The Host times the insertion out and reports the failure in the Viewer.
-        }
+        await acknowledge({ ...address, id: next.body.id, ok, ...(reason ? { error: reason } : {}) });
       }
     }
 
