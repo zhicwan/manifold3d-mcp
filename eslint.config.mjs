@@ -8,9 +8,12 @@ const appImports = [
   '@zhicwan/manifold3d-mcp/**',
   '@manifold3d/copilot-extension',
   '@manifold3d/copilot-extension/**',
+  '@manifold3d/dsh-extension',
+  '@manifold3d/dsh-extension/**',
   '**/apps/**',
   '**/manifold3d-mcp/**',
   '**/copilot-extension/**',
+  '**/dsh-extension/**',
 ];
 const sdkImports = ['@modelcontextprotocol/**', '@github/copilot-sdk', '@github/copilot-sdk/**'];
 const nodeImports = ['node:*', ...builtinModules];
@@ -42,6 +45,7 @@ export default tseslint.config(
             'scripts/*.ts',
             'tests/*.mjs',
             'apps/copilot-extension/scripts/*.mjs',
+            'apps/dsh-extension/scripts/*.mjs',
             'apps/manifold3d-mcp/scripts/*.mjs',
             'packages/viewer/scripts/*.mjs',
           ],
@@ -193,6 +197,25 @@ export default tseslint.config(
     },
   },
   {
+    // The DSH Client half is a plain browser script loaded by the Harness module loader.
+    files: ['apps/dsh-extension/client/**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      sourceType: 'script',
+      globals: {
+        AbortController: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        clearTimeout: 'readonly',
+        document: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        window: 'readonly',
+      },
+    },
+  },
+  {
     files: ['samples/**/*.{js,ts}'],
     languageOptions: {
       parserOptions: {
@@ -228,6 +251,7 @@ export default tseslint.config(
       'playwright-report/',
       'apps/copilot-extension/.verify-empty/',
       'apps/copilot-extension/.test-workspace/',
+      'apps/dsh-extension/.test-workspace/',
       'skills/shared/references/manifold-sandbox.d.ts',
     ],
   },

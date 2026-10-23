@@ -1,5 +1,5 @@
-import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
-import { parseMeasurementEvidence, type MeasurementEvidence } from '@manifold3d/protocol/wire/measurements.js';
+import type { WireAnnotation } from './annotations.js';
+import { parseMeasurementEvidence, type MeasurementEvidence } from './measurements.js';
 
 // Version 6 carries annotation protocol 4 measurement evidence through the strict attachment schema.
 export const ANNOTATION_ATTACHMENT_VERSION = 6 as const;

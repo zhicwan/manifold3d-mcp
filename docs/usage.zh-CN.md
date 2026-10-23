@@ -29,6 +29,17 @@ copilot plugin install manifold-extension@manifold3d-mcp
 `manifold_validate_script`、`manifold_execute_script`、`manifold_capture_view`
 三个工具，并提供 `use-manifold-canvas` 技能；不会启动 MCP 服务器。
 
+### DeepSeek Harness：原生 3D 视图标签
+
+`plugins/manifold-dsh` 目录是一个 Cordis bundle。请 Harness 助手用插件管理器
+安装它（`install_bundle`，目标为克隆或发布目录中 `plugins/manifold-dsh` 的绝对
+路径），然后刷新窗口。它注册 `manifold_validate_script`、`manifold_execute_script`、
+`manifold_capture_view` 三个工具和 `use-manifold-dsh` 技能，并在右侧栏提供
+**3D 视图**标签（也可从执行工具卡片打开）。每个会话各自持有模型。在视图中，
+**Fix** 把标注快照排队交给助手；**Attach**、Select to chat 与测量附加只会在
+消息草稿里插入 `@.manifold3d/loc-1.json` 这样的短引用，不会发送。支持图像
+输入的模型会直接收到截图。视图仅在 Harness 运行于本机时可用。
+
 ### Copilot CLI：MCP 与浏览器 Viewer
 
 ```sh

@@ -7,11 +7,11 @@ Apply the [root guide](../AGENTS.md). Commands and release procedures live in
 ## One generation path
 
 - The npm `build:plugins` command builds the apps, then invokes the assembler.
-  Keep the scripts focused on the two real targets; do not create a plugin
+  Keep the scripts focused on the real targets; do not create a plugin
   framework, manifest DSL or Markdown conditional compiler.
 - Read metadata from authoritative source, never from the output being generated.
   The root package version drives runtime/plugin/catalog versions.
-- Keep two short skill entries explicit and copy shared references into each
+- Keep the short host skill entries explicit and copy shared references into each
   plugin. Installed output must not depend on another plugin or the checkout.
 - Assemble required inputs before replacing output. Report missing inputs and
   target collisions rather than silently skipping or overwriting them.

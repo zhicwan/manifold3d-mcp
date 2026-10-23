@@ -15,7 +15,8 @@ Source types and implementations remain authoritative for API details.
 | ------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `apps/manifold3d-mcp`    | MCP input/results, stdio, file-source policy, browser launch, single-room composition                | Geometry execution or browser UI implementation        |
 | `apps/copilot-extension` | Copilot SDK, Canvas rooms, message delivery, Extension entry                                         | MCP transport or a separate modeling implementation    |
-| `packages/protocol`      | Versioned wire data, codecs and boundary validation                                                  | Node, React, Three.js or host SDK services             |
+| `apps/dsh-extension`     | DeepSeek Harness Host/Client plugin, per-session rooms, follow-up and composer delivery              | MCP transport or a separate modeling implementation    |
+| `packages/protocol`      | Versioned wire data, codecs, annotation attachment snapshots and boundary validation                 | Node, React, Three.js or host SDK services             |
 | `packages/modeling`      | Compilation, disposable Workers, geometry validation, artifacts, model sessions and software capture | MCP/Copilot APIs, browser state or transport lifecycle |
 | `packages/viewer`        | Scene presentation, interaction, annotations, canonical exports and optional XR                      | Node services or direct host SDK calls                 |
 | `packages/viewer-host`   | HTTP/WS, asset providers, authenticated rooms and action dispatch                                    | Modeling execution or browser implementation           |
@@ -115,13 +116,15 @@ The displayed mesh owns an indirect BVH for picking and anchor occlusion,
 released with its geometry; acceleration does not reorder canonical triangle ids
 or patch Three.js prototypes globally.
 
-| Action                       | External effect                                                             |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| Extension Fix                | Send the complete bounded snapshot in an enqueued message; no composer pill |
-| Extension Attach             | Append a static batch pill; do not send a message                           |
-| Extension location selection | Append a location pill without a comment                                    |
-| Extension measurement Attach | Append one static structured measurement pill; optional note, no message    |
-| MCP Done / Cancel            | Commit or discard the local draft batch for the MCP annotation workflow     |
+| Action                       | External effect                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| Extension Fix                | Send the complete bounded snapshot in an enqueued message; no composer pill   |
+| Extension Attach             | Append a static batch pill; do not send a message                             |
+| Extension location selection | Append a location pill without a comment                                      |
+| Extension measurement Attach | Append one static structured measurement pill; optional note, no message      |
+| MCP Done / Cancel            | Commit or discard the local draft batch for the MCP annotation workflow       |
+| DSH Fix                      | Queue the complete bounded snapshot with `agent.followup`; no draft change    |
+| DSH Attach / selection       | Write a static snapshot file; insert one acknowledged `@path` draft reference |
 
 Completed ruler measurements share annotation identity, revision and model-version
 ownership. Pure dimensions do not enter notes batches; saving a nonempty measurement
@@ -302,7 +305,7 @@ See [Worker behavior](../tests/runner-host.test.ts) and
 
 ## Source and distribution
 
-`build:plugins` builds both applications and then runs the
+`build:plugins` builds every application and then runs the
 [assembler](../scripts/build-plugins.mjs). Each plugin contains its runtime,
 metadata and complete skill references. Shared source is maintained once;
 physical duplication in independently installable outputs is intentional.
@@ -328,6 +331,11 @@ See [build guidance](../scripts/AGENTS.md) and
   embedding is supported.
 - Copilot Canvas and message integrations are host-specific, not portable MCP
   capabilities.
+- The DeepSeek Harness bundle serves every session from one Host process, so its
+  modeling state and Viewer rooms are keyed by session. Its Viewer is loopback-only
+  and embedded in an iframe that follows the system theme rather than the Harness
+  theme; Attach writes snapshot files into the session workspace. The
+  [DSH Extension README](../apps/dsh-extension/README.md) owns the details.
 
 A concrete requirement can change these boundaries. Make that change explicit
 in ownership, behavior, documentation and evidence instead of simulating it with

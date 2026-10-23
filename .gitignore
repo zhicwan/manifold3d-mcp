@@ -11,6 +11,8 @@ test-results.junit.xml
 .manifold3d-mcp-*/
 apps/copilot-extension/.test-workspace/
 apps/copilot-extension/.verify-empty/
+apps/dsh-extension/.test-workspace/
 # Keep browser evidence outside the Vitest-cleaned .test-tmp directory.
 test-results/
 playwright-report/
+.manifold3d/

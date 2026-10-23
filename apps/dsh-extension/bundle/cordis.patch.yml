@@ -1,0 +1,3 @@
+- insert:
+    - id: manifold3d
+      name: '@manifold3d/manifold-dsh'

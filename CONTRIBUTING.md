@@ -22,10 +22,12 @@ affected consumers and appropriate behavioral evidence.
 
 | Command                            | Purpose                                                                   |
 | ---------------------------------- | ------------------------------------------------------------------------- |
-| `npm run build:plugins`            | Build both single-file applications and assemble plugins                  |
+| `npm run build:plugins`            | Build the single-file applications and assemble plugins                   |
 | `npm run build:plugins -- --check` | Build and compare without replacing committed plugin output               |
 | `npm run build:mcp`                | Build the standalone MCP runtime and its browser/XR Viewer                |
 | `npm run build:extension`          | Build the single-file native Extension and flat Viewer                    |
+| `npm run build:dsh-extension`      | Build the DeepSeek Harness Host plugin and its flat Viewer                |
+| `npm run test:dsh-extension`       | Run the DeepSeek Harness adapter integration tests                        |
 | `npm run build:sandbox-types`      | Regenerate canonical declarations and sample types                        |
 | `npm run build:demo-payload`       | Regenerate the data-only offline Viewer union fixture                     |
 | `npm run check:sync`               | Check authored skill tool lists against application tools                 |

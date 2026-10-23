@@ -9,6 +9,7 @@ const repoRoot = resolve(import.meta.dirname, '..');
 const outputs = [
   'plugins/manifold',
   'plugins/manifold-extension',
+  'plugins/manifold-dsh',
   '.github/plugin/marketplace.json',
   '.claude-plugin/marketplace.json',
 ];
@@ -37,6 +38,42 @@ export function createManifoldExtensionManifest({ version, metadata }) {
     ...commonMetadata(metadata),
     skills: './skills/',
     extensions: './extensions/',
+  };
+}
+
+export function createManifoldDshManifest({ version, metadata }) {
+  const { author, homepage, repository, license, keywords } = commonMetadata(metadata);
+  return {
+    name: '@manifold3d/manifold-dsh',
+    version,
+    private: true,
+    description: metadata.dshDescription,
+    author,
+    homepage,
+    repository,
+    license,
+    keywords,
+    type: 'module',
+    exports: {
+      '.': './index.js',
+      './client': './client.js',
+      './locale/*.json': './locale/*.json',
+      './icon': './icon.svg',
+    },
+    files: ['index.js', 'client.js', 'cordis.patch.yml', 'locale/*.json', 'icon.svg', 'skills/', 'LICENSE', 'NOTICE'],
+    engines: { node: '>=24' },
+    dsh: {
+      bundle: { patch: './cordis.patch.yml' },
+      client: {
+        platform: 'web',
+        immediately: true,
+        inject: [
+          '@deepseek-ai/dsh-client-ui-conversation',
+          '@deepseek-ai/dsh-client-ui-sidebar-right',
+          '@deepseek-ai/dsh-client-ui-tool',
+        ],
+      },
+    },
   };
 }
 
@@ -92,6 +129,16 @@ export async function assemblePlugins({ root = repoRoot, check = false } = {}) {
       },
     });
     await json('plugins/manifold-extension/plugin.json', extension);
+    await json(
+      'plugins/manifold-dsh/package.json',
+      createManifoldDshManifest({
+        version,
+        metadata: {
+          ...metadata,
+          dshDescription: 'Manifold modeling tools, a native DeepSeek Harness 3D Viewer tab and annotation delivery.',
+        },
+      }),
+    );
     for (const [name, skill, artifact, destination] of [
       ['manifold', 'use-manifold', 'apps/manifold3d-mcp/dist/manifold.mjs', 'bin/manifold.mjs'],
       [
@@ -100,6 +147,7 @@ export async function assemblePlugins({ root = repoRoot, check = false } = {}) {
         'apps/copilot-extension/dist/extension.mjs',
         'extensions/manifold/extension.mjs',
       ],
+      ['manifold-dsh', 'use-manifold-dsh', 'apps/dsh-extension/dist/index.js', 'index.js'],
     ]) {
       const target = join(stage, 'plugins', name);
       await copy(join(root, artifact), join(target, destination));
@@ -108,6 +156,9 @@ export async function assemblePlugins({ root = repoRoot, check = false } = {}) {
       await copy(join(root, 'LICENSE'), join(target, 'LICENSE'));
       await copy(join(root, 'NOTICE'), join(target, 'NOTICE'));
     }
+    const dsh = join(stage, 'plugins/manifold-dsh');
+    await copy(join(root, 'apps/dsh-extension/client/client.js'), join(dsh, 'client.js'));
+    await copyTree(join(root, 'apps/dsh-extension/bundle'), dsh);
     const catalog = plugins => ({
       name: 'manifold3d-mcp',
       owner: metadata.author,

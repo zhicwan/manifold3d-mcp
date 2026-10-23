@@ -97,7 +97,7 @@ describe('host action localization', () => {
         },
         i18n,
       ),
-    ).toBe('Copilot 已接受批注修复请求并将其加入队列。');
+    ).toBe('批注修复请求已加入助手队列。');
     expect(
       hostActionStatusMessage(
         {

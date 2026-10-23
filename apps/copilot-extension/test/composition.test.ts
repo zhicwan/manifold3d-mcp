@@ -12,7 +12,7 @@ import {
   MAX_ANNOTATION_ATTACHMENT_BYTES,
   MAX_ATTACHMENT_ANNOTATIONS,
   parseAnnotationAttachment,
-} from '../src/annotation-attachment.js';
+} from '@manifold3d/protocol/wire/annotation-attachment.js';
 import {
   ATTACH_ANNOTATION_BATCH_ACTION_ID,
   ATTACH_LOCATION_SELECTION_ACTION_ID,

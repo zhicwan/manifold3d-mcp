@@ -114,10 +114,10 @@ describe('localized host and optional XR component presentation', () => {
       message: 'untranslated host text',
     });
     const status = client.getSnapshot().latestStatus;
-    expect(text(HostActionStatusRegion())).toContain('Annotation fix was accepted by Copilot for enqueueing.');
+    expect(text(HostActionStatusRegion())).toContain('Annotation fix was queued for the assistant.');
     expect(findElement(ToolbarHostActions(), element => element.props['aria-label'] === 'Fix')).not.toBeNull();
     harness.store!.i18n.setPreference('zh-CN');
-    expect(text(HostActionStatusRegion())).toContain('Copilot 已接受批注修复请求并将其加入队列。');
+    expect(text(HostActionStatusRegion())).toContain('批注修复请求已加入助手队列。');
     expect(findElement(ToolbarHostActions(), element => element.props['aria-label'] === '修复')).not.toBeNull();
     expect(client.getSnapshot().latestStatus).toBe(status);
   });

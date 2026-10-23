@@ -12,6 +12,8 @@ const mcpSourcePath = 'apps/manifold3d-mcp/src/server/mcp/mcp-server.ts';
 const canvasSourcePath = 'apps/copilot-extension/src/tools.ts';
 const mcpSkillPath = 'skills/use-manifold/SKILL.md';
 const canvasSkillPath = 'skills/use-manifold-canvas/SKILL.md';
+const dshSourcePath = 'apps/dsh-extension/src/tools.ts';
+const dshSkillPath = 'skills/use-manifold-dsh/SKILL.md';
 
 export function collectMarkdownToolNames(markdown) {
   const toolsHeading = markdown.match(/^## Tools\s*$/m);
@@ -134,6 +136,11 @@ function run() {
     fail(canvasSource.error);
     return;
   }
+  const dshSource = readSourceToolContract(dshSourcePath);
+  if (dshSource.error) {
+    fail(dshSource.error);
+    return;
+  }
   const mcpSkill = loadToolContract(mcpSkillPath);
   if (mcpSkill.error) {
     fail(`${mcpSkillPath}: ${mcpSkill.error}`);
@@ -142,6 +149,12 @@ function run() {
   const canvasSkill = loadToolContract(canvasSkillPath);
   if (canvasSkill.error) {
     fail(`${canvasSkillPath}: ${canvasSkill.error}`);
+    return;
+  }
+
+  const dshSkill = loadToolContract(dshSkillPath);
+  if (dshSkill.error) {
+    fail(`${dshSkillPath}: ${dshSkill.error}`);
     return;
   }
 
@@ -156,6 +169,11 @@ function run() {
       skillTools: canvasSkill.tools,
       label: 'Canvas',
     }),
+    compareToolContracts({
+      sourceTools: dshSource.tools,
+      skillTools: dshSkill.tools,
+      label: 'DeepSeek Harness',
+    }),
   ].filter(Boolean);
 
   if (failures.length > 0) {
@@ -163,7 +181,9 @@ function run() {
     return;
   }
 
-  process.stdout.write('Sync check passed: MCP and Canvas skill tool lists match their implementation sources.\n');
+  process.stdout.write(
+    'Sync check passed: MCP, Canvas and DeepSeek Harness skill tool lists match their implementation sources.\n',
+  );
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

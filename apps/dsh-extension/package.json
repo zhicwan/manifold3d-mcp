@@ -1,0 +1,32 @@
+{
+  "name": "@manifold3d/dsh-extension",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "dist/index.js"
+  ],
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build:viewer": "npm run build:dsh-extension --workspace @manifold3d/viewer",
+    "build": "npm run clean && tsc -b ../../packages/protocol ../../packages/modeling ../../packages/viewer-host && npm run build:viewer && node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node ../../scripts/run-vitest.mjs --dir apps/dsh-extension/test"
+  },
+  "dependencies": {
+    "@manifold3d/modeling": "0.0.0-private",
+    "@manifold3d/protocol": "0.0.0-private",
+    "@manifold3d/viewer": "0.0.0-private",
+    "@manifold3d/viewer-host": "0.0.0-private"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/ws": "^8.18.1",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -18,7 +18,10 @@ import {
   type ViewerRoom,
 } from '@manifold3d/viewer-host/viewer-host.js';
 
-import { buildAnnotationAttachment, type AnnotationAttachmentPayload } from './annotation-attachment.js';
+import {
+  buildAnnotationAttachment,
+  type AnnotationAttachmentPayload,
+} from '@manifold3d/protocol/wire/annotation-attachment.js';
 import { launchExternalUrl, type ExternalUrlLauncher } from './external-url.js';
 import type { CopilotExtensionSession, CopilotSdkBoundary } from './sdk-boundary.js';
 import { createExtensionTools } from './tools.js';

@@ -36,8 +36,8 @@ export const enActions = {
   actionAttached: 'Attached annotations.',
   actionAttachedCount: (locale: Locale, count: number) =>
     `Attached ${new Intl.NumberFormat(locale).format(count)} annotation${count === 1 ? '' : 's'}.`,
-  actionSendingFix: 'Sending annotation fix to Copilot.',
-  actionFixEnqueued: 'Annotation fix was accepted by Copilot for enqueueing.',
+  actionSendingFix: 'Sending annotation fix to the assistant.',
+  actionFixEnqueued: 'Annotation fix was queued for the assistant.',
   actionAttachingLocation: 'Attaching selected location…',
   actionLocationAttached: 'Attached selected location.',
   actionSavingModel: 'Saving model…',
@@ -84,8 +84,8 @@ export const zhActions = {
   actionAttached: '已附加批注。',
   actionAttachedCount: (locale: Locale, count: number) =>
     `已附加 ${new Intl.NumberFormat(locale).format(count)} 条批注。`,
-  actionSendingFix: '正在向 Copilot 发送批注修复请求。',
-  actionFixEnqueued: 'Copilot 已接受批注修复请求并将其加入队列。',
+  actionSendingFix: '正在向助手发送批注修复请求。',
+  actionFixEnqueued: '批注修复请求已加入助手队列。',
   actionAttachingLocation: '正在附加所选位置…',
   actionLocationAttached: '已附加所选位置。',
   actionSavingModel: '正在保存模型…',

@@ -68,7 +68,9 @@ interface ViewerHostCommonOptions {
   additionalOrigins?: readonly string[];
   /**
    * Exact HTTP(S) ancestor origins, plus optional `'self'`, permitted to embed
-   * the Viewer. Wildcard hostnames are rejected; use allowAnyFrameAncestor only
+   * the Viewer. An exact desktop application origin such as `dsh-app://app`
+   * (lowercase non-HTTP scheme, plain host, optional port) is also accepted.
+   * Wildcard hostnames are rejected; use allowAnyFrameAncestor only
    * for the reviewed all-ancestors exception. Omitted/empty means
    * `frame-ancestors 'none'`.
    *
@@ -1173,6 +1175,11 @@ function setSecurityHeaders(response: ServerResponse, origin: string, frameAnces
   );
 }
 
+// A desktop application document such as `dsh-app://app` has a custom-scheme
+// origin that WHATWG URL serializes as "null", so it is matched literally:
+// a lowercase scheme, a plain host label sequence and an optional port only.
+const APPLICATION_SCHEME_ORIGIN = /^([a-z][a-z0-9+.-]*):\/\/[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[0-9]{1,5})?$/;
+
 function parseFrameAncestors(values: readonly string[] | undefined, allowAny: boolean): readonly string[] {
   if (allowAny) {
     if (values && values.length > 0) {
@@ -1185,6 +1192,10 @@ function parseFrameAncestors(values: readonly string[] | undefined, allowAny: bo
   }
   const parsed = values.map((value, index) => {
     if (value === "'self'") {
+      return value;
+    }
+    const applicationOrigin = APPLICATION_SCHEME_ORIGIN.exec(value);
+    if (applicationOrigin && applicationOrigin[1] !== 'http' && applicationOrigin[1] !== 'https') {
       return value;
     }
     let url: URL;
