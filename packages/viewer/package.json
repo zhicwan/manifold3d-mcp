@@ -12,6 +12,7 @@
   "scripts": {
     "build": "vite build --config vite.config.ts",
     "build:extension": "vite build --config vite.extension.config.ts --mode production",
+    "build:dsh-extension": "vite build --config vite.extension.config.ts --mode production --outDir ../../apps/dsh-extension/build/viewer",
     "build:flat": "vite build --config vite.flat.config.ts",
     "clean": "node scripts/clean-builds.mjs",
     "verify:flat": "npm run clean && npm run build --workspace @manifold3d/protocol && npm run build && npm run build:flat && node scripts/verify-flat-build.mjs",

@@ -1,6 +1,6 @@
 # Application compositions
 
-This guide applies to both apps, in addition to the [root guide](../AGENTS.md).
+This guide applies to every app, in addition to the [root guide](../AGENTS.md).
 See [Architecture](../docs/architecture.md) for ownership and publication ordering.
 
 ## Keep adapters thin
@@ -22,6 +22,8 @@ See [Architecture](../docs/architecture.md) for ownership and publication orderi
 - Fix sends a bounded static snapshot in the message, without a pill.
   Attach only appends a pill. Keep these effects separate; saving a draft is
   neither operation. Do not recreate live attachment synchronization.
+  In DeepSeek Harness the "pill" is one acknowledged `@path` draft reference to
+  a static snapshot file; see the [DSH Extension README](dsh-extension/README.md).
 - Executable location is not the user's workspace. Follow the current file-source
   authorization and actual SDK capabilities; do not infer roots, expand access
   or emulate a missing capability silently.
@@ -30,6 +32,7 @@ See [Architecture](../docs/architecture.md) for ownership and publication orderi
 
 For build/entry changes, also read [scripts/AGENTS.md](../scripts/AGENTS.md).
 For behavior changes, start with [Extension integration](copilot-extension/test/extension.integration.test.ts),
+[DSH integration](dsh-extension/test/extension.integration.test.ts),
 [preview lifecycle](../tests/preview-lifecycle.test.ts) or
 [MCP smoke](../tests/smoke.test.ts). The [Extension README](copilot-extension/README.md)
 owns detailed SDK and Canvas notes.

@@ -120,16 +120,25 @@ describe('Viewer Host rooms', () => {
     const embeddedHost = await startViewerHost({
       assetRoot: join(repoRoot, 'packages', 'viewer'),
       preferredPort: 0,
-      frameAncestors: ["'self'", 'https://canvas.example.com'],
+      frameAncestors: ["'self'", 'https://canvas.example.com', 'dsh-app://app'],
       logger: { error: () => undefined, warn: () => undefined },
     });
     try {
       const response = await fetch(embeddedHost.createRoom().url);
       expect(response.headers.get('content-security-policy')).toContain(
-        "frame-ancestors 'self' https://canvas.example.com",
+        "frame-ancestors 'self' https://canvas.example.com dsh-app://app",
       );
     } finally {
       await embeddedHost.close();
+    }
+    for (const invalid of ['dsh-app://*', 'dsh-app://app/path', 'DSH-APP://app', 'dsh-app://app; script-src *']) {
+      await expect(
+        startViewerHost({
+          assetRoot: join(repoRoot, 'packages', 'viewer'),
+          preferredPort: 0,
+          frameAncestors: [invalid],
+        }),
+      ).rejects.toThrow(/exact HTTP/);
     }
     await expect(
       startViewerHost({

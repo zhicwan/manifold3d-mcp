@@ -14,6 +14,12 @@ async function fixture(run) {
       NOTICE: 'notice\n',
       'apps/manifold3d-mcp/dist/manifold.mjs': 'export {};\n',
       'apps/copilot-extension/dist/extension.mjs': 'export {};\n',
+      'apps/dsh-extension/dist/index.js': 'export function apply() {}\n',
+      'apps/dsh-extension/client/client.js': 'window.__ModuleLoader__.load({});\n',
+      'apps/dsh-extension/bundle/cordis.patch.yml': '- insert: []\n',
+      'apps/dsh-extension/bundle/locale/en.json': '{}\n',
+      'apps/dsh-extension/bundle/icon.svg': '<svg/>\n',
+      'skills/use-manifold-dsh/SKILL.md': 'name: use-manifold-dsh\n',
       'skills/use-manifold/SKILL.md': 'name: use-manifold\n',
       'skills/use-manifold-canvas/SKILL.md': 'name: use-manifold-canvas\n',
       'skills/shared/references/api.md': 'shared reference\n',
@@ -99,6 +105,12 @@ describe('plugin assembly helpers', () => {
       extensions: './extensions/',
       author: metadata.author,
     });
+    expect(build.createManifoldDshManifest({ version: '1.2.3', metadata })).toMatchObject({
+      name: '@manifold3d/manifold-dsh',
+      version: '1.2.3',
+      exports: { '.': './index.js', './client': './client.js', './icon': './icon.svg' },
+      author: metadata.author,
+    });
   });
 
   it('assembles independent skills and different catalogs without reading prior output', async () => {
@@ -107,6 +119,7 @@ describe('plugin assembly helpers', () => {
       for (const [plugin, skill] of [
         ['manifold', 'use-manifold'],
         ['manifold-extension', 'use-manifold-canvas'],
+        ['manifold-dsh', 'use-manifold-dsh'],
       ]) {
         expect(await readFile(join(root, 'plugins', plugin, 'skills', skill, 'references/api.md'), 'utf8')).toBe(
           'shared reference\n',
@@ -127,6 +140,16 @@ describe('plugin assembly helpers', () => {
       const claude = JSON.parse(await readFile(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
       expect(github.plugins.map(plugin => plugin.name)).toEqual(['manifold', 'manifold-extension']);
       expect(claude.plugins.map(plugin => plugin.name)).toEqual(['manifold']);
+      const dsh = JSON.parse(await readFile(join(root, 'plugins/manifold-dsh/package.json'), 'utf8'));
+      expect(dsh).toMatchObject({
+        name: '@manifold3d/manifold-dsh',
+        version: '1.2.3',
+        type: 'module',
+        dsh: { bundle: { patch: './cordis.patch.yml' }, client: { platform: 'web' } },
+      });
+      for (const file of ['index.js', 'client.js', 'cordis.patch.yml', 'locale/en.json', 'icon.svg', 'LICENSE']) {
+        expect(await readFile(join(root, 'plugins/manifold-dsh', file), 'utf8')).toBeTruthy();
+      }
       await assemblePlugins({ root, check: true });
     });
   });

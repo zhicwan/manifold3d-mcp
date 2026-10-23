@@ -33,10 +33,11 @@ MCP 插件使用同一建模引擎，在浏览器 Viewer 中预览，并通过�
 需要 **Node.js 24 或更高版本**，以及下列宿主之一。插件已包含运行时与 Viewer，
 无需另外执行 npm 安装。
 
-| 选择体验                        | 插件                 | 宿主                                     |
-| ------------------------------- | -------------------- | ---------------------------------------- |
-| 原生 Canvas，选中位置后带入对话 | `manifold-extension` | 支持 Canvas 的 Copilot CLI / Copilot app |
-| MCP 工具与浏览器 Viewer         | `manifold`           | Copilot CLI 或 Claude Code               |
+| 选择体验                              | 插件                 | 宿主                                     |
+| ------------------------------------- | -------------------- | ---------------------------------------- |
+| 原生 Canvas，选中位置后带入对话       | `manifold-extension` | 支持 Canvas 的 Copilot CLI / Copilot app |
+| 原生 3D 视图标签，Fix/Attach 回到对话 | `manifold-dsh`       | DeepSeek Harness（Cordis bundle）        |
+| MCP 工具与浏览器 Viewer               | `manifold`           | Copilot CLI 或 Claude Code               |
 
 **Copilot — 原生 Canvas**
 

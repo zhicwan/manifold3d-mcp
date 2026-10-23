@@ -1,6 +1,6 @@
 import { test, expect } from './extension-fixture.js';
 import { attachMeasurement, attachmentPayload, label, modelPoint, openViewer } from './viewer-helpers.js';
-import { parseAnnotationAttachment } from '../../apps/copilot-extension/src/annotation-attachment.js';
+import { parseAnnotationAttachment } from '../../packages/protocol/src/wire/annotation-attachment.js';
 
 test('a real 120-degree bracket corner shows and attaches 120 degrees, not its supplement', async ({
   page,

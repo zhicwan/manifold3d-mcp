@@ -1,0 +1,32 @@
+{
+  "name": "@manifold3d/manifold-dsh",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Manifold modeling tools, a native DeepSeek Harness 3D Viewer tab and annotation delivery.",
+  "author": { "name": "Zhicheng Wang" },
+  "homepage": "https://github.com/zhicwan/manifold3d-mcp",
+  "repository": "https://github.com/zhicwan/manifold3d-mcp",
+  "license": "Apache-2.0",
+  "keywords": ["manifold-3d", "3d-printing", "cad", "mcp", "copilot"],
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "client.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "skills/", "LICENSE", "NOTICE"],
+  "engines": { "node": ">=24" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ]
+    }
+  }
+}

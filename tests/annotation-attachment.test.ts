@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
+import type { WireAnnotation } from '../packages/protocol/src/wire/annotations.js';
 import {
   ANNOTATION_ATTACHMENT_VERSION,
   buildAnnotationAttachment,
@@ -9,7 +9,7 @@ import {
   MAX_ATTACHMENT_ANNOTATIONS,
   MAX_ATTACHMENT_SKETCH_POINTS,
   parseAnnotationAttachment,
-} from '../src/annotation-attachment.js';
+} from '../packages/protocol/src/wire/annotation-attachment.js';
 
 describe('AnnotationAttachment', () => {
   it('preserves face-center references in detached measurement attachments', () => {

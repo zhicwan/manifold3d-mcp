@@ -31,6 +31,20 @@ This plugin registers `manifold_validate_script`, `manifold_execute_script`,
 and `manifold_capture_view`, with the `use-manifold-canvas` skill. It does not
 start an MCP server.
 
+### DeepSeek Harness: native 3D Viewer tab
+
+The `plugins/manifold-dsh` directory is a Cordis bundle. Ask the Harness agent
+to install it with the Plugin Manager (`install_bundle` with the absolute path
+of `plugins/manifold-dsh` in your clone or release), then refresh the window.
+It registers `manifold_validate_script`, `manifold_execute_script` and
+`manifold_capture_view` with the `use-manifold-dsh` skill, and a right-Sidebar
+**3D Viewer** tab (also opened from the execute tool card). Each session keeps
+its own model. In the Viewer, **Fix** queues the annotation snapshot for the
+agent; **Attach**, Select to chat and measurement attachment add a
+short `@.manifold3d/loc-1.json`-style reference to your message draft without
+sending it. Captures are returned to image-capable models directly. The Viewer
+works only when the Harness runs on the same machine.
+
 ### Copilot CLI: MCP with browser Viewer
 
 ```sh

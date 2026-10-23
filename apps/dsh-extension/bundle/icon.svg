@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Manifold 3D">
+  <rect width="64" height="64" rx="14" fill="#13294b"/>
+  <path d="M32 10 52 21.5v21L32 54 12 42.5v-21z" fill="#2f6fd6"/>
+  <path d="M32 10 52 21.5 32 33 12 21.5z" fill="#7fb0ff"/>
+  <path d="M32 33v21L12 42.5v-21z" fill="#1d4fa3"/>
+  <circle cx="42" cy="38" r="5" fill="#13294b"/>
+  <path d="M26 17.5 32 14l6 3.5-6 3.5z" fill="#e9f1ff"/>
+</svg>

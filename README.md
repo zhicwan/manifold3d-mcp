@@ -37,6 +37,7 @@ runtime and Viewer; no separate npm install is needed.
 | Choose your experience               | Plugin               | Host                                          |
 | ------------------------------------ | -------------------- | --------------------------------------------- |
 | Native Canvas with selection-to-chat | `manifold-extension` | Copilot CLI / Copilot app with Canvas support |
+| Native 3D Viewer tab with Fix/Attach | `manifold-dsh`       | DeepSeek Harness (Cordis bundle)              |
 | MCP tools and browser Viewer         | `manifold`           | Copilot CLI or Claude Code                    |
 
 **Copilot — native Canvas**

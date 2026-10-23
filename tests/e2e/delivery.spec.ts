@@ -1,5 +1,5 @@
 import { test, expect } from './extension-fixture.js';
-import { parseAnnotationAttachment } from '../../apps/copilot-extension/src/annotation-attachment.js';
+import { parseAnnotationAttachment } from '../../packages/protocol/src/wire/annotation-attachment.js';
 import {
   attachmentPayload,
   attachMeasurement,

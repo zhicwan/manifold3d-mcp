@@ -20,7 +20,7 @@ import type { RunRequest, RunResult } from '@manifold3d/modeling/runner/protocol
 import { emptyReport } from '@manifold3d/modeling/validation/report.js';
 import { createAnnotationsMessage, type WireAnnotation } from '@manifold3d/protocol/wire/annotations.js';
 import { createHostActionInvocation } from '@manifold3d/protocol/wire/host-actions.js';
-import { buildAnnotationAttachment } from '../src/annotation-attachment.js';
+import { buildAnnotationAttachment } from '@manifold3d/protocol/wire/annotation-attachment.js';
 import {
   ATTACH_ANNOTATION_BATCH_ACTION_ID,
   ATTACH_LOCATION_SELECTION_ACTION_ID,
