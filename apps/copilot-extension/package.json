@@ -23,7 +23,7 @@
     "@manifold3d/viewer-host": "0.0.0-private"
   },
   "devDependencies": {
-    "@github/copilot-sdk": "1.0.22",
+    "@github/copilot-sdk": "1.0.28",
     "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
     "typescript": "^6.0.3",

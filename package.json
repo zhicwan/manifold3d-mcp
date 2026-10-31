@@ -1,6 +1,6 @@
 {
   "name": "manifold3d-mcp-workspace",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "private": true,
   "description": "Design, validate and preview 3D-printable models with shared Manifold tooling.",
   "author": {
@@ -71,7 +71,7 @@
     "eslint-config-prettier": "^10.1.8",
     "fflate": "^0.8.2",
     "prettier": "^3.9.10",
-    "rolldown": "1.2.14",
+    "rolldown": "1.2.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.5",
