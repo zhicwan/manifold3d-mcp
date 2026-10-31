@@ -3,6 +3,48 @@ import { batch, createMeasurement, editor, label, openViewer } from './viewer-he
 
 test.use({ hasTouch: true });
 
+test('local UI state variants preserve popup animations and disabled interaction', async ({ page, extension }) => {
+  await openViewer(page, extension);
+  const states = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.className =
+      'data-open:animate-in data-closed:animate-out data-disabled:pointer-events-none data-disabled:opacity-50';
+    document.body.append(probe);
+    try {
+      const snapshot = (attributes: Record<string, string>) => {
+        for (const name of ['data-open', 'data-closed', 'data-disabled', 'data-state']) {
+          probe.removeAttribute(name);
+        }
+        for (const [name, value] of Object.entries(attributes)) {
+          probe.setAttribute(name, value);
+        }
+        const style = getComputedStyle(probe);
+        return { animation: style.animationName, pointerEvents: style.pointerEvents, opacity: style.opacity };
+      };
+      return {
+        idle: snapshot({}),
+        open: snapshot({ 'data-open': '' }),
+        stateOpen: snapshot({ 'data-state': 'open' }),
+        closed: snapshot({ 'data-closed': '' }),
+        stateClosed: snapshot({ 'data-state': 'closed' }),
+        disabled: snapshot({ 'data-disabled': '' }),
+        explicitlyDisabled: snapshot({ 'data-disabled': 'true' }),
+        falseStates: snapshot({ 'data-open': 'false', 'data-closed': 'false', 'data-disabled': 'false' }),
+      };
+    } finally {
+      probe.remove();
+    }
+  });
+  expect(states.idle).toEqual({ animation: 'none', pointerEvents: 'auto', opacity: '1' });
+  expect(states.open.animation).toBe('enter');
+  expect(states.stateOpen.animation).toBe('enter');
+  expect(states.closed.animation).toBe('exit');
+  expect(states.stateClosed.animation).toBe('exit');
+  expect(states.disabled).toMatchObject({ pointerEvents: 'none', opacity: '0.5' });
+  expect(states.explicitlyDisabled).toMatchObject({ pointerEvents: 'none', opacity: '0.5' });
+  expect(states.falseStates).toEqual(states.idle);
+});
+
 test('shared measurement notes retain Chinese drafts across dark theme and narrow touch layouts', async ({
   page,
   extension,

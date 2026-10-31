@@ -61,6 +61,14 @@ installation, regenerate it with no workspace `node_modules` directories or
 old lockfile, then rebuild the plugins. Do not repair CI with extra
 platform-specific install commands.
 
+The root security overrides select patched Zod for the Copilot SDK
+(`GHSA-mrhx-c7xc-m3w5`) and minimatch 11 for tooling
+(`GHSA-g3hv-75wg-m249`). Recheck SDK integration and lint behavior when changing
+them; remove the overrides once upstream dependencies require patched versions.
+The generated UI components and their used CSS state variants remain in Viewer
+source, but the optional `shadcn` CLI is not installed because its `deepmerge`
+dependency has no patched release (`GHSA-gcqx-w48m-w2h4`).
+
 ### Browser E2E
 
 ```sh

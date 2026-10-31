@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { runInNewContext } from 'node:vm';
+import { parse as parseYaml } from 'yaml';
 
 import { assemblePlugins } from '../scripts/build-plugins.mjs';
 
@@ -34,6 +36,32 @@ async function fixture(run) {
 }
 
 describe('plugin assembly helpers', () => {
+  it('validates release tags through the GitHub Script action before uploading artifacts', async () => {
+    const workflow = parseYaml(await readFile('.github/workflows/cd.yml', 'utf8'));
+    const steps = workflow.jobs.publish.steps;
+    const index = steps.findIndex(step => step.name === 'Verify tag matches product version');
+    const validation = steps[index];
+    expect(validation.uses).toMatch(/^actions\/github-script@[a-f0-9]{40}$/);
+    expect(validation.run).toBeUndefined();
+    expect(steps.findIndex(step => step.uses?.startsWith('softprops/action-gh-release@'))).toBeGreaterThan(index);
+    const metadata = JSON.parse(await readFile('package.json', 'utf8'));
+    for (const [ref, errors] of [
+      [`refs/tags/v${metadata.version}`, []],
+      ['refs/tags/v0.0.0', [`Tag v0.0.0 does not match product version (v${metadata.version})`]],
+    ]) {
+      const failures = [];
+      runInNewContext(validation.with.script, {
+        require: specifier => {
+          expect(specifier).toBe('./package.json');
+          return metadata;
+        },
+        context: { ref },
+        core: { setFailed: message => failures.push(message) },
+      });
+      expect(failures).toEqual(errors);
+    }
+  });
+
   it('ships browser-only license overrides in both standalone bundles', async () => {
     for (const path of [
       'plugins/manifold/bin/manifold.mjs',
